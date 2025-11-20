@@ -195,7 +195,7 @@ def main():
                 progress = st.progress(0)
 
                 # 🔥 direct callable imports (NO SUBPROCESS)
-                from "InputThread.AI Processing.GptJson" import process_resumes_to_json
+                from InputThread.AI_Processing.GptJson import process_resumes_to_json
                 from ResumeProcessor.ProjectProcess import process_projects
                 from ResumeProcessor.KeywordComparitor import compare_keywords
                 from ResumeProcessor.SemanticComparitor import semantic_compare
