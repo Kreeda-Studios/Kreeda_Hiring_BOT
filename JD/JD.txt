@@ -1,0 +1,40 @@
+Job Description:                           
+We are seeking a dynamic AI & Machine Learning Engineer to join our team. This role is pivotal 
+in implementing AI and machine learning solutions on cloud -based platforms, staying abreast of 
+emerging trends in AI, developing proofs -of-concept, and collaborating with internal and 
+external stakeholders to transition concepts to production. Additionally, this role involves the 
+application of engineering principles from the classical software deve lopment lifecycle to AI and 
+machine learning.  
+Key Responsibilities:  
+• Develop AI & Machine Learning solutions on cloud -based platforms.  
+• Identify, access, import, clean, and format data from various sources.  
+• Implement research findings and custom models effectively.  
+• Construct backend systems to interface with other microservices.  
+• Train and optimize machine learning models for optimal performance.  
+• Engineer scalable machine intelligence systems and infrastructure for real -world  
+deployment.  
+• Justify the application of AI/ML solutions based on problem statements.  
+• Prototype solutions efficiently and deliver results promptly.  
+• Manipulate data using SQL and scripting languages.  
+• Collaborate with internal and external teams to design and deploy AI & ML solutions.  
+• Explore emerging AI & Machine learning trends and develop prototypes.  
+• Demonstrate effective communication and teamwork skills.  
+Experience And Qualifications Required:  
+• Proven experience in leading AI projects.  
+• Proficiency in cloud deployment of AI solutions (AWS, GCP, or Azure).  
+• Familiarity with Lang chain, advanced RAG applications, and Vector database.  
+• Experience in developing advanced Gen AI solutions.  
+• Strong analytical skills including data pre -processing and various ML techniques.  
+• Expertise in model building, optimization, and data visualization.  
+• Knowledge of major ML algorithms for Natural Language Processing, Computer Vision &   
+Graph Networks  
+• Hands -on experience with cloud platforms like AWS/Microsoft Azure.  
+• Proficient in SQL query development.  
+• Familiarity with data platforms such as Snowflake is advantageous.  
+• Knowledge of MLOps (Machine Learning Operations) is a plus.  
+• Experience in advanced Computer Vision model development is beneficial.  
+• Practical experience in deep learning projects is highly valued.  
+• Ability to enhance the accuracy, runtime, scalability, and reliability of machine  
+intelligence systems.  
+• Proficient in understanding underlying mathematical concepts and algorithms.  
+• Enthusiasm for continuous learning of state -of-the-art techniques in ML/Data science.

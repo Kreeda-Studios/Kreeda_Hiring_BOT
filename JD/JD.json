@@ -1,0 +1,434 @@
+{
+  "role_title": "AI & Machine Learning Engineer",
+  "seniority_level": "Mid",
+  "department": "Engineering",
+  "industry": "Technology",
+  "domain_tags": [
+    "AIML",
+    "Cloud"
+  ],
+  "required_skills": [
+    "AI",
+    "Machine Learning",
+    "Cloud Deployment",
+    "SQL",
+    "Data Pre-processing",
+    "Model Building",
+    "Optimization",
+    "Data Visualization",
+    "Natural Language Processing",
+    "Computer Vision",
+    "Graph Networks"
+  ],
+  "preferred_skills": [
+    "MLOps",
+    "Deep Learning",
+    "Gen AI",
+    "Lang chain",
+    "Vector Database",
+    "Snowflake"
+  ],
+  "tools_tech": [
+    "AWS",
+    "GCP",
+    "Azure",
+    "SQL",
+    "Snowflake"
+  ],
+  "soft_skills": [
+    "Communication",
+    "Teamwork"
+  ],
+  "languages": [
+    "Python",
+    "R"
+  ],
+  "canonical_skills": {
+    "programming": [
+      "Python",
+      "R"
+    ],
+    "frameworks": [
+      "TensorFlow",
+      "PyTorch",
+      "Scikit-learn",
+      "Keras",
+      "FastAPI"
+    ],
+    "libraries": [
+      "Pandas",
+      "NumPy",
+      "Matplotlib",
+      "Seaborn",
+      "NLTK"
+    ],
+    "ml_ai": [
+      "Machine Learning",
+      "Deep Learning",
+      "Natural Language Processing",
+      "Computer Vision",
+      "Reinforcement Learning"
+    ],
+    "cloud": [
+      "AWS",
+      "GCP",
+      "Azure"
+    ],
+    "infra": [
+      "Docker",
+      "Kubernetes"
+    ],
+    "devtools": [
+      "Git",
+      "Jupyter",
+      "VS Code"
+    ],
+    "methodologies": [
+      "Agile",
+      "Scrum"
+    ]
+  },
+  "skill_requirements": [
+    {
+      "skill": "AI",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "advanced",
+      "years_min": 3,
+      "mandatory": true
+    },
+    {
+      "skill": "Machine Learning",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "advanced",
+      "years_min": 3,
+      "mandatory": true
+    },
+    {
+      "skill": "Cloud Deployment",
+      "category": "cloud",
+      "priority": "must-have",
+      "level": "advanced",
+      "years_min": 3,
+      "mandatory": true
+    },
+    {
+      "skill": "SQL",
+      "category": "databases",
+      "priority": "must-have",
+      "level": "intermediate",
+      "years_min": 2,
+      "mandatory": true
+    },
+    {
+      "skill": "Data Pre-processing",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "intermediate",
+      "years_min": 2,
+      "mandatory": true
+    },
+    {
+      "skill": "Model Building",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "advanced",
+      "years_min": 3,
+      "mandatory": true
+    },
+    {
+      "skill": "Optimization",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "advanced",
+      "years_min": 3,
+      "mandatory": true
+    },
+    {
+      "skill": "Data Visualization",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "intermediate",
+      "years_min": 2,
+      "mandatory": true
+    },
+    {
+      "skill": "Natural Language Processing",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "intermediate",
+      "years_min": 2,
+      "mandatory": true
+    },
+    {
+      "skill": "Computer Vision",
+      "category": "ml_ai",
+      "priority": "must-have",
+      "level": "intermediate",
+      "years_min": 2,
+      "mandatory": true
+    },
+    {
+      "skill": "Graph Networks",
+      "category": "ml_ai",
+      "priority": "good-to-have",
+      "level": "intermediate",
+      "years_min": 1,
+      "mandatory": false
+    },
+    {
+      "skill": "MLOps",
+      "category": "ml_ai",
+      "priority": "good-to-have",
+      "level": "intermediate",
+      "years_min": 1,
+      "mandatory": false
+    },
+    {
+      "skill": "Deep Learning",
+      "category": "ml_ai",
+      "priority": "good-to-have",
+      "level": "intermediate",
+      "years_min": 1,
+      "mandatory": false
+    },
+    {
+      "skill": "Gen AI",
+      "category": "ml_ai",
+      "priority": "good-to-have",
+      "level": "intermediate",
+      "years_min": 1,
+      "mandatory": false
+    },
+    {
+      "skill": "Lang chain",
+      "category": "ml_ai",
+      "priority": "good-to-have",
+      "level": "intermediate",
+      "years_min": 1,
+      "mandatory": false
+    },
+    {
+      "skill": "Vector Database",
+      "category": "ml_ai",
+      "priority": "good-to-have",
+      "level": "intermediate",
+      "years_min": 1,
+      "mandatory": false
+    },
+    {
+      "skill": "Snowflake",
+      "category": "databases",
+      "priority": "good-to-have",
+      "level": "intermediate",
+      "years_min": 1,
+      "mandatory": false
+    }
+  ],
+  "responsibilities": [
+    "Develop AI & Machine Learning solutions on cloud-based platforms.",
+    "Identify, access, import, clean, and format data from various sources.",
+    "Implement research findings and custom models effectively.",
+    "Construct backend systems to interface with other microservices.",
+    "Train and optimize machine learning models for optimal performance.",
+    "Engineer scalable machine intelligence systems and infrastructure for real-world deployment.",
+    "Justify the application of AI/ML solutions based on problem statements.",
+    "Prototype solutions efficiently and deliver results promptly.",
+    "Manipulate data using SQL and scripting languages.",
+    "Collaborate with internal and external teams to design and deploy AI & ML solutions.",
+    "Explore emerging AI & Machine learning trends and develop prototypes."
+  ],
+  "hr_points": 0,
+  "hr_notes": [],
+  "keywords_flat": [
+    "AI",
+    "Machine Learning",
+    "Cloud Deployment",
+    "SQL",
+    "Data Pre-processing",
+    "Model Building",
+    "Optimization",
+    "Data Visualization",
+    "Natural Language Processing",
+    "Computer Vision",
+    "Graph Networks",
+    "MLOps",
+    "Deep Learning",
+    "Gen AI",
+    "Lang chain",
+    "Vector Database",
+    "Snowflake",
+    "Communication",
+    "Teamwork",
+    "Python",
+    "R",
+    "AWS",
+    "GCP",
+    "Azure",
+    "TensorFlow",
+    "PyTorch",
+    "Scikit-learn",
+    "Keras",
+    "FastAPI",
+    "Pandas",
+    "NumPy",
+    "Matplotlib",
+    "Seaborn",
+    "NLTK"
+  ],
+  "weighting": {
+    "required_skills": 0.6,
+    "preferred_skills": 0.4,
+    "responsibilities": 0.5,
+    "domain_relevance": 0.4,
+    "technical_depth": 0.5,
+    "soft_skills": 0.3
+  },
+  "embedding_hints": {
+    "skills_embed": "AI, Machine Learning, Cloud Deployment, SQL, Data Pre-processing, Model Building, Optimization, Data Visualization, Natural Language Processing, Computer Vision, Graph Networks, MLOps, Deep Learning, Gen AI, Lang chain, Vector Database, Snowflake, Communication, Teamwork, Python, R",
+    "responsibilities_embed": "Develop AI & Machine Learning solutions on cloud-based platforms, Identify, access, import, clean, and format data from various sources, Implement research findings and custom models effectively, Construct backend systems to interface with other microservices, Train and optimize machine learning models for optimal performance, Engineer scalable machine intelligence systems and infrastructure for real-world deployment, Justify the application of AI/ML solutions based on problem statements, Prototype solutions efficiently and deliver results promptly, Manipulate data using SQL and scripting languages, Collaborate with internal and external teams to design and deploy AI & ML solutions, Explore emerging AI & Machine learning trends and develop prototypes",
+    "overall_embed": "AI, Machine Learning, Cloud Deployment, SQL, Data Pre-processing, Model Building, Optimization, Data Visualization, Natural Language Processing, Computer Vision, Graph Networks, MLOps, Deep Learning, Gen AI, Lang chain, Vector Database, Snowflake, Communication, Teamwork, Python, R, Develop AI & Machine Learning solutions on cloud-based platforms, Identify, access, import, clean, and format data from various sources, Implement research findings and custom models effectively, Construct backend systems to interface with other microservices, Train and optimize machine learning models for optimal performance, Engineer scalable machine intelligence systems and infrastructure for real-world deployment, Justify the application of AI/ML solutions based on problem statements, Prototype solutions efficiently and deliver results promptly, Manipulate data using SQL and scripting languages, Collaborate with internal and external teams to design and deploy AI & ML solutions, Explore emerging AI & Machine learning trends and develop prototypes",
+    "negatives_embed": "",
+    "seniority_embed": "Mid"
+  },
+  "explainability": {
+    "top_jd_sentences": [
+      "We are seeking a dynamic AI & Machine Learning Engineer to join our team.",
+      "This role is pivotal in implementing AI and machine learning solutions on cloud-based platforms.",
+      "Proven experience in leading AI projects."
+    ],
+    "key_phrases": [
+      "AI & Machine Learning Engineer",
+      "cloud-based platforms",
+      "data pre-processing",
+      "model building",
+      "optimization",
+      "data visualization",
+      "Natural Language Processing",
+      "Computer Vision",
+      "Graph Networks"
+    ],
+    "rationales": [
+      "The role requires a strong background in AI and machine learning, particularly in cloud environments, which is reflected in the required skills and responsibilities."
+    ]
+  },
+  "provenance_spans": [
+    {
+      "type": "role_title",
+      "text": "AI & Machine Learning Engineer"
+    },
+    {
+      "type": "responsibility",
+      "text": "Develop AI & Machine Learning solutions on cloud-based platforms."
+    },
+    {
+      "type": "responsibility",
+      "text": "Identify, access, import, clean, and format data from various sources."
+    },
+    {
+      "type": "responsibility",
+      "text": "Implement research findings and custom models effectively."
+    },
+    {
+      "type": "responsibility",
+      "text": "Construct backend systems to interface with other microservices."
+    },
+    {
+      "type": "responsibility",
+      "text": "Train and optimize machine learning models for optimal performance."
+    },
+    {
+      "type": "responsibility",
+      "text": "Engineer scalable machine intelligence systems and infrastructure for real-world deployment."
+    },
+    {
+      "type": "responsibility",
+      "text": "Justify the application of AI/ML solutions based on problem statements."
+    },
+    {
+      "type": "responsibility",
+      "text": "Prototype solutions efficiently and deliver results promptly."
+    },
+    {
+      "type": "responsibility",
+      "text": "Manipulate data using SQL and scripting languages."
+    },
+    {
+      "type": "responsibility",
+      "text": "Collaborate with internal and external teams to design and deploy AI & ML solutions."
+    },
+    {
+      "type": "responsibility",
+      "text": "Explore emerging AI & Machine learning trends and develop prototypes."
+    },
+    {
+      "type": "experience",
+      "text": "Proven experience in leading AI projects."
+    },
+    {
+      "type": "skill",
+      "text": "Proficiency in cloud deployment of AI solutions (AWS, GCP, or Azure)."
+    },
+    {
+      "type": "skill",
+      "text": "Familiarity with Lang chain, advanced RAG applications, and Vector database."
+    },
+    {
+      "type": "skill",
+      "text": "Experience in developing advanced Gen AI solutions."
+    },
+    {
+      "type": "skill",
+      "text": "Strong analytical skills including data pre-processing and various ML techniques."
+    },
+    {
+      "type": "skill",
+      "text": "Expertise in model building, optimization, and data visualization."
+    },
+    {
+      "type": "skill",
+      "text": "Knowledge of major ML algorithms for Natural Language Processing, Computer Vision & Graph Networks."
+    },
+    {
+      "type": "skill",
+      "text": "Hands-on experience with cloud platforms like AWS/Microsoft Azure."
+    },
+    {
+      "type": "skill",
+      "text": "Proficient in SQL query development."
+    },
+    {
+      "type": "skill",
+      "text": "Familiarity with data platforms such as Snowflake is advantageous."
+    },
+    {
+      "type": "skill",
+      "text": "Knowledge of MLOps (Machine Learning Operations) is a plus."
+    },
+    {
+      "type": "skill",
+      "text": "Experience in advanced Computer Vision model development is beneficial."
+    },
+    {
+      "type": "skill",
+      "text": "Practical experience in deep learning projects is highly valued."
+    },
+    {
+      "type": "skill",
+      "text": "Ability to enhance the accuracy, runtime, scalability, and reliability of machine intelligence systems."
+    },
+    {
+      "type": "skill",
+      "text": "Proficient in understanding underlying mathematical concepts and algorithms."
+    },
+    {
+      "type": "skill",
+      "text": "Enthusiasm for continuous learning of state-of-the-art techniques in ML/Data science."
+    }
+  ],
+  "meta": {
+    "raw_text_length": 2676,
+    "last_updated": "2025-11-20"
+  }
+}
