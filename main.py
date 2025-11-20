@@ -150,8 +150,8 @@ def main():
                 st.info("🔄 Running AI JD processing...")
 
                 # 🔥 main-thread import + execute (NO SUBPROCESS)
-                from InputThread.AI_Processing.JDGpt import process_jd
-                process_jd()
+                from InputThread.AI_Processing.JDGpt import process_jd_file
+                process_jd_file()
 
                 st.success("🎯 JD processing complete!")
                 st.session_state.jd_done = True
