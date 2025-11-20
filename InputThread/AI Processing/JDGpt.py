@@ -7,10 +7,10 @@ JD TXT -> Normalized JSON converter
 """
 
 import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
-# Load from your .env file
-load_dotenv(".env")
+# # Load from your .env file
+# load_dotenv(".env")
 
 # ---------------------------
 # PATHS & CONFIG
@@ -18,7 +18,7 @@ load_dotenv(".env")
 INPUT_FILE = "InputThread/JD/JD.txt"
 OUTPUT_FILE = "InputThread/JD/JD.json"
 LOG_FILE = "processing_errors.log"
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
 MODEL_NAME = "gpt-4o-mini"
 MAX_RESPONSE_TOKENS = 2500
 # ---------------------------
