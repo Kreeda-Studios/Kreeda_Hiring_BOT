@@ -25,6 +25,7 @@ import random
 from pathlib import Path
 from typing import List, Dict, Tuple
 from tqdm import tqdm
+import streamlit as st
 
 import numpy as np
 
@@ -418,7 +419,7 @@ def main():
         sys.exit(0)
 
     # Configure openai from environment if available
-    openai_api_key = 
+    openai_api_key = st.secrets.get("OPENAI_API_KEY")
     if not openai_api_key:
         # If user uses AzureOpenAI or different config, OpenAI client may still work if env is set appropriately.
         print("⚠️ OPENAI_API_KEY not found in environment. OpenAI embeddings may fail.", file=sys.stderr)
