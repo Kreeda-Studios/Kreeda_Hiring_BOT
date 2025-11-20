@@ -177,7 +177,7 @@ def main():
                     st.info("🔄 Running AI JD processing...")
                     # Run JDGpt.py in-process (main thread) instead of subprocess
                     try:
-                        runpy.run_path('/home/keeda/HR BOT/InputThread/AI Processing/JDGpt.py', run_name='__main__')
+                        runpy.run_path('InputThread/AI Processing/JDGpt.py', run_name='__main__')
                         st.success("🎯 JD processing complete!")
                         st.session_state.jd_done = True
                     except Exception as _e:
@@ -231,13 +231,13 @@ def main():
 
                     steps = [
                         ("Running AI processing (TXT → JSON)...",
-                         ["python3", "/home/keeda/HR BOT/InputThread/AI Processing/GptJson.py"]),
+                         ["python3", "InputThread/AI Processing/GptJson.py"]),
                         ("Running ProjectProcess.py ...",
-                         ["python3", "/home/keeda/HR BOT/ResumeProcessor/ProjectProcess.py"]),
+                         ["python3", "ResumeProcessor/ProjectProcess.py"]),
                         ("Running KeywordComparitor.py ...",
-                         ["python3", "/home/keeda/HR BOT/ResumeProcessor/KeywordComparitor.py"]),
+                         ["python3", "ResumeProcessor/KeywordComparitor.py"]),
                         ("Running SemanticComparitor.py ...",
-                         ["python3", "/home/keeda/HR BOT/ResumeProcessor/SemanticComparitor.py"]),
+                         ["python3", "ResumeProcessor/SemanticComparitor.py"]),
                         ("Running FinalRanking.py ...",
                          ["python3", str(FINAL_RANKING_SCRIPT)]),
                     ]
