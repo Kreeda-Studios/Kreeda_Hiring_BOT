@@ -10,27 +10,27 @@ from InputThread.file_router import route_pdf  # updated function name
 from PyPDF2 import PdfReader  # for PDF extraction
 
 # Constants
-PROCESSED_TXT_DIR = Path("/home/keeda/HR BOT/Processed-TXT")
-PROCESSED_JSON_DIR = Path("/home/keeda/HR BOT/ProcessedJson")
-JD_FILE = Path("/home/keeda/HR BOT/InputThread/JD/JD.txt")
+PROCESSED_TXT_DIR = Path("Processed-TXT")
+PROCESSED_JSON_DIR = Path("ProcessedJson")
+JD_FILE = Path("InputThread/JD/JD.txt")
 
 # Ranking files
-DISPLAY_RANKS = Path("/home/keeda/HR BOT/Ranking/DisplayRanks.txt")
-FINAL_RANKING_SCRIPT = Path("/home/keeda/HR BOT/ResumeProcessor/Ranker/FinalRanking.py")
+DISPLAY_RANKS = Path("Ranking/DisplayRanks.txt")
+FINAL_RANKING_SCRIPT = Path("ResumeProcessor/Ranker/FinalRanking.py")
 
 # Files to clear between runs
 FILES_TO_CLEAR = [
-    "/home/keeda/HR BOT/Ranking/Final_Ranking.json",
-    "/home/keeda/HR BOT/Ranking/Scores.json",
-    "/home/keeda/HR BOT/Ranking/Skipped.json",
-    "/home/keeda/HR BOT/ResumeProcessor/.semantic_embed_cache.pkl",
-    "/home/keeda/HR BOT/Ranking/DisplayRanks.txt"
+    "Ranking/Final_Ranking.json",
+    "Ranking/Scores.json",
+    "Ranking/Skipped.json",
+    "ResumeProcessor/.semantic_embed_cache.pkl",
+    "Ranking/DisplayRanks.txt"
 ]
 
 # Folders to clear between runs
 FOLDERS_TO_CLEAR = [
-    "/home/keeda/HR BOT/ProcessedJson",
-    "/home/keeda/HR BOT/Processed-TXT",
+    "ProcessedJson",
+    "Processed-TXT",
 ]
 
 # Ensure output directories exist
@@ -175,7 +175,7 @@ def main():
                 try:
                     st.info("🔄 Running AI JD processing...")
                     subprocess.run(
-                        ["python3", "/home/keeda/HR BOT/InputThread/AI Processing/JDGpt.py"],
+                        ["python3", "InputThread/AI Processing/JDGpt.py"],
                         check=True
                     )
                     st.success("🎯 JD processing complete!")
@@ -228,13 +228,13 @@ def main():
 
                     steps = [
                         ("Running AI processing (TXT → JSON)...",
-                         ["python3", "/home/keeda/HR BOT/InputThread/AI Processing/GptJson.py"]),
+                         ["python3", "InputThread/AI Processing/GptJson.py"]),
                         ("Running ProjectProcess.py ...",
-                         ["python3", "/home/keeda/HR BOT/ResumeProcessor/ProjectProcess.py"]),
+                         ["python3", "ResumeProcessor/ProjectProcess.py"]),
                         ("Running KeywordComparitor.py ...",
-                         ["python3", "/home/keeda/HR BOT/ResumeProcessor/KeywordComparitor.py"]),
+                         ["python3", "ResumeProcessor/KeywordComparitor.py"]),
                         ("Running SemanticComparitor.py ...",
-                         ["python3", "/home/keeda/HR BOT/ResumeProcessor/SemanticComparitor.py"]),
+                         ["python3", "ResumeProcessor/SemanticComparitor.py"]),
                         ("Running FinalRanking.py ...",
                          ["python3", str(FINAL_RANKING_SCRIPT)]),
                     ]
