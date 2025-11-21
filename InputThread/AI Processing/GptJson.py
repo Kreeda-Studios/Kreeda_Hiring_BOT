@@ -37,6 +37,7 @@ import uuid
 from pathlib import Path
 from typing import Dict, Any, List
 
+
 try:
     from openai import OpenAI
 except Exception:
@@ -280,7 +281,8 @@ def process_resume_file(path: str) -> Dict[str, Any]:
     system_msg = {
         "role": "system",
         "content": (
-            "You are a structured resume parser. The caller will provide raw resume text. "
+            "You are a structured resume parser and judge. The caller will provide raw resume text. "
+            f"\n\nIMPORTANT: The Job Description domain tags are: {domain_tags}. "
             "Return EXACTLY one function call to 'parse_resume_detailed' with JSON arguments that match the schema. "
             "Minimize filler language; produce concise canonical tokens. "
             "Include provenance spans (character offsets) for extracted projects/skills when found in the text. "
@@ -289,9 +291,8 @@ def process_resume_file(path: str) -> Dict[str, Any]:
             "IMPORTANT for Projects field except for the dates, STRICTLY do not leave any field blank." 
             "IMPORTANT Have project metrics on each project"
             "Strictly mention role, domain, and most relevant technical keywords. "
-            f"\n\nIMPORTANT: The Job Description domain tags are: {domain_tags}. "
-            f"Strictly judge and score projects/skills higher if they align strictly with these domains : {domain_tags}, and score projects unrelated or in irrelevant domains low. Only relevant projects should score higher, Judge with high Strictness"
-            ""
+            f"IMPORTANT Strictly judge and score projects/skills higher if they align strictly with these domains : {domain_tags}, and score projects unrelated or in irrelevant domains low. Only relevant projects should score higher, Judge with high Strictness"
+            "The complete resume is to be judged with consistent strictness and projects require technical depth and explain understanding, basic projects or projects below the required level of technical depth are scored low."
         )
     }
 
