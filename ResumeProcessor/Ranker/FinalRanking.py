@@ -12,8 +12,8 @@ import json
 from pathlib import Path
 
 # Absolute paths from your current pipeline
-INPUT_FILE = Path("/home/keeda/HR BOT/Ranking/Scores.json")
-OUTPUT_FILE = Path("/home/keeda/HR BOT/Ranking/Final_Ranking.json")
+INPUT_FILE = Path("Ranking/Scores.json")
+OUTPUT_FILE = Path("Ranking/Final_Ranking.json")
 SKIPPED_FILE = Path("Ranking/Skipped.json")
 DISPLAY_FILE = Path("Ranking/DisplayRanks.txt")
 
