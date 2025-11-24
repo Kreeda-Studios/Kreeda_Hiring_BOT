@@ -269,53 +269,19 @@ def main():
             "- Higher scores = stronger match to the requirements.\n"
             "- You can scroll and also download the ranking file."
         )
-    
-        # 🔥 RAM-based ranking import (works even if writing to repo fails)
-        try:
-            from ResumeProcessor.Ranker.FinalRanking import run_ranking, RANKING_RAM
-        except Exception:
-            RANKING_RAM = []
-    
-        # 🔘 Button to refresh & load ranking even if file writing fails
-        if st.button("🔄 Refresh Rankings"):
-            try:
-                run_ranking()
-                st.success("Rankings refreshed!")
-            except Exception as e:
-                st.error(f"⚠️ Error refreshing rankings: {e}")
-    
-        # 🔥 Live ranking table (RAM first preference)
-        if RANKING_RAM:
-            df = [
-                {"Rank": i+1, "Candidate": c["name"], "Score": c["Final_Score"]}
-                for i, c in enumerate(RANKING_RAM)
-            ]
-            st.success(f"Showing {len(df)} ranked candidates")
-            st.dataframe(df, use_container_width=True)
-    
-            # Allow download from RAM
-            downloadable = "\n".join(f"{row['Rank']}. {row['Candidate']} | {row['Score']}" for row in df)
-            st.download_button(
-                label="⬇️ Download Latest Rankings",
-                data=downloadable,
-                file_name="Rankings.txt",
-                mime="text/plain"
-            )
-    
-            st.write("---")  # separator for visual clarity
-    
-        # ---------------- OLD BEHAVIOUR (kept exactly)
+
         if DISPLAY_RANKS.exists():
             with open(DISPLAY_RANKS, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f.readlines() if line.strip()]
-    
+
             if lines:
-                st.success(f"📄 Showing {len(lines)} ranked candidates from DisplayRanks.txt")
+                st.success(f"Showing {len(lines)} ranked candidates")
+
                 st.dataframe({"Ranked Candidates": lines})
-    
+
                 with open(DISPLAY_RANKS, "rb") as f:
                     st.download_button(
-                        label="⬇️ Download Rankings File (Legacy)",
+                        label="⬇️ Download Rankings File",
                         data=f,
                         file_name="DisplayRanks.txt",
                         mime="text/plain"
@@ -324,8 +290,7 @@ def main():
                 st.info("Ranking file is empty. Run the pipeline first.")
         else:
             st.info("No rankings available yet. Run 'Process & Rank Resumes' first.")
-    
-        # ---------------- Clear button (unchanged)
+
         if st.button("🗑️ Clear Previous Run Data"):
             cleared = clear_previous_run()
             if cleared:
