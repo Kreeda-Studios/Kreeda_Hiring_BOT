@@ -262,8 +262,6 @@ streamlit run main.py
 | Detail   | Info                                                                                         |
 | -------- | -------------------------------------------------------------------------------------------- |
 | Name     | **Harsh Chinchakar**                                                                         |
-| Email    | **[harshchinchakar33@gmail.com](mailto:harshchinchakar33@gmail.com)**                        |
-| LinkedIn | [https://www.linkedin.com/in/harshchinchakar/](https://www.linkedin.com/in/harshchinchakar/) |
 
 ---
 
