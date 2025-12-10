@@ -7,6 +7,13 @@ from pathlib import Path
 OUTPUT_FILE = Path("Ranking/Scores.json")
 PROCESSED_JSON_DIR = Path("ProcessedJson")
 
+
+def normalize_name(name: str) -> str:
+    """Normalize candidate name consistently across all modules."""
+    if not name or not isinstance(name, str):
+        return ""
+    return " ".join(name.strip().title().split())
+
 # Define weights for weighted average
 WEIGHTS = {
     "difficulty": 0.142857,
@@ -37,7 +44,8 @@ def process_resume(json_path: Path):
         print(f"⚠️ Skipping invalid JSON: {json_path}")
         return None
 
-    candidate_name = data.get("name", "Unknown")
+    candidate_id = data.get("candidate_id")
+    candidate_name = normalize_name(data.get("name", "Unknown"))
     projects = data.get("projects", [])
     if not projects:
         aggregate_score = 0.0
@@ -45,7 +53,10 @@ def process_resume(json_path: Path):
         project_scores = [calculate_weighted_score(p.get("metrics", {})) for p in projects]
         aggregate_score = round(sum(project_scores) / len(project_scores), 3)
 
-    return {"name": candidate_name, "project_aggregate": aggregate_score}
+    result = {"name": candidate_name, "project_aggregate": aggregate_score}
+    if candidate_id:
+        result["candidate_id"] = candidate_id
+    return result
 
 def main():
     results = []
@@ -66,12 +77,42 @@ def main():
     else:
         existing_data = []
 
-    # Build existing map for update
-    existing_map = {r["name"]: r for r in existing_data if isinstance(r, dict)}
+    # Build existing map for update - prioritize candidate_id, fallback to normalized name
+    existing_map_by_id = {}
+    existing_map_by_name = {}
+    for r in existing_data:
+        if isinstance(r, dict):
+            if r.get("candidate_id"):
+                existing_map_by_id[r["candidate_id"]] = r
+            if r.get("name"):
+                normalized_name = normalize_name(r["name"])
+                if normalized_name:
+                    existing_map_by_name[normalized_name] = r
+    
+    # Merge new results - use candidate_id first, then normalized name
     for r in results:
-        existing_map[r["name"]] = r
-
-    updated_scores = list(existing_map.values())
+        candidate_id = r.get("candidate_id")
+        normalized_name = normalize_name(r.get("name", ""))
+        
+        if candidate_id and candidate_id in existing_map_by_id:
+            # Update by candidate_id (most reliable)
+            existing_map_by_id[candidate_id].update(r)
+        elif normalized_name and normalized_name in existing_map_by_name:
+            # Update by normalized name (fallback)
+            existing_map_by_name[normalized_name].update(r)
+        else:
+            # New entry
+            if candidate_id:
+                existing_map_by_id[candidate_id] = r
+            if normalized_name:
+                existing_map_by_name[normalized_name] = r
+    
+    # Combine maps, prioritizing candidate_id entries
+    updated_scores = list(existing_map_by_id.values())
+    # Add entries that only exist in name map (for backward compatibility)
+    for name, entry in existing_map_by_name.items():
+        if not entry.get("candidate_id") or entry["candidate_id"] not in existing_map_by_id:
+            updated_scores.append(entry)
     with OUTPUT_FILE.open("w", encoding="utf-8") as f:
         json.dump(updated_scores, f, indent=4)
 

@@ -400,10 +400,10 @@ JD TXT -> Normalized JSON converter
 
 import os
 import streamlit as st
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 
-# # Load from your .env file
-# load_dotenv(".env")
+# Load from your .env file
+load_dotenv(".env")
 
 # ---------------------------
 # PATHS & CONFIG
@@ -411,7 +411,13 @@ import streamlit as st
 INPUT_FILE = "InputThread/JD/JD.txt"
 OUTPUT_FILE = "InputThread/JD/JD.json"
 LOG_FILE = "processing_errors.log"
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
+# Try .env first, fallback to Streamlit secrets (for Streamlit Cloud compatibility)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    try:
+        OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", None)
+    except (AttributeError, KeyError, FileNotFoundError):
+        OPENAI_API_KEY = None
 MODEL_NAME = "gpt-4o-mini"
 MAX_RESPONSE_TOKENS = 2500
 # ---------------------------
@@ -421,11 +427,29 @@ import json
 import logging
 import time
 from pathlib import Path
+import sys
+
+# Add utils to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from utils.validation import validate_jd, JDSchema
+from utils.retry import retry_api_call, openai_circuit_breaker
+from utils.cache import jd_cache, get_jd_cache_key
+from utils.common import extract_function_call, safe_json_load, safe_json_save
 
 try:
     from openai import OpenAI
 except Exception:
     raise RuntimeError("Install the OpenAI Python SDK: pip install openai") from None
+
+# Validate API key
+if not OPENAI_API_KEY:
+    raise RuntimeError(
+        "OPENAI_API_KEY not found! Please set it in:\n"
+        "  For local development: Create .env file with OPENAI_API_KEY=your_key_here\n"
+        "  For Streamlit Cloud: Go to Manage App -> Settings -> Secrets (UI)\n"
+        "Get your API key from: https://platform.openai.com/api-keys"
+    )
 
 # Setup OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -668,6 +692,55 @@ PARSE_FUNCTION = {
                     }
                 }
             },
+            
+            # --- Filter Requirements (from HR UI) ---
+            "filter_requirements": {
+                "type": "object",
+                "description": "Additional filter requirements from HR (parsed from UI text input). Used for candidate filtering and re-ranking.",
+                "properties": {
+                    "raw_prompt": {"type": "string", "description": "Original HR prompt text"},
+                    "structured": {
+                        "type": "object",
+                        "description": "Structured requirements extracted from prompt. IMPORTANT: Only include fields that HR explicitly specified. If a requirement is NOT mentioned, set it to null or empty array. Mark each field with 'specified: true' only if HR explicitly mentioned it.",
+                        "properties": {
+                            "experience": {
+                                "type": "object",
+                                "description": "Experience requirements. Include ONLY if HR specified experience. Set 'specified: true' if mentioned.",
+                                "properties": {
+                                    "min": {"type": "number", "description": "Minimum years required"},
+                                    "max": {"type": "number", "description": "Maximum years (optional, only if HR specified upper limit)"},
+                                    "field": {"type": "string", "description": "Specific field/domain (optional)"},
+                                    "specified": {"type": "boolean", "description": "True if HR explicitly mentioned experience requirement"}
+                                }
+                            },
+                            "hard_skills": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Must-have skills. Empty array if not specified. Normalize to canonical forms (e.g., 'Machine Learning' not 'ML')."
+                            },
+                            "preferred_skills": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Nice-to-have skills. Empty array if not specified."
+                            },
+                            "department": {
+                                "type": "object",
+                                "description": "Department/field of study requirements. Include ONLY if HR specified department. Examples: 'IT field only', 'Not Mechanical/Chemical', 'CS, CE, IT, AIDS, ENTC only'.",
+                                "properties": {
+                                    "category": {"type": "string", "enum": ["IT", "Non-IT", "Specific"], "description": "Category: 'IT' for IT fields only, 'Non-IT' for non-IT fields, 'Specific' for specific departments"},
+                                    "allowed_departments": {"type": "array", "items": {"type": "string"}, "description": "Allowed departments (e.g., ['CS', 'CE', 'IT', 'AIDS', 'ENTC'])"},
+                                    "excluded_departments": {"type": "array", "items": {"type": "string"}, "description": "Excluded departments (e.g., ['Mechanical', 'Chemical', 'Civil'])"},
+                                    "specified": {"type": "boolean", "description": "True if HR explicitly mentioned department requirement"}
+                                }
+                            },
+                            "location": {"type": "string", "description": "Location requirements. Null if not specified. 'Any' or empty string means flexible."},
+                            "education": {"type": "array", "items": {"type": "string"}, "description": "Education requirements. Empty array if not specified."},
+                            "other_criteria": {"type": "array", "items": {"type": "string"}, "description": "Other filtering criteria that don't fit standard fields. IMPORTANT: Extract ALL requirements mentioned in natural language that are not covered by experience, skills, location, department, or education. Examples: 'Must have worked in fintech', 'Should have startup experience', 'Must be available for night shifts', 'Should have published research papers', 'Must have security clearance', 'Should have experience with specific tools/frameworks not in hard_skills', 'Must have specific certifications', 'Should have worked with specific clients/industries', etc. Be comprehensive - if HR mentions ANY requirement, capture it here as a clear, actionable criterion. Empty array if none."}
+                        }
+                    },
+                    "re_ranking_instructions": {"type": "string", "description": "How to use these requirements for re-ranking candidates"}
+                }
+            },
 
             # --- Meta ---
             "meta": {
@@ -696,73 +769,82 @@ PARSE_FUNCTION = {
 # ---------------------------
 # Core JD processor
 # ---------------------------
-def process_jd_file(in_path: str) -> dict:
+def process_jd_file(in_path: str, filter_text: str = None) -> dict:
     with open(in_path, "r", encoding="utf-8", errors="ignore") as f:
         raw_text = f.read()
 
     system_msg = {
         "role": "system",
         "content": (
-            "You are a meticulous Job Description (JD) parser for ATS + semantic matching. Add all information mentioned directly or indirectly, Make sure all information is captured without exception and if some information or skills are missing which are paramount or necessary but not present in the JD, add them yourself"
-            "The caller will provide raw JD text. Your task: return EXACTLY ONE function call to `parse_jd_detailed` "
-            "with arguments conforming to the provided schema. "
-            "Be exhaustive and precise: DO NOT lose information. Prefer concise, canonical tokens for skills.ADD Missing skills if relevant skills are missing from JD specific to the given domain."
-            "IMPORTANT In given domain add all specific languages (technical) and atleast 5 relevant frameworks , libraries to these languages"
-            "Normalize skills so they align with a resume ontology but do not remove any skills/tools from the JD"
-            "(programming, ml_ai, frontend, backend, testing, databases, cloud, infra, devtools, methodologies). "
-            "Populate fine-grained `skill_requirements` (level, years_min, versions, mandatory, related_tools). "
-            "Extract responsibilities, deliverables, KPIs/OKRs, exclusions, compliance, interview stages, "
-            "compensation if present, and team context. "
-            "Build `keywords_flat` (deduped, canonical tokens) and `keywords_weighted` (token -> importance 0–1). "
-            "Set `weighting` to reflect realistic hiring priorities "
-            "(e.g., required_skills > responsibilities > domain_relevance > technical_depth > preferred_skills > soft_skills; "
-            "adjust if the JD implies otherwise). "
-            "Provide `embedding_hints` to power semantic search (skills_embed, responsibilities_embed, overall_embed, "
-            "negatives_embed, seniority_embed). "
-            "Provide `provenance_spans` with character offsets for key items whenever feasible. "
-            "Provide `explainability` (top_jd_sentences, key_phrases, rationales). "
-            "HR Points rule (MANDATORY): Whenever you identify a recommendation or extra inferred requirement "
-            "(from wording, context, or common hiring practice), append an item to `hr_notes`. "
-            "Set hr_notes[i].type = 'recommendation' (if it improves clarity/completeness) or 'inferred_requirement' "
-            "(if the JD implies it indirectly). "
-            "Include category, note, reason, impact (0–1), and any source_provenance snippets. "
-            "Set `hr_points` = number of items in `hr_notes`. Each item contributes +1. "
-            "Do NOT add points for ordinary extractions. "
-            "IMPORTANT: If something is not stated, DO NOT hallucinate. Use `hr_notes` for recommendations instead of inventing facts. "
-            "If the JD is ambiguous (e.g., hybrid days, version specificity), log clarity recommendations in `hr_notes`. "
-            "Keep text fields concise but complete; avoid filler language. "
-            "Return ONLY the function call to `parse_jd_detailed` with its arguments."
+            "Parse JD into structured JSON. Return EXACTLY ONE function call to `parse_jd_detailed`.\n\n"
+            
+            "SKILL NORMALIZATION (CRITICAL):\n"
+            "• Use canonical forms, NOT abbreviations. Examples: 'ML'→'Machine Learning', 'RAG'→'Retrieval Augmented Generation', 'NLP'→'Natural Language Processing'\n"
+            "• Normalize all skills to full names for consistent matching with resumes\n"
+            "• If domain-specific skills are missing, add relevant ones (e.g., for AI/ML: add frameworks like TensorFlow, PyTorch)\n"
+            "• Map skills to ontology categories: programming, ml_ai, frontend, backend, testing, databases, cloud, infra, devtools, methodologies\n\n"
+            
+            "REQUIREMENTS:\n"
+            "1. Extract ALL information (explicit + implicit)\n"
+            "2. Normalize skills to canonical forms (see above)\n"
+            "3. Add missing domain-relevant skills if JD is incomplete\n"
+            "4. Structure filter_requirements if provided (see below)\n"
+            "5. Build keywords_flat (deduped) and keywords_weighted (token→0-1)\n"
+            "6. Set weighting: required_skills > responsibilities > domain_relevance > technical_depth > preferred_skills\n"
+            "7. Provide embedding_hints, provenance_spans, explainability\n"
+            "8. HR notes: Add to hr_notes for recommendations/inferred requirements (type: 'recommendation' or 'inferred_requirement')\n"
+            "9. Set hr_points = len(hr_notes). Do NOT hallucinate - use hr_notes for suggestions only\n\n"
+            
+            + ("FILTER REQUIREMENTS (if provided):\n"
+               "Structure HR's additional criteria. CRITICAL: Only extract what HR explicitly mentioned.\n"
+               "- experience: {min, max, field, specified: true} - ONLY if HR mentioned experience\n"
+               "- hard_skills: [must-have skills] - NORMALIZE to canonical forms. Empty [] if not specified\n"
+               "- department: {category, allowed_departments, excluded_departments, specified: true} - ONLY if HR mentioned department/field\n"
+               "  Examples: 'IT field only' → category:'IT', 'Not Mechanical/Chemical' → excluded_departments:['Mechanical','Chemical']\n"
+               "- location: string or null - null if not specified\n"
+               "- education: [requirements] - Empty [] if not specified\n"
+               "- other_criteria: [any other requirements - be exhaustive] - Empty [] if none\n"
+               "Examples of other_criteria: 'fintech experience', 'night shift availability', 'security clearance'\n"
+               "IMPORTANT: Mark 'specified: true' only for fields HR explicitly mentioned. If not mentioned, set to null/empty.\n\n" if filter_text else "") +
+            
+            "Return ONLY the function call. See schema for field descriptions."
         )
     }
 
-    user_msg = {"role": "user", "content": f"RawJDText:\n```\n{raw_text}\n```"}
+    user_content = f"RawJDText:\n```\n{raw_text}\n```"
+    if filter_text and filter_text.strip():
+        user_content += f"\n\nFilter Requirements (from HR - parse and structure these):\n```\n{filter_text.strip()}\n```"
+    
+    user_msg = {"role": "user", "content": user_content}
 
-    resp = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[system_msg, user_msg],
-        functions=[PARSE_FUNCTION],
-        function_call="auto",
-        temperature=0.0,
-        max_tokens=MAX_RESPONSE_TOKENS
-    )
-
-    choice = resp.choices[0]
-    msg = choice.message
-
-    func_call = getattr(msg, "function_call", None)
-    if func_call is None and isinstance(msg, dict):
-        func_call = msg.get("function_call")
-    if not func_call:
-        raise RuntimeError("Model did not return function_call response.")
-
-    args_text = getattr(func_call, "arguments", None) or func_call.get("arguments")
-    if not args_text:
-        raise RuntimeError("Function call arguments missing.")
-
-    parsed = json.loads(args_text)
+    # API call with retry and circuit breaker
+    @retry_api_call(max_attempts=3, initial_wait=1.0, max_wait=10.0)
+    def call_openai_api():
+        return openai_circuit_breaker.call(
+            client.chat.completions.create,
+            model=MODEL_NAME,
+            messages=[system_msg, user_msg],
+            functions=[PARSE_FUNCTION],
+            function_call="auto",
+            temperature=0.0,
+            max_tokens=MAX_RESPONSE_TOKENS
+        )
+    
+    resp = call_openai_api()
+    
+    # Extract function call using shared utility
+    parsed = extract_function_call(resp)
     parsed.setdefault("meta", {})
     parsed["meta"].setdefault("raw_text_length", len(raw_text))
     parsed["meta"].setdefault("last_updated", time.strftime("%Y-%m-%d"))
+    
+    # Validate parsed JD data
+    try:
+        validated = validate_jd(parsed, Path(in_path))
+        parsed = validated.model_dump()  # Convert back to dict for compatibility
+    except Exception as e:
+        logging.warning(f"JD validation warning for {in_path}: {e}")
+        # Continue with unvalidated data but log warning
 
     # ---------------------------
     # NEW: enrich domain_tags so resume parser receives explicit seniority/domain/requirements + HR highlights
@@ -868,10 +950,19 @@ def process_jd_file(in_path: str) -> dict:
         # if hr_points missing, set to len of hr_notes
         if "hr_points" not in parsed:
             parsed["hr_points"] = len(parsed.get("hr_notes", []))
+        
+        # Ensure filter_requirements exists (even if empty)
+        if "filter_requirements" not in parsed:
+            parsed["filter_requirements"] = None
 
     except Exception as _err:
         # don't fail the whole pipeline on tagging; just log
         logging.exception("Failed to enrich domain_tags: %s", repr(_err))
+        # Ensure these fields exist even if enrichment failed
+        if "hr_points" not in parsed:
+            parsed["hr_points"] = len(parsed.get("hr_notes", []))
+        if "filter_requirements" not in parsed:
+            parsed["filter_requirements"] = None
 
     return parsed
 
@@ -882,10 +973,37 @@ def process_jd_file(in_path: str) -> dict:
 if __name__ == "__main__":
     print("[START] JD processing")
     try:
-        jd_json = process_jd_file(INPUT_FILE)
-        with open(OUTPUT_FILE, "w", encoding="utf-8") as wf:
-            json.dump(jd_json, wf, indent=2, ensure_ascii=False)
-        print(f"[OK] JD JSON written -> {OUTPUT_FILE}")
+        # Check cache first
+        input_path = Path(INPUT_FILE)
+        cache_key = get_jd_cache_key(input_path)
+        cached = jd_cache.get(cache_key)
+        
+        # Check if filter requirements file exists
+        filter_file = Path("InputThread/JD/Filter_Requirements.txt")
+        filter_text = None
+        if filter_file.exists():
+            try:
+                with open(filter_file, "r", encoding="utf-8") as f:
+                    filter_text = f.read().strip()
+                if filter_text:
+                    print(f"[INFO] Found filter requirements: {len(filter_text)} characters")
+            except Exception as e:
+                logging.warning(f"Failed to read filter file: {e}")
+        
+        # Use cache if available and no filter changes
+        if cached and not filter_text:
+            print(f"[INFO] Using cached JD result")
+            jd_json = cached
+        else:
+            jd_json = process_jd_file(INPUT_FILE, filter_text=filter_text)
+            # Cache the result (validation already done in process_jd_file)
+            jd_cache.set(cache_key, jd_json)
+        
+        # Save to output file
+        if safe_json_save(jd_json, Path(OUTPUT_FILE)):
+            print(f"[OK] JD JSON written -> {OUTPUT_FILE}")
+        else:
+            print(f"[WARNING] Failed to save JD JSON")
     except Exception as e:
         logging.error(f"JD Processing failed: {repr(e)}")
         print(f"[ERROR] JD processing failed: {e}")

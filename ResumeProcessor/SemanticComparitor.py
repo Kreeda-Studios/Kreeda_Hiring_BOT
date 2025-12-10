@@ -80,6 +80,12 @@ class EmbedCache:
 # -----------------------
 def norm(s): return s.strip()
 
+def normalize_name(name: str) -> str:
+    """Normalize candidate name consistently across all modules."""
+    if not name or not isinstance(name, str):
+        return ""
+    return " ".join(name.strip().title().split())
+
 def sentence_split(text: str):
     if not text: return []
     text = text.replace("\n", " ")
@@ -272,13 +278,24 @@ def main():
         jd_emb[sec] = embed_texts(cache, txts) if txts else np.zeros((0,1536),dtype=np.float32)
 
     existing = json.load(open(SCORES_FILE)) if SCORES_FILE.exists() else []
-    existing_map = {e.get("name"):e for e in existing}
+    # Build maps: prioritize candidate_id, fallback to normalized name
+    existing_map_by_id = {}
+    existing_map_by_name = {}
+    for e in existing:
+        if isinstance(e, dict):
+            if e.get("candidate_id"):
+                existing_map_by_id[e["candidate_id"]] = e
+            if e.get("name"):
+                normalized_name = normalize_name(e["name"])
+                if normalized_name:
+                    existing_map_by_name[normalized_name] = e
 
     out = []
     for r in tqdm(resumes, desc="Resumes"):
         resume = json.load(open(r,"r",encoding="utf-8"))
         raw_name = resume.get("name") or r.stem
-        name = " ".join(raw_name.strip().title().split())
+        name = normalize_name(raw_name)
+        candidate_id = resume.get("candidate_id")
         secs = extract_sections_from_resume(resume)
 
         sec_emb, sec_txt = {}, {}
@@ -295,11 +312,19 @@ def main():
             sec_scores[sec] = {"score":round(s,3),"coverage":round(c,3),"depth":round(d,3)}
             sec_matches[sec] = m[:5]
 
+        # Get existing scores - try candidate_id first, then normalized name
+        existing_entry = None
+        if candidate_id and candidate_id in existing_map_by_id:
+            existing_entry = existing_map_by_id[candidate_id]
+        elif name and name in existing_map_by_name:
+            existing_entry = existing_map_by_name[name]
+        
         out.append({
             "name": name,
+            "candidate_id": candidate_id,
             "raw": total,
-            "project_aggregate": existing_map.get(name,{}).get("project_aggregate"),
-            "Keyword_Score": existing_map.get(name,{}).get("Keyword_Score"),
+            "project_aggregate": existing_entry.get("project_aggregate") if existing_entry else None,
+            "Keyword_Score": existing_entry.get("Keyword_Score") if existing_entry else None,
             "_internal": sec_scores
         })
 
@@ -310,18 +335,56 @@ def main():
     for x in out:
         x["Semantic_Score"] = 1.0 if mx==mn else round((x["raw"]-mn)/(mx-mn),3)
 
-    out_map = {e.get("name"):e for e in existing}
+    # Build output map - prioritize candidate_id, fallback to normalized name
+    out_map_by_id = existing_map_by_id.copy()
+    out_map_by_name = existing_map_by_name.copy()
+    
     for x in out:
+        candidate_id = x.get("candidate_id")
         nm = x["name"]
-        if nm not in out_map: out_map[nm] = {"name":nm}
-        out_map[nm]["Semantic_Score"] = x["Semantic_Score"]
-        if x.get("project_aggregate") is not None:
-            out_map[nm]["project_aggregate"] = x["project_aggregate"]
-        if x.get("Keyword_Score") is not None:
-            out_map[nm]["Keyword_Score"] = x["Keyword_Score"]
-
+        semantic_score = x["Semantic_Score"]
+        
+        # Try to update by candidate_id first (most reliable)
+        if candidate_id:
+            if candidate_id not in out_map_by_id:
+                out_map_by_id[candidate_id] = {"name": nm, "candidate_id": candidate_id}
+            out_map_by_id[candidate_id]["Semantic_Score"] = semantic_score
+            if x.get("project_aggregate") is not None:
+                out_map_by_id[candidate_id]["project_aggregate"] = x["project_aggregate"]
+            if x.get("Keyword_Score") is not None:
+                out_map_by_id[candidate_id]["Keyword_Score"] = x["Keyword_Score"]
+        
+        # Also update by name for backward compatibility
+        if nm:
+            if nm not in out_map_by_name:
+                out_map_by_name[nm] = {"name": nm}
+                if candidate_id:
+                    out_map_by_name[nm]["candidate_id"] = candidate_id
+            out_map_by_name[nm]["Semantic_Score"] = semantic_score
+            if x.get("project_aggregate") is not None:
+                out_map_by_name[nm]["project_aggregate"] = x["project_aggregate"]
+            if x.get("Keyword_Score") is not None:
+                out_map_by_name[nm]["Keyword_Score"] = x["Keyword_Score"]
+    
+    # Combine maps, prioritizing candidate_id entries
+    final_results = []
+    seen_ids = set()
+    # First add all entries with candidate_id
+    for candidate_id, entry in out_map_by_id.items():
+        if candidate_id not in seen_ids:
+            final_results.append(entry)
+            seen_ids.add(candidate_id)
+    # Then add entries that only exist in name map (for backward compatibility)
+    for name, entry in out_map_by_name.items():
+        entry_id = entry.get("candidate_id")
+        if not entry_id or entry_id not in seen_ids:
+            final_results.append(entry)
+            if entry_id:
+                seen_ids.add(entry_id)
+    
     tmp = SCORES_FILE.with_suffix(".tmp")
-    json.dump(list(out_map.values()), open(tmp,"w",encoding="utf-8"), indent=4)
+    
+    json.dump(final_results, open(tmp,"w",encoding="utf-8"), indent=4)
     os.replace(tmp,SCORES_FILE)
 
     print("📂 Semantic scores written →", SCORES_FILE)

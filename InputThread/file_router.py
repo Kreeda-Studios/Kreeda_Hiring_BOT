@@ -18,7 +18,7 @@ Notes:
 """
 
 import os
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 from datetime import datetime
 from InputThread.extract_pdf import process_pdf  # Donut extractor function
 

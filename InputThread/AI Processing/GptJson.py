@@ -8,10 +8,10 @@ Rich Resume TXT -> Normalized JSON converter
 
 import os
 import streamlit as st
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 
 # Load from your .env file
-# load_dotenv(".env")
+load_dotenv(".env")
 
 
 # ---------------------------
@@ -21,8 +21,14 @@ JD_JSON = "InputThread/JD/JD.json"
 INPUT_DIR = "Processed-TXT"
 OUTPUT_DIR = "ProcessedJson"
 LOG_FILE = "processing_errors.log1"
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
-MODEL_NAME = "gpt-4.1-nano"   # inexpensive model that supports function calling
+# Try .env first, fallback to Streamlit secrets (for Streamlit Cloud compatibility)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    try:
+        OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", None)
+    except (AttributeError, KeyError, FileNotFoundError):
+        OPENAI_API_KEY = None
+MODEL_NAME = "gpt-4o-mini"   # inexpensive model that supports function calling
 MAX_RESPONSE_TOKENS = 2500
 # ---------------------------
 
@@ -34,14 +40,39 @@ import json
 import logging
 import time
 import uuid
+import hashlib
 from pathlib import Path
 from typing import Dict, Any, List
+import sys
 
+# Add utils to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from utils.validation import validate_resume, validate_resume_file, ResumeSchema
+from utils.retry import retry_api_call, openai_circuit_breaker
+from utils.cache import resume_cache, get_resume_cache_key
+from utils.common import (
+    extract_function_call, 
+    safe_json_load, 
+    safe_json_save, 
+    extract_jd_skills_from_domain_tags,
+    canonicalize_string_list,
+    canonicalize_skills_block
+)
 
 try:
     from openai import OpenAI
 except Exception:
     raise RuntimeError("Install the OpenAI Python SDK (>=1.0.0): pip install openai") from None
+
+# Validate API key
+if not OPENAI_API_KEY:
+    raise RuntimeError(
+        "OPENAI_API_KEY not found! Please set it in:\n"
+        "  For local development: Create .env file with OPENAI_API_KEY=your_key_here\n"
+        "  For Streamlit Cloud: Go to Manage App -> Settings -> Secrets (UI)\n"
+        "Get your API key from: https://platform.openai.com/api-keys"
+    )
 
 # Setup OpenAI client (new API)
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -50,11 +81,23 @@ Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
-# Retrive Domain Tags
+# Retrieve Domain Tags (with caching)
 def load_domain_tags():
-    with open(JD_JSON, "r", encoding="utf-8") as f:
-        jd_data = json.load(f)
+    """Load domain tags from JD.json with caching."""
+    jd_path = Path(JD_JSON)
+    if not jd_path.exists():
+        return []
+    
+    cache_key = get_resume_cache_key(jd_path)  # Reuse cache key function
+    cached = resume_cache.get(cache_key)
+    if cached:
+        return cached.get("domain_tags", [])
+    
+    jd_data = safe_json_load(jd_path, {})
     domain_tags = jd_data.get("domain_tags", [])
+    
+    # Cache the result
+    resume_cache.set(cache_key, {"domain_tags": domain_tags})
     return domain_tags
 
 # Load JD domain tags once
@@ -194,6 +237,19 @@ PARSE_FUNCTION = {
                     }
                 }
             },
+            "education": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "degree": {"type": "string", "description": "Degree level (e.g., B.Tech, M.Tech, B.E., M.S., Ph.D.)"},
+                        "field": {"type": "string", "description": "Field of study/department (e.g., Computer Science, Mechanical Engineering, IT, CE, AIDS, ENTC)"},
+                        "institution": {"type": "string", "description": "University/College name"},
+                        "year": {"type": "string", "description": "Graduation year or period"}
+                    }
+                },
+                "description": "Education entries with degree, field/department, institution, and year"
+            },
             "ats_boost_line": {"type":"string"},
             "embedding_hints": {
                 "type": "object",
@@ -227,29 +283,57 @@ PARSE_FUNCTION = {
 # ---------------------------
 # Helpers
 # ---------------------------
+def normalize_name(name: str) -> str:
+    """Normalize candidate name consistently across all modules."""
+    if not name or not isinstance(name, str):
+        return ""
+    return " ".join(name.strip().title().split())
+
+
+def generate_deterministic_candidate_id(email: str, phone: str, name: str, filename: str) -> str:
+    """
+    Generate a deterministic candidate_id based on contact info and name.
+    Same person = same ID regardless of filename.
+    """
+    # Normalize inputs
+    email = (email or "").strip().lower()
+    phone = (phone or "").strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    name = normalize_name(name or "")
+    filename_base = Path(filename).stem
+    
+    # Create hash from available identifiers
+    # Priority: email > phone > normalized_name > filename
+    if email:
+        identifier = f"email:{email}"
+    elif phone:
+        identifier = f"phone:{phone}"
+    elif name:
+        identifier = f"name:{name}"
+    else:
+        # Fallback to filename hash if no contact info
+        identifier = f"file:{filename_base}"
+    
+    # Generate deterministic hash (first 12 chars of SHA256)
+    hash_id = hashlib.sha256(identifier.encode('utf-8')).hexdigest()[:12]
+    
+    # Include readable prefix for debugging
+    if email:
+        prefix = email.split("@")[0][:8] if "@" in email else "cand"
+    elif name:
+        prefix = name.replace(" ", "")[:8].lower()
+    else:
+        prefix = filename_base[:8]
+    
+    return f"{prefix}_{hash_id}"
+
+
 def generate_candidate_id(filename: str) -> str:
+    """Legacy function - generates temporary ID before parsing. Will be replaced after parsing."""
     base = Path(filename).stem
     return f"{base}_{uuid.uuid4().hex[:8]}"
 
 
-def _canonicalize_token(token: str) -> str:
-    return token.strip()
-
-
-def canonicalize_string_list(arr: List[str]) -> List[str]:
-    out = []
-    for token in arr or []:
-        can = _canonicalize_token(token)
-        if can and can not in out:
-            out.append(can)
-    return out
-
-
-def canonicalize_skills_block(skills_block: Dict[str, List[str]]) -> Dict[str, List[str]]:
-    out = {}
-    for cat, arr in (skills_block or {}).items():
-        out[cat] = canonicalize_string_list(arr)
-    return out
+# Canonicalization functions moved to utils.common to avoid duplication
 
 
 # ---------------------------
@@ -281,56 +365,61 @@ def process_resume_file(path: str) -> Dict[str, Any]:
     #     )
     # }
 
+    # Extract JD skills from domain_tags for normalization reference (using shared utility)
+    jd_skills = extract_jd_skills_from_domain_tags(domain_tags)
+    jd_required_skills = jd_skills["required"]
+    jd_preferred_skills = jd_skills["preferred"]
+    
+    # Truncate domain_tags for prompt (keep first 20 to save tokens)
+    domain_tags_preview = domain_tags[:20] if len(domain_tags) > 20 else domain_tags
+    domain_tags_str = str(domain_tags_preview) + ("..." if len(domain_tags) > 20 else "")
+    
     system_msg = {
         "role": "system",
         "content": (
-            "You are a structured resume parser and evaluator for ATS + semantic matching. "
-            "The caller will provide raw resume text and your job is to return EXACTLY ONE function call "
-            "to `parse_resume_detailed` with arguments following the schema — no summaries, no conversation. "
-    
-            "\n\n================ IMPORTANT JD CONTEXT ================"
-            f"\nDOMAIN_TAGS (machine-interpretable): {domain_tags}"
-            "\nThis list contains not only the JD domain, but also SENIORITY LEVEL, INDUSTRY, FUNCTION, "
-            "MANDATORY SKILLS, SPECIALIZATIONS, AND HR PRIORITY HIGHLIGHTS inferred from the Job Description. "
-            "\nYou MUST use domain_tags as the **gold standard benchmark** when evaluating how relevant and "
-            "technically strong a resume is. "
-    
-            "\n🔹 If a project, responsibility, or skill strongly aligns with the domain_tags → score it HIGH."
-            "\n🔹 If weakly aligned → score moderately."
-            "\n🔹 If irrelevant / basic / student-level → score LOW."
-            "\n🔹 If experience is BELOW seniority stated in domain_tags → score LOW."
-            "\n🔹 If experience matches or exceeds required seniority → score HIGH."
-    
-            "\n================ HOW TO USE DOMAIN_TAGS ================"
-            "• Infer the candidate’s domain fit, seniority, technical depth, and suitability. "
-            "• Determine which skills belong to the role’s must-have stack and which are secondary. "
-            "• Give more weight to projects and responsibilities that match the seniority + domain demands. "
-            "• If JD demands leadership / ownership and resume shows individual contribution only → score LOW. "
-            "• If JD domain is missing in the resume → reduce technical/project metrics, but DO NOT punish unrelated work experience in canonical fields."
-    
-            "\n================ STRICT SCORING ================="
-            "Judge the resume with CONSISTENT HIGH STRICTNESS based on domain_tags:"
-            "• Only genuinely deep projects score high (production-grade → HIGH; toy projects → LOW). "
-            "• Architecture / scaling / metric-driven work → very HIGH. "
-            "• Academic projects without real application → LOW unless JD indicates junior/fresher."
-    
-            "\n================ INSTRUCTIONS FOR JSON ================="
-            "Produce **clean, factual JSON only** using canonical tokens."
-            "• No hallucination. "
-            "• If info is not present → leave blank / empty list. "
-            "• All fields in the Projects object must be filled (except dates)."
-            "• Each project must include: role → domain → technical stack → metrics → achievements → provenance."
-            "• Add inferred skills ONLY when strongly supported by patterns (not hallucinations)."
-            "• Include provenance spans for every extracted technical term or project when present in the resume."
-    
-            "\n================ NEVER DO ================="
-            "✘ Do not speak conversationally. "
-            "✘ Do not output explanations. "
-            "✘ Do not include opinions. "
-            "✘ Do not generate text outside the function call."
-    
-            "\n================ FINAL RULE ================="
-            f"Return ONLY the function call to `parse_resume_detailed` with its arguments. "
+            "Parse resume into structured JSON. Return EXACTLY ONE function call to `parse_resume_detailed`.\n\n"
+            
+            f"JD CONTEXT: {domain_tags_str}\n"
+            "This contains JD domain, seniority, required/preferred skills, and HR priorities.\n\n"
+            
+            "SKILL NORMALIZATION (CRITICAL):\n"
+            "• Match JD skill format. If JD requires 'RAG' and resume has 'Retrieval Augmented Generation', extract as 'RAG'\n"
+            "• If JD requires 'ML' and resume has 'Machine Learning', extract as 'Machine Learning' (use JD's canonical form)\n"
+            "• Use JD required_skills as normalization reference (check REQ_SKILL: tags in domain_tags)\n"
+            "• Normalize all skills to match JD format for consistent filtering\n"
+            + (f"• JD Required Skills (normalize to these forms): {', '.join(jd_required_skills[:10])}\n" if jd_required_skills else "") +
+            "\n"
+            
+            "SCORING (use domain_tags as benchmark):\n"
+            "• High alignment with domain_tags → HIGH scores\n"
+            "• Low alignment / basic projects → LOW scores\n"
+            "• Experience below JD seniority → LOW scores\n"
+            "• Production-grade work → HIGH; toy projects → LOW\n"
+            "• Architecture/scaling work → very HIGH\n\n"
+            
+            "EXPERIENCE CALCULATION (CRITICAL):\n"
+            "• Calculate years_experience from experience_entries dates\n"
+            "• Handle overlapping periods, internships, part-time correctly\n"
+            "• Sum all relevant work experience (exclude internships if not relevant)\n"
+            "• Use current date or latest period_end as reference\n"
+            "• Return as number (e.g., 2.5 for 2 years 6 months)\n\n"
+            
+            "EDUCATION EXTRACTION:\n"
+            "• Extract degree, field/department, institution, year from education section\n"
+            "• Field should be specific: 'Computer Science', 'Mechanical Engineering', 'IT', 'CE', 'AIDS', 'ENTC'\n"
+            "• Map abbreviations: CS→Computer Science, CE→Computer Engineering, IT→Information Technology\n"
+            "• Include all degrees (B.Tech, M.Tech, etc.)\n\n"
+            
+            "REQUIREMENTS:\n"
+            "1. Fill all project fields (except dates)\n"
+            "2. Include provenance spans\n"
+            "3. Normalize skills to JD format (see above)\n"
+            "4. Calculate years_experience accurately from dates\n"
+            "5. Extract education with field/department\n"
+            "6. No hallucinations - only extract what's present\n"
+            "7. Use canonical tokens\n\n"
+            
+            "Return ONLY the function call. See schema for field descriptions."
         )
     }
 
@@ -340,31 +429,38 @@ def process_resume_file(path: str) -> Dict[str, Any]:
         "content": f"CandidateID: {candidate_id}\n\nRawResumeText:\n```\n{raw_text}\n```"
     }
 
-    resp = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[system_msg, user_msg],
-        functions=[PARSE_FUNCTION],
-        function_call="auto",
-        temperature=0.0,
-        max_tokens=MAX_RESPONSE_TOKENS
-    )
+    # API call with retry and circuit breaker
+    @retry_api_call(max_attempts=3, initial_wait=1.0, max_wait=10.0)
+    def call_openai_api():
+        return openai_circuit_breaker.call(
+            client.chat.completions.create,
+            model=MODEL_NAME,
+            messages=[system_msg, user_msg],
+            functions=[PARSE_FUNCTION],
+            function_call="auto",
+            temperature=0.0,
+            max_tokens=MAX_RESPONSE_TOKENS
+        )
+    
+    resp = call_openai_api()
+    
+    # Extract function call using shared utility
+    parsed = extract_function_call(resp)
 
-    choice = resp.choices[0]
-    msg = choice.message
-
-    func_call = getattr(msg, "function_call", None)
-    if not func_call and isinstance(msg, dict):
-        func_call = msg.get("function_call")
-    if not func_call:
-        raise RuntimeError("Model did not return function_call response. Skipping file.")
-
-    args_text = getattr(func_call, "arguments", None) or func_call.get("arguments")
-    if not args_text:
-        raise RuntimeError("Function call returned but 'arguments' missing. Skipping file.")
-
-    parsed = json.loads(args_text)
-
-    parsed.setdefault("candidate_id", candidate_id)
+    # Generate deterministic candidate_id based on extracted contact info
+    contact = parsed.get("contact", {})
+    email = contact.get("email", "") if isinstance(contact, dict) else ""
+    phone = contact.get("phone", "") if isinstance(contact, dict) else ""
+    name = parsed.get("name", "")
+    
+    # Replace temporary candidate_id with deterministic one
+    deterministic_id = generate_deterministic_candidate_id(email, phone, name, filename)
+    parsed["candidate_id"] = deterministic_id
+    
+    # Normalize name for consistency
+    if name:
+        parsed["name"] = normalize_name(name)
+    
     parsed.setdefault("meta", {})
     parsed["meta"].setdefault("raw_text_length", len(raw_text))
     parsed["meta"].setdefault("last_updated", time.strftime("%Y-%m-%d"))
@@ -398,7 +494,15 @@ def process_resume_file(path: str) -> Dict[str, Any]:
 
     parsed.setdefault("explainability", {"top_matched_sentences": [], "top_matched_keywords": []})
 
-    return parsed
+    # Validate parsed data
+    try:
+        validated = validate_resume(parsed, Path(path))
+        return validated.model_dump()  # Convert Pydantic model back to dict
+    except Exception as e:
+        logging.error(f"Validation failed for {path}: {e}")
+        # Return unvalidated data but log warning
+        print(f"⚠️ Validation warning for {path}: {e}")
+        return parsed
 
 
 # ---------------------------
@@ -428,34 +532,117 @@ def process_resume_file(path: str) -> Dict[str, Any]:
 #             logging.error(err_msg)
 
 
-# New function with skipping
-def process_all(input_dir: str, output_dir: str):
+# Optimized function with caching and parallel processing support
+def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids: set) -> tuple[bool, str]:
+    """
+    Process a single resume file with caching.
+    
+    Returns:
+        (success: bool, message: str)
+    """
+    in_path_obj = Path(in_path)
+    out_path = Path(output_dir) / f"{in_path_obj.stem}.json"
+    
+    # Check cache first
+    cache_key = get_resume_cache_key(in_path_obj)
+    cached_result = resume_cache.get(cache_key)
+    if cached_result:
+        # Check if output file exists and is valid
+        if out_path.exists():
+            try:
+                validate_resume_file(out_path)
+                return True, f"Skipped (cached): {in_path_obj.name}"
+            except Exception:
+                pass  # Cache invalid, reprocess
+    
+    # Skip if output file already exists
+    if out_path.exists():
+        try:
+            validate_resume_file(out_path)
+            return True, f"Skipped (exists): {in_path_obj.name}"
+        except Exception:
+            pass  # File invalid, reprocess
+    
+    try:
+        parsed = process_resume_file(in_path)
+        candidate_id = parsed.get("candidate_id")
+        
+        # Skip if duplicate candidate
+        if candidate_id and candidate_id in existing_candidate_ids:
+            return True, f"Skipped (duplicate): {in_path_obj.name} -> {candidate_id}"
+        
+        existing_candidate_ids.add(candidate_id)
+        
+        # Save with validation
+        safe_json_save(parsed, out_path)
+        
+        # Cache the result
+        resume_cache.set(cache_key, parsed)
+        
+        return True, f"OK: {out_path.name} (candidate_id: {candidate_id})"
+        
+    except Exception as e:
+        err_msg = f"Failed to process {in_path_obj.name}: {repr(e)}"
+        logging.error(err_msg)
+        return False, f"ERROR: {err_msg}"
+
+
+def process_all(input_dir: str, output_dir: str, parallel: bool = True, max_workers: int = 5):
+    """
+    Process all resumes with optional parallel processing.
+    
+    Args:
+        input_dir: Input directory with .txt files
+        output_dir: Output directory for .json files
+        parallel: Whether to use parallel processing
+        max_workers: Number of parallel workers (if parallel=True)
+    """
     files = sorted([f for f in os.listdir(input_dir) if f.lower().endswith(".txt")])
     if not files:
         print(f"[INFO] No .txt files found in {input_dir}")
         return
 
+    # Build map of existing candidate_ids
+    existing_candidate_ids = set()
+    output_path = Path(output_dir)
+    if output_path.exists():
+        for existing_json in output_path.glob("*.json"):
+            try:
+                existing_data = safe_json_load(existing_json, {})
+                if isinstance(existing_data, dict) and "candidate_id" in existing_data:
+                    existing_candidate_ids.add(existing_data["candidate_id"])
+            except Exception:
+                continue
+
     print(f"[INFO] Processing {len(files)} files from {input_dir} -> {output_dir}")
-    for i, fname in enumerate(files, start=1):
-        in_path = os.path.join(input_dir, fname)
-        out_path = os.path.join(output_dir, Path(fname).stem + ".json")
-
-        # ✅ Skip if already processed
-        if os.path.exists(out_path):
-            print(f"[{i}/{len(files)}] {fname} -> Skipped (already processed)")
-            continue
-
-        print(f"[{i}/{len(files)}] {fname}")
-        try:
-            parsed = process_resume_file(in_path)
-            with open(out_path, "w", encoding="utf-8") as wf:
-                json.dump(parsed, wf, indent=2, ensure_ascii=False)
-            print(f"  [OK] -> {out_path}")
-
-        except Exception as e:
-            err_msg = f"Failed to process {fname}: {repr(e)}"
-            print(f"  [ERROR] {err_msg}")
-            logging.error(err_msg)
+    if parallel:
+        print(f"[INFO] Using parallel processing with {max_workers} workers")
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(process_single_resume, 
+                               os.path.join(input_dir, fname), 
+                               output_dir, 
+                               existing_candidate_ids): fname 
+                for fname in files
+            }
+            
+            for i, future in enumerate(as_completed(futures), 1):
+                fname = futures[future]
+                try:
+                    success, message = future.result()
+                    status = "✅" if success else "❌"
+                    print(f"[{i}/{len(files)}] {status} {message}")
+                except Exception as e:
+                    print(f"[{i}/{len(files)}] ❌ ERROR processing {fname}: {e}")
+    else:
+        # Sequential processing (original behavior)
+        for i, fname in enumerate(files, start=1):
+            in_path = os.path.join(input_dir, fname)
+            success, message = process_single_resume(in_path, output_dir, existing_candidate_ids)
+            status = "✅" if success else "❌"
+            print(f"[{i}/{len(files)}] {status} {message}")
 
 
 # ---------------------------
@@ -492,12 +679,18 @@ def write_example(output_dir: str):
 # Entrypoint
 # ---------------------------
 if __name__ == "__main__":
-    # print("[START] Rich resume processing")
-    # print(f"INPUT_DIR = {INPUT_DIR}")
-    # print(f"OUTPUT_DIR = {OUTPUT_DIR}")
-    # print(f"MODEL = {MODEL_NAME}")
-
-    # write_example(OUTPUT_DIR)
-    process_all(INPUT_DIR, OUTPUT_DIR)
+    import argparse
+    import os
+    
+    # Check for parallel flag from environment or command line
+    parallel_env = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"
+    workers_env = int(os.getenv("MAX_WORKERS", "5"))
+    
+    parser = argparse.ArgumentParser(description="Process resumes with optional parallel processing")
+    parser.add_argument("--parallel", action="store_true", default=parallel_env, help="Enable parallel processing")
+    parser.add_argument("--workers", type=int, default=workers_env, help="Number of parallel workers")
+    args = parser.parse_args()
+    
+    process_all(INPUT_DIR, OUTPUT_DIR, parallel=args.parallel, max_workers=args.workers)
     print("[DONE] Processing finished.")
 

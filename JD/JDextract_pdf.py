@@ -1,5 +1,5 @@
 import os
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 
 JD_FILE = "InputThread/JD/JD.txt"
 

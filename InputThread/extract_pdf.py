@@ -1,6 +1,6 @@
 import os
 import time
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 
 INDEX_FILE = "Processed_Resume_Index.txt"
 

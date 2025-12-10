@@ -54,6 +54,13 @@ EXPERIENCE_KEYWORD_WEIGHTS = {
 def norm(s: str) -> str:
     return s.strip().lower() if isinstance(s, str) else ""
 
+
+def normalize_name(name: str) -> str:
+    """Normalize candidate name consistently across all modules."""
+    if not name or not isinstance(name, str):
+        return ""
+    return " ".join(name.strip().title().split())
+
 # Load JD JSON
 def load_jd_json():
     json_files = list(JD_DIR.glob("*.json"))
@@ -241,7 +248,11 @@ def main():
         sys.exit(1)
 
     weights = DEFAULT_WEIGHTS.copy()
-    weights.update(jd.get("weighting", {}))
+    # Update weights from JD, but filter out None values (use defaults instead)
+    jd_weighting = jd.get("weighting", {})
+    for key, value in jd_weighting.items():
+        if value is not None and key in weights:
+            weights[key] = value
     jd_keywords = collect_jd_keywords(jd)
 
     resume_files = [p for p in PROCESSED_JSON_DIR.glob("*.json") if p.name != SKIP_FILENAME]
@@ -254,7 +265,9 @@ def main():
         try:
             with rfile.open("r", encoding="utf-8") as f:
                 resume = json.load(f)
-            name = resume.get("name") or rfile.stem
+            raw_name = resume.get("name") or rfile.stem
+            name = normalize_name(raw_name)
+            candidate_id = resume.get("candidate_id")
             tokens = collect_resume_tokens(resume)
 
             req = score_overlap(jd_keywords["required_skills"], tokens)
@@ -266,22 +279,45 @@ def main():
             exp = score_experience_keywords(resume)
             proj = score_project_metrics(resume)
 
-            final = (
-                req * weights["required_skills"] +
-                pref * weights["preferred_skills"] +
-                weighted_kw * weights["weighted_keywords"] +
-                exp * weights["experience_keywords"] +
-                domain * weights["domain_relevance"] +
-                proj * weights["project_metrics"] +
-                resp * weights["responsibilities"] +
-                edu * weights["education"]
-            )
+            # ✅ Penalty for missing required skills (if less than 50% match, apply penalty)
+            required_penalty = 0.0
+            if jd_keywords["required_skills"] and req < 0.5:
+                # Apply penalty: missing more than 50% of required skills reduces score
+                required_penalty = (0.5 - req) * 0.3  # Up to 15% penalty
 
-            results.append({"name": name, "Keyword_Score": round(final, 3)})
+            # Ensure all weights are floats (not None) - use 0.0 as fallback
+            w_req = weights.get("required_skills") or 0.0
+            w_pref = weights.get("preferred_skills") or 0.0
+            w_weighted = weights.get("weighted_keywords") or 0.0
+            w_exp = weights.get("experience_keywords") or 0.0
+            w_domain = weights.get("domain_relevance") or 0.0
+            w_proj = weights.get("project_metrics") or 0.0
+            w_resp = weights.get("responsibilities") or 0.0
+            w_edu = weights.get("education") or 0.0
+            
+            final = (
+                req * w_req +
+                pref * w_pref +
+                weighted_kw * w_weighted +
+                exp * w_exp +
+                domain * w_domain +
+                proj * w_proj +
+                resp * w_resp +
+                edu * w_edu -
+                required_penalty  # Apply penalty
+            )
+            
+            # Ensure score doesn't go negative
+            final = max(0.0, final)
+
+            result = {"name": name, "Keyword_Score": round(final, 3)}
+            if candidate_id:
+                result["candidate_id"] = candidate_id
+            results.append(result)
 
         except Exception as e:
             # ⚠️ Bad / irrelevant / corrupted resume → don't crash
-            name = rfile.stem
+            name = normalize_name(rfile.stem)
             print(f"⛔ ERROR processing {name} → {e}")
             results.append({"name": name, "Keyword_Score": 0.0})
             continue
@@ -296,20 +332,57 @@ def main():
     else:
         existing = []
 
-    existing_map = {e.get("name"): e for e in existing if isinstance(e, dict)}
+    # Build maps: prioritize candidate_id, fallback to normalized name
+    existing_map_by_id = {}
+    existing_map_by_name = {}
+    for e in existing:
+        if isinstance(e, dict):
+            if e.get("candidate_id"):
+                existing_map_by_id[e["candidate_id"]] = e
+            if e.get("name"):
+                normalized_name = normalize_name(e["name"])
+                if normalized_name:
+                    existing_map_by_name[normalized_name] = e
 
     for r in results:
+        candidate_id = r.get("candidate_id")
         name = r["name"]
-        if name in existing_map:
-            existing_map[name]["Keyword_Score"] = r["Keyword_Score"]
+        keyword_score = r["Keyword_Score"]
+        
+        # Try to merge by candidate_id first (most reliable)
+        if candidate_id and candidate_id in existing_map_by_id:
+            existing_map_by_id[candidate_id]["Keyword_Score"] = keyword_score
+        # Fallback to normalized name
+        elif name and name in existing_map_by_name:
+            existing_map_by_name[name]["Keyword_Score"] = keyword_score
         else:
-            existing_map[name] = {
+            # New entry
+            new_entry = {
                 "name": name,
                 "project_aggregate": None,
-                "Keyword_Score": r["Keyword_Score"]
+                "Keyword_Score": keyword_score
             }
-
-    final_results = list(existing_map.values())
+            if candidate_id:
+                new_entry["candidate_id"] = candidate_id
+                existing_map_by_id[candidate_id] = new_entry
+            if name:
+                existing_map_by_name[name] = new_entry
+    
+    # Combine maps, prioritizing candidate_id entries
+    final_results = []
+    seen_ids = set()
+    # First add all entries with candidate_id
+    for candidate_id, entry in existing_map_by_id.items():
+        if candidate_id not in seen_ids:
+            final_results.append(entry)
+            seen_ids.add(candidate_id)
+    # Then add entries that only exist in name map (for backward compatibility)
+    for name, entry in existing_map_by_name.items():
+        entry_id = entry.get("candidate_id")
+        if not entry_id or entry_id not in seen_ids:
+            final_results.append(entry)
+            if entry_id:
+                seen_ids.add(entry_id)
 
     # normalize
     scores = [r.get("Keyword_Score", 0.0) for r in final_results]
@@ -322,7 +395,9 @@ def main():
 
     print("\n🏆 Top Keyword Matches:")
     for r in final_results[:10]:
-        print(f"✔ {r['name']} | Keyword_Score={r['Keyword_Score']}")
+        keyword_score = r.get('Keyword_Score', 0.0)
+        name = r.get('name', 'Unknown')
+        print(f"✔ {name} | Keyword_Score={keyword_score}")
 
     with OUTPUT_FILE.open("w", encoding="utf-8") as f:
         json.dump(final_results, f, indent=4)

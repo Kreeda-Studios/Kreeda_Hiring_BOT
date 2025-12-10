@@ -1,0 +1,195 @@
+{
+  "role_title": "AI & Machine Learning Engineer",
+  "alt_titles": [],
+  "seniority_level": "Mid",
+  "department": "Engineering",
+  "industry": null,
+  "domain_tags": [
+    "AIML",
+    "Cloud",
+    "JD_SUMMARY:{\"role_title\": \"AI & Machine Learning Engineer\", \"seniority\": \"Mid\", \"domain\": \"Engineering\", \"years_experience_required\": 2.0, \"min_degree_level\": null, \"required_skills\": [\"Machine Learning\", \"Generative AI\"], \"preferred_skills\": [], \"top_tools\": [\"AWS\", \"GCP\", \"Azure\", \"LangChain\", \"Vector Database\", \"Snowflake\"], \"confidence_note\": \"seniority inferred heuristically if not provided\"}",
+    "REQ_SKILL:Machine Learning",
+    "REQ_SKILL:Generative AI",
+    "TOOL:AWS",
+    "TOOL:GCP",
+    "TOOL:Azure",
+    "TOOL:LangChain",
+    "TOOL:Vector Database",
+    "TOOL:Snowflake",
+    "DOMAIN_TOP:AIML",
+    "DOMAIN_TOP:Cloud",
+    "HR_NOTE:cat=general;type=recommendation;impact=0.7;note=Consider candidates with experience in advanced Computer Vision model development.",
+    "HR_NOTE:cat=general;type=inferred_requirement;impact=0.5;note=Look for candidates with familiarity in MLOps as it is beneficial for the role.",
+    "PHRASE:We are seeking a dynamic AI & Machine Learning Engineer to join our team.",
+    "PHRASE:Proven experience in leading AI projects.",
+    "PHRASE:Proficiency in cloud deployment of AI solutions (AWS, GCP, or Azure)."
+  ],
+  "location": null,
+  "work_model": null,
+  "employment_type": null,
+  "years_experience_required": 2.0,
+  "required_skills": [
+    "Machine Learning",
+    "Generative AI"
+  ],
+  "preferred_skills": [],
+  "tools_tech": [
+    "AWS",
+    "GCP",
+    "Azure",
+    "LangChain",
+    "Vector Database",
+    "Snowflake"
+  ],
+  "soft_skills": [],
+  "responsibilities": [
+    "Develop AI & Machine Learning solutions on cloud-based platforms.",
+    "Identify, access, import, clean, and format data from various sources.",
+    "Implement research findings and custom models effectively.",
+    "Construct backend systems to interface with other microservices.",
+    "Train and optimize machine learning models for optimal performance.",
+    "Engineer scalable machine intelligence systems and infrastructure for real-world deployment.",
+    "Justify the application of AI/ML solutions based on problem statements.",
+    "Prototype solutions efficiently and deliver results promptly.",
+    "Manipulate data using SQL and scripting languages.",
+    "Collaborate with internal and external teams to design and deploy AI & ML solutions.",
+    "Explore emerging AI & Machine learning trends and develop prototypes.",
+    "Demonstrate effective communication and teamwork skills."
+  ],
+  "weighting": {
+    "required_skills": 1.0,
+    "preferred_skills": 0.5,
+    "responsibilities": 0.8,
+    "domain_relevance": 0.6,
+    "technical_depth": 0.7,
+    "soft_skills": 0.5,
+    "education": null,
+    "certifications": null,
+    "keywords_exact": null,
+    "keywords_semantic": null
+  },
+  "keywords_flat": [
+    "AI",
+    "Machine Learning",
+    "Generative AI",
+    "AWS",
+    "GCP",
+    "Azure",
+    "LangChain",
+    "Vector Database",
+    "Snowflake",
+    "Natural Language Processing",
+    "Computer Vision",
+    "Graph Networks",
+    "MLOps",
+    "SQL"
+  ],
+  "keywords_weighted": {},
+  "hr_points": 2,
+  "hr_notes": [
+    {
+      "type": "recommendation",
+      "note": "Consider candidates with experience in advanced Computer Vision model development.",
+      "impact": 0.7,
+      "reason": "This aligns with the responsibilities outlined in the JD.",
+      "source_provenance": [
+        "Experience And Qualifications Required"
+      ]
+    },
+    {
+      "type": "inferred_requirement",
+      "note": "Look for candidates with familiarity in MLOps as it is beneficial for the role.",
+      "impact": 0.5,
+      "reason": "MLOps knowledge can enhance deployment efficiency.",
+      "source_provenance": [
+        "Experience And Qualifications Required"
+      ]
+    }
+  ],
+  "filter_requirements": {
+    "raw_prompt": "Experience needed: 2 years , Must have: Machine Learning,  GenAI",
+    "structured": {
+      "experience": {
+        "min": 2,
+        "specified": true
+      },
+      "hard_skills": [
+        "Machine Learning",
+        "Generative AI"
+      ],
+      "preferred_skills": [],
+      "location": null,
+      "education": [],
+      "other_criteria": []
+    },
+    "re_ranking_instructions": null
+  },
+  "meta": {
+    "raw_text_length": 2676,
+    "last_updated": "2025-12-10"
+  },
+  "canonical_skills": {
+    "ml_ai": [
+      "Machine Learning",
+      "Generative AI",
+      "Natural Language Processing",
+      "Computer Vision",
+      "Graph Networks",
+      "MLOps"
+    ],
+    "cloud": [
+      "AWS",
+      "GCP",
+      "Azure"
+    ],
+    "databases": [
+      "SQL",
+      "Snowflake"
+    ],
+    "devtools": [
+      "LangChain"
+    ]
+  },
+  "embedding_hints": {
+    "skills_embed": "AI, Machine Learning, Generative AI, AWS, GCP, Azure, SQL",
+    "responsibilities_embed": "Develop AI & Machine Learning solutions, Collaborate with teams, Optimize models",
+    "overall_embed": "AI & Machine Learning Engineer, cloud-based solutions, data manipulation",
+    "negatives_embed": "",
+    "seniority_embed": "Mid"
+  },
+  "explainability": {
+    "top_jd_sentences": [
+      "We are seeking a dynamic AI & Machine Learning Engineer to join our team.",
+      "Proven experience in leading AI projects.",
+      "Proficiency in cloud deployment of AI solutions (AWS, GCP, or Azure)."
+    ],
+    "key_phrases": [
+      "AI & Machine Learning solutions",
+      "cloud-based platforms",
+      "data pre-processing",
+      "model building",
+      "deep learning projects"
+    ],
+    "rationales": [
+      "The role requires a strong foundation in AI and Machine Learning, particularly in cloud environments, which is reflected in the responsibilities and required skills."
+    ]
+  },
+  "provenance_spans": [
+    {
+      "type": "responsibility",
+      "text": "Develop AI & Machine Learning solutions on cloud-based platforms."
+    },
+    {
+      "type": "responsibility",
+      "text": "Proven experience in leading AI projects."
+    },
+    {
+      "type": "hard_skill",
+      "text": "Machine Learning"
+    },
+    {
+      "type": "hard_skill",
+      "text": "Generative AI"
+    }
+  ]
+}
