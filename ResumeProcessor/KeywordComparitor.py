@@ -260,8 +260,15 @@ def main():
         print(f"⚠️ No resumes found", file=sys.stderr)
         sys.exit(0)
 
-    results = []
-    for rfile in resume_files:
+    # Check for parallel processing
+    import os
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    parallel = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"
+    max_workers = int(os.getenv("MAX_WORKERS", "5"))
+    
+    def process_single_resume(rfile):
+        """Process a single resume file and return result."""
         try:
             with rfile.open("r", encoding="utf-8") as f:
                 resume = json.load(f)
@@ -313,24 +320,70 @@ def main():
             result = {"name": name, "Keyword_Score": round(final, 3)}
             if candidate_id:
                 result["candidate_id"] = candidate_id
-            results.append(result)
-
+            return result
         except Exception as e:
             # ⚠️ Bad / irrelevant / corrupted resume → don't crash
             name = normalize_name(rfile.stem)
             print(f"⛔ ERROR processing {name} → {e}")
-            results.append({"name": name, "Keyword_Score": 0.0})
-            continue
+            return {"name": name, "Keyword_Score": 0.0}
 
-    # ----------- merging with Scores.json ------------
+    results = []
+    if parallel and len(resume_files) > 1:
+        # Parallel processing
+        print(f"[INFO] Processing {len(resume_files)} resumes in parallel with {max_workers} workers...")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_single_resume, rfile): rfile for rfile in resume_files}
+            
+            for future in as_completed(futures):
+                rfile = futures[future]
+                try:
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                except Exception as e:
+                    print(f"⚠️ Error processing {rfile.name}: {e}")
+    else:
+        # Sequential processing
+        for rfile in resume_files:
+            result = process_single_resume(rfile)
+            if result:
+                results.append(result)
+
+    # Start fresh - merge with existing scores from ProjectProcess (if any)
+    # But only include candidates that exist in current ProcessedJson directory
+    existing = []
     if OUTPUT_FILE.exists():
         with OUTPUT_FILE.open("r", encoding="utf-8") as f:
             try:
                 existing = json.load(f)
             except json.JSONDecodeError:
                 existing = []
-    else:
-        existing = []
+    
+    # Filter existing to only include candidates that still exist in ProcessedJson
+    current_candidate_ids = set()
+    current_names = set()
+    for rfile in resume_files:
+        try:
+            with rfile.open("r", encoding="utf-8") as f:
+                resume = json.load(f)
+                candidate_id = resume.get("candidate_id")
+                name = normalize_name(resume.get("name", "") or rfile.stem)
+                if candidate_id:
+                    current_candidate_ids.add(candidate_id)
+                if name:
+                    current_names.add(name)
+        except Exception:
+            continue
+    
+    # Filter existing entries to only keep current batch candidates
+    filtered_existing = []
+    for e in existing:
+        e_id = e.get("candidate_id")
+        e_name = normalize_name(e.get("name", ""))
+        if (e_id and e_id in current_candidate_ids) or (e_name and e_name in current_names):
+            filtered_existing.append(e)
+    
+    existing = filtered_existing
 
     # Build maps: prioritize candidate_id, fallback to normalized name
     existing_map_by_id = {}

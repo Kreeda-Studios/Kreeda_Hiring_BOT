@@ -69,8 +69,12 @@ class EmbedCache:
 
     def set(self, text: str, vec):
         self._cache[self._key(text)] = vec
-        if len(self._cache) % 1000 == 0:
-            pickle.dump(self._cache, open(self.path, "wb"))
+        # Write cache more frequently for better performance (every 100 items instead of 1000)
+        if len(self._cache) % 100 == 0:
+            try:
+                pickle.dump(self._cache, open(self.path, "wb"))
+            except Exception:
+                pass  # Non-critical, continue processing
 
     def close(self):
         pickle.dump(self._cache, open(self.path, "wb"))
@@ -277,7 +281,35 @@ def main():
         jd_txt[sec] = txts
         jd_emb[sec] = embed_texts(cache, txts) if txts else np.zeros((0,1536),dtype=np.float32)
 
+    # Load existing scores, but filter to only current batch candidates
     existing = json.load(open(SCORES_FILE)) if SCORES_FILE.exists() else []
+    
+    # Get current batch candidate IDs and names
+    current_candidate_ids = set()
+    current_names = set()
+    for r in resumes:
+        try:
+            resume = json.load(open(r,"r",encoding="utf-8"))
+            candidate_id = resume.get("candidate_id")
+            name = normalize_name(resume.get("name") or r.stem)
+            if candidate_id:
+                current_candidate_ids.add(candidate_id)
+            if name:
+                current_names.add(name)
+        except Exception:
+            continue
+    
+    # Filter existing to only include current batch candidates
+    filtered_existing = []
+    for e in existing:
+        if isinstance(e, dict):
+            e_id = e.get("candidate_id")
+            e_name = normalize_name(e.get("name", ""))
+            if (e_id and e_id in current_candidate_ids) or (e_name and e_name in current_names):
+                filtered_existing.append(e)
+    
+    existing = filtered_existing
+    
     # Build maps: prioritize candidate_id, fallback to normalized name
     existing_map_by_id = {}
     existing_map_by_name = {}
@@ -290,8 +322,12 @@ def main():
                 if normalized_name:
                     existing_map_by_name[normalized_name] = e
 
-    out = []
-    for r in tqdm(resumes, desc="Resumes"):
+    # Check for parallel processing
+    parallel = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"
+    max_workers = int(os.getenv("MAX_WORKERS", "5"))
+    
+    def process_single_resume(r):
+        """Process a single resume and return result."""
         resume = json.load(open(r,"r",encoding="utf-8"))
         raw_name = resume.get("name") or r.stem
         name = normalize_name(raw_name)
@@ -319,14 +355,41 @@ def main():
         elif name and name in existing_map_by_name:
             existing_entry = existing_map_by_name[name]
         
-        out.append({
+        return {
             "name": name,
             "candidate_id": candidate_id,
             "raw": total,
             "project_aggregate": existing_entry.get("project_aggregate") if existing_entry else None,
             "Keyword_Score": existing_entry.get("Keyword_Score") if existing_entry else None,
             "_internal": sec_scores
-        })
+        }
+    
+    out = []
+    if parallel and len(resumes) > 1:
+        # Parallel processing for resume scoring (embeddings are already batched)
+        print(f"[INFO] Processing {len(resumes)} resumes in parallel with {max_workers} workers...")
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_single_resume, r): r for r in resumes}
+            
+            for future in tqdm(as_completed(futures), total=len(resumes), desc="Resumes"):
+                r = futures[future]
+                try:
+                    result = future.result()
+                    if result:
+                        out.append(result)
+                except Exception as e:
+                    print(f"⚠️ Error processing {r.name}: {e}")
+    else:
+        # Sequential processing
+        for r in tqdm(resumes, desc="Resumes"):
+            try:
+                result = process_single_resume(r)
+                if result:
+                    out.append(result)
+            except Exception as e:
+                print(f"⚠️ Error processing {r.name}: {e}")
 
     cache.close()
 

@@ -59,23 +59,41 @@ def process_resume(json_path: Path):
     return result
 
 def main():
+    import os
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    json_files = sorted([f for f in PROCESSED_JSON_DIR.glob("*.json") if f.name != "example_output.json"])
+    
+    # Check for parallel processing flag
+    parallel = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"
+    max_workers = int(os.getenv("MAX_WORKERS", "5"))
+    
     results = []
-    json_files = sorted(PROCESSED_JSON_DIR.glob("*.json"))
-    for json_file in json_files:
-        result = process_resume(json_file)
-        if result:
-            results.append(result)
-            # print(f"✅ Processed {result['name']} | Project Aggregate: {result['project_aggregate']}")
-
-    # Load existing scores
-    if OUTPUT_FILE.exists():
-        with OUTPUT_FILE.open("r", encoding="utf-8") as f:
-            try:
-                existing_data = json.load(f)
-            except json.JSONDecodeError:
-                existing_data = []
+    
+    if parallel and len(json_files) > 1:
+        # Parallel processing
+        print(f"[INFO] Processing {len(json_files)} resumes in parallel with {max_workers} workers...")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_resume, json_file): json_file for json_file in json_files}
+            
+            for future in as_completed(futures):
+                json_file = futures[future]
+                try:
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                except Exception as e:
+                    print(f"⚠️ Error processing {json_file.name}: {e}")
     else:
-        existing_data = []
+        # Sequential processing
+        for json_file in json_files:
+            result = process_resume(json_file)
+            if result:
+                results.append(result)
+
+    # Start fresh - clear existing scores for new batch
+    # (Scores.json will be rebuilt from scratch with only current batch)
+    existing_data = []
 
     # Build existing map for update - prioritize candidate_id, fallback to normalized name
     existing_map_by_id = {}

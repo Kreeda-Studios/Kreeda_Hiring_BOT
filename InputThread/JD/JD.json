@@ -5,42 +5,23 @@
   "department": "Engineering",
   "industry": null,
   "domain_tags": [
-    "AIML",
-    "Cloud",
-    "JD_SUMMARY:{\"role_title\": \"AI & Machine Learning Engineer\", \"seniority\": \"Mid\", \"domain\": \"Engineering\", \"years_experience_required\": 2.0, \"min_degree_level\": null, \"required_skills\": [\"Machine Learning\", \"Generative AI\"], \"preferred_skills\": [], \"top_tools\": [\"AWS\", \"GCP\", \"Azure\", \"LangChain\", \"Vector Database\", \"Snowflake\"], \"confidence_note\": \"seniority inferred heuristically if not provided\"}",
+    "JD_SUMMARY:{\"role_title\": \"AI & Machine Learning Engineer\", \"seniority\": \"Mid\", \"domain\": \"Engineering\", \"years_experience_required\": 2.0, \"min_degree_level\": null, \"required_skills\": [\"Machine Learning\", \"Retrieval Augmented Generation\"], \"preferred_skills\": [], \"top_tools\": [], \"confidence_note\": \"seniority inferred heuristically if not provided\"}",
     "REQ_SKILL:Machine Learning",
-    "REQ_SKILL:Generative AI",
-    "TOOL:AWS",
-    "TOOL:GCP",
-    "TOOL:Azure",
-    "TOOL:LangChain",
-    "TOOL:Vector Database",
-    "TOOL:Snowflake",
-    "DOMAIN_TOP:AIML",
-    "DOMAIN_TOP:Cloud",
-    "HR_NOTE:cat=general;type=recommendation;impact=0.7;note=Consider candidates with experience in advanced Computer Vision model development.",
-    "HR_NOTE:cat=general;type=inferred_requirement;impact=0.5;note=Look for candidates with familiarity in MLOps as it is beneficial for the role.",
+    "REQ_SKILL:Retrieval Augmented Generation",
     "PHRASE:We are seeking a dynamic AI & Machine Learning Engineer to join our team.",
     "PHRASE:Proven experience in leading AI projects.",
     "PHRASE:Proficiency in cloud deployment of AI solutions (AWS, GCP, or Azure)."
   ],
-  "location": null,
+  "location": "Pune",
   "work_model": null,
   "employment_type": null,
   "years_experience_required": 2.0,
   "required_skills": [
     "Machine Learning",
-    "Generative AI"
+    "Retrieval Augmented Generation"
   ],
   "preferred_skills": [],
-  "tools_tech": [
-    "AWS",
-    "GCP",
-    "Azure",
-    "LangChain",
-    "Vector Database",
-    "Snowflake"
-  ],
+  "tools_tech": [],
   "soft_skills": [],
   "responsibilities": [
     "Develop AI & Machine Learning solutions on cloud-based platforms.",
@@ -63,62 +44,52 @@
     "domain_relevance": 0.6,
     "technical_depth": 0.7,
     "soft_skills": 0.5,
-    "education": null,
-    "certifications": null,
-    "keywords_exact": null,
-    "keywords_semantic": null
+    "education": 0.0,
+    "certifications": 0.0,
+    "keywords_exact": 0.5,
+    "keywords_semantic": 0.4
   },
   "keywords_flat": [
     "AI",
     "Machine Learning",
-    "Generative AI",
-    "AWS",
-    "GCP",
-    "Azure",
-    "LangChain",
-    "Vector Database",
-    "Snowflake",
+    "Retrieval Augmented Generation",
+    "cloud-based platforms",
+    "data",
+    "SQL",
+    "microservices",
+    "model building",
+    "optimization",
+    "data visualization",
     "Natural Language Processing",
     "Computer Vision",
     "Graph Networks",
+    "AWS",
+    "GCP",
+    "Azure",
+    "Lang chain",
+    "Vector database",
+    "Gen AI",
     "MLOps",
-    "SQL"
+    "deep learning",
+    "mathematical concepts"
   ],
   "keywords_weighted": {},
-  "hr_points": 2,
-  "hr_notes": [
-    {
-      "type": "recommendation",
-      "note": "Consider candidates with experience in advanced Computer Vision model development.",
-      "impact": 0.7,
-      "reason": "This aligns with the responsibilities outlined in the JD.",
-      "source_provenance": [
-        "Experience And Qualifications Required"
-      ]
-    },
-    {
-      "type": "inferred_requirement",
-      "note": "Look for candidates with familiarity in MLOps as it is beneficial for the role.",
-      "impact": 0.5,
-      "reason": "MLOps knowledge can enhance deployment efficiency.",
-      "source_provenance": [
-        "Experience And Qualifications Required"
-      ]
-    }
-  ],
+  "hr_points": 0,
+  "hr_notes": [],
   "filter_requirements": {
-    "raw_prompt": "Experience needed: 2 years , Must have: Machine Learning,  GenAI",
+    "raw_prompt": "Experience needed: 1-2 years , Must have: ML, RAG , Location: Pune only",
     "structured": {
       "experience": {
-        "min": 2,
+        "min": 1,
+        "max": 2,
         "specified": true
       },
       "hard_skills": [
         "Machine Learning",
-        "Generative AI"
+        "Retrieval Augmented Generation"
       ],
       "preferred_skills": [],
-      "location": null,
+      "location": "Pune",
       "education": [],
       "other_criteria": []
     },
@@ -126,16 +97,12 @@
   },
   "meta": {
     "raw_text_length": 2676,
-    "last_updated": "2025-12-10"
+    "last_updated": "2025-12-15"
   },
   "canonical_skills": {
     "ml_ai": [
       "Machine Learning",
-      "Generative AI",
-      "Natural Language Processing",
-      "Computer Vision",
-      "Graph Networks",
-      "MLOps"
+      "Retrieval Augmented Generation"
     ],
     "cloud": [
       "AWS",
@@ -146,13 +113,20 @@
       "SQL",
       "Snowflake"
     ],
-    "devtools": [
-      "LangChain"
-    ]
+    "backend": [
+      "microservices"
+    ],
+    "frontend": [],
+    "testing": [],
+    "devtools": [],
+    "methodologies": [],
+    "programming": [],
+    "frameworks": [],
+    "libraries": []
   },
   "embedding_hints": {
-    "skills_embed": "AI, Machine Learning, Generative AI, AWS, GCP, Azure, SQL",
-    "responsibilities_embed": "Develop AI & Machine Learning solutions, Collaborate with teams, Optimize models",
+    "skills_embed": "AI, Machine Learning, Retrieval Augmented Generation, cloud-based platforms, SQL",
+    "responsibilities_embed": "Develop AI & Machine Learning solutions, Identify data, Implement models, Construct backend systems",
     "overall_embed": "AI & Machine Learning Engineer, cloud-based solutions, data manipulation",
     "negatives_embed": "",
     "seniority_embed": "Mid"
@@ -166,9 +140,9 @@
     "key_phrases": [
       "AI & Machine Learning solutions",
       "cloud-based platforms",
-      "data pre-processing",
+      "data manipulation",
       "model building",
-      "deep learning projects"
+      "optimization"
     ],
     "rationales": [
       "The role requires a strong foundation in AI and Machine Learning, particularly in cloud environments, which is reflected in the responsibilities and required skills."
@@ -176,20 +150,16 @@
   },
   "provenance_spans": [
     {
-      "type": "responsibility",
-      "text": "Develop AI & Machine Learning solutions on cloud-based platforms."
+      "type": "experience",
+      "text": "Experience needed: 1-2 years"
     },
     {
-      "type": "responsibility",
-      "text": "Proven experience in leading AI projects."
+      "type": "hard_skills",
+      "text": "Must have: ML, RAG"
     },
     {
-      "type": "hard_skill",
-      "text": "Machine Learning"
-    },
-    {
-      "type": "hard_skill",
-      "text": "Generative AI"
+      "type": "location",
+      "text": "Location: Pune only"
     }
   ]
 }

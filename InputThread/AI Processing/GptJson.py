@@ -573,6 +573,72 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
         
         existing_candidate_ids.add(candidate_id)
         
+        # Map PDF path to candidate_id for download feature
+        # Look for corresponding PDF in Uploaded_Resumes directory
+        from pathlib import Path as PathLib
+        uploaded_resumes_dir = PathLib("Uploaded_Resumes")
+        pdf_mapping_file = uploaded_resumes_dir / "pdf_mapping.json"
+        
+        # Load existing mapping
+        pdf_mapping = {}
+        if pdf_mapping_file.exists():
+            try:
+                import json
+                with open(pdf_mapping_file, "r", encoding="utf-8") as f:
+                    pdf_mapping = json.load(f)
+            except Exception:
+                pdf_mapping = {}
+        
+        # Try to find matching PDF by resume filename stem
+        resume_name = in_path_obj.stem
+        candidate_name = parsed.get("name", "")
+        
+        # First, try to find PDF that matches the resume filename
+        matching_pdf = None
+        if uploaded_resumes_dir.exists():
+            for pdf_file in uploaded_resumes_dir.glob("*.pdf"):
+                pdf_stem = pdf_file.stem
+                # Match by exact stem or partial match
+                if pdf_stem == resume_name or resume_name in pdf_stem or pdf_stem in resume_name:
+                    matching_pdf = pdf_file
+                    break
+        
+        # If no match by filename, try to find by candidate name
+        if not matching_pdf and candidate_name and uploaded_resumes_dir.exists():
+            normalized_candidate = candidate_name.lower().replace(" ", "_").replace("-", "_")
+            for pdf_file in uploaded_resumes_dir.glob("*.pdf"):
+                pdf_stem = pdf_file.stem.lower().replace(" ", "_").replace("-", "_")
+                if normalized_candidate in pdf_stem or pdf_stem in normalized_candidate:
+                    matching_pdf = pdf_file
+                    break
+        
+        # Update mapping with candidate_id and name
+        if matching_pdf:
+            pdf_path_str = str(matching_pdf.resolve())
+            # Map by candidate_id (most reliable)
+            if candidate_id:
+                pdf_mapping[candidate_id] = pdf_path_str
+            # Map by candidate name (normalized)
+            if candidate_name:
+                pdf_mapping[candidate_name.strip().title()] = pdf_path_str
+                # Also map by various name formats
+                pdf_mapping[candidate_name] = pdf_path_str
+                pdf_mapping[candidate_name.replace(" ", "_")] = pdf_path_str
+                pdf_mapping[candidate_name.replace(" ", "-")] = pdf_path_str
+            # Keep filename mapping as fallback
+            pdf_mapping[resume_name] = pdf_path_str
+            if matching_pdf.name not in pdf_mapping:
+                pdf_mapping[matching_pdf.name] = pdf_path_str
+            
+            # Save mapping
+            try:
+                import json
+                pdf_mapping_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(pdf_mapping_file, "w", encoding="utf-8") as f:
+                    json.dump(pdf_mapping, f, indent=2)
+            except Exception:
+                pass  # Non-critical, continue processing
+        
         # Save with validation
         safe_json_save(parsed, out_path)
         
@@ -587,7 +653,7 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
         return False, f"ERROR: {err_msg}"
 
 
-def process_all(input_dir: str, output_dir: str, parallel: bool = True, max_workers: int = 5):
+def process_all(input_dir: str, output_dir: str, parallel: bool = True, max_workers: int = 5, only_files: list = None):
     """
     Process all resumes with optional parallel processing.
     
@@ -596,8 +662,20 @@ def process_all(input_dir: str, output_dir: str, parallel: bool = True, max_work
         output_dir: Output directory for .json files
         parallel: Whether to use parallel processing
         max_workers: Number of parallel workers (if parallel=True)
+        only_files: Optional list of specific filenames to process (if None, processes all)
     """
-    files = sorted([f for f in os.listdir(input_dir) if f.lower().endswith(".txt")])
+    all_files = sorted([f for f in os.listdir(input_dir) if f.lower().endswith(".txt")])
+    
+    # Filter to only process specified files if provided
+    if only_files:
+        files = [f for f in all_files if f in only_files]
+        if not files:
+            print(f"[INFO] No matching files found in {input_dir} from the specified list")
+            return
+        print(f"[INFO] Processing only {len(files)} newly uploaded file(s) out of {len(all_files)} total files")
+    else:
+        files = all_files
+    
     if not files:
         print(f"[INFO] No .txt files found in {input_dir}")
         return
@@ -686,11 +764,27 @@ if __name__ == "__main__":
     parallel_env = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"
     workers_env = int(os.getenv("MAX_WORKERS", "5"))
     
+    # Check for list of files to process (from session state or environment)
+    only_files = None
+    try:
+        import streamlit as st
+        if hasattr(st, 'session_state') and 'newly_uploaded_files' in st.session_state:
+            only_files = st.session_state.newly_uploaded_files
+    except Exception:
+        pass
+    
+    # Also check environment variable as fallback
+    if not only_files:
+        only_files_env = os.getenv("ONLY_PROCESS_FILES", "")
+        if only_files_env:
+            only_files = [f.strip() for f in only_files_env.split(",") if f.strip()]
+    
     parser = argparse.ArgumentParser(description="Process resumes with optional parallel processing")
     parser.add_argument("--parallel", action="store_true", default=parallel_env, help="Enable parallel processing")
     parser.add_argument("--workers", type=int, default=workers_env, help="Number of parallel workers")
+    parser.add_argument("--only-files", nargs="+", default=only_files, help="Only process these specific files")
     args = parser.parse_args()
     
-    process_all(INPUT_DIR, OUTPUT_DIR, parallel=args.parallel, max_workers=args.workers)
+    process_all(INPUT_DIR, OUTPUT_DIR, parallel=args.parallel, max_workers=args.workers, only_files=args.only_files)
     print("[DONE] Processing finished.")
 

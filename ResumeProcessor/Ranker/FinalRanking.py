@@ -259,7 +259,7 @@ def check_location_compliance(candidate: dict, resume_json: dict, requirement: s
     if req_loc in ["any", "anywhere", "remote/onsite", "flexible", ""]:
         return None
     
-    candidate_loc = resume_json.get("location", "").lower()
+    candidate_loc = (resume_json.get("location") or "").lower()
     
     # Check for remote/onsite/hybrid
     is_remote_req = "remote" in req_loc
@@ -427,7 +427,8 @@ def check_all_requirements(candidate: dict, resume_json: dict, filter_requiremen
     
     # Check location (skip if "Any" or not specified)
     location_req = structured.get("location")
-    if location_req and location_req.lower().strip() not in ["any", "anywhere", "remote/onsite", "flexible", ""]:
+    location_req_str = (location_req or "").strip()
+    if location_req_str and location_req_str.lower() not in ["any", "anywhere", "remote/onsite", "flexible", ""]:
         loc_compliance = check_location_compliance(candidate, resume_json, location_req)
         if loc_compliance:  # Will be None if "Any"
             compliance["location"] = loc_compliance

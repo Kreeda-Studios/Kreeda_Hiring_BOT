@@ -1,1 +1,1 @@
-'Experience needed: 2 years ', 'Must have: Machine Learning,  GenAI'
+'Experience needed: 1-2 years ', 'Must have: ML, RAG ',  'Location: Pune only'

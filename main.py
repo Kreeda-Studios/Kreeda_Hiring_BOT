@@ -14,6 +14,8 @@ from PyPDF2 import PdfReader  # for PDF extraction
 PROCESSED_TXT_DIR = Path("Processed-TXT")
 PROCESSED_JSON_DIR = Path("ProcessedJson")
 JD_FILE = Path("InputThread/JD/JD.txt")
+UPLOADED_RESUMES_DIR = Path("Uploaded_Resumes")  # Store original PDFs
+PDF_MAPPING_FILE = Path("Uploaded_Resumes/pdf_mapping.json")  # Map candidate_id to PDF path
 
 # Ranking files
 DISPLAY_RANKS = Path("Ranking/DisplayRanks.txt")
@@ -44,6 +46,7 @@ FOLDERS_TO_CLEAR_BEFORE_PROCESSING = [
 PROCESSED_TXT_DIR.mkdir(parents=True, exist_ok=True)
 PROCESSED_JSON_DIR.mkdir(parents=True, exist_ok=True)
 JD_FILE.parent.mkdir(parents=True, exist_ok=True)
+UPLOADED_RESUMES_DIR.mkdir(parents=True, exist_ok=True)
 
 # PDF extraction helper
 def extract_pdf_text(pdf_file) -> str:
@@ -136,13 +139,6 @@ def main():
     )
 
     st.markdown('<div class="main-title">📄 AI Resume Screening Platform</div>', unsafe_allow_html=True)
-    
-    # Warning notice for Streamlit Cloud (ephemeral storage)
-    st.warning(
-        "⚠️ **Note for Streamlit Cloud users:** This app uses ephemeral storage. "
-        "All uploaded files and processed data will be lost when the app restarts or sleeps. "
-        "Please download your results before closing the session."
-    )
 
     # Tabs (Documentation first, then JD, Resumes, Rankings)
     tabs = st.tabs(["📘 Documentation", "📌 Upload Requirements", "📁 Upload Resumes", "🏆 Rankings"])
@@ -168,7 +164,6 @@ def main():
         - Ensure resumes are in **PDF format**.
         - JD should be **specific and complete** for better ranking accuracy.
         - Avoid duplicate resumes; only latest versions should be uploaded.
-        - **Streamlit Cloud users:** Data is ephemeral - download results before closing the session.
 
         ### ✅ Ideal Steps:
         1. Upload the **Job Description** (PDF or text).
@@ -277,102 +272,210 @@ def main():
                     st.text(txt_file.name)
 
         if uploaded_files:
-            # Clear Processed-TXT before uploading new files (removes old resumes from previous sessions)
+            # Load existing PDF mapping
+            pdf_mapping = {}
+            if PDF_MAPPING_FILE.exists():
+                try:
+                    with open(PDF_MAPPING_FILE, "r", encoding="utf-8") as f:
+                        pdf_mapping = json.load(f)
+                except Exception:
+                    pdf_mapping = {}
+            
+            # Clear Processed-TXT and ProcessedJson before uploading new files (removes old resumes from previous sessions)
+            cleared_txt_count = 0
+            cleared_json_count = 0
+            
+            # Clear Processed-TXT directory
             if list(PROCESSED_TXT_DIR.glob("*.txt")):
                 st.info("🧹 Clearing old resumes from previous session...")
-                cleared_count = 0
                 for txt_file in PROCESSED_TXT_DIR.glob("*.txt"):
                     try:
                         txt_file.unlink()
-                        cleared_count += 1
+                        cleared_txt_count += 1
                     except Exception as e:
                         st.warning(f"⚠️ Could not delete {txt_file.name}: {e}")
-                if cleared_count > 0:
-                    st.success(f"✅ Cleared {cleared_count} old resume(s) from previous session")
             
-            # Extract new PDFs
+            # Clear ProcessedJson directory (old processed JSONs)
+            if PROCESSED_JSON_DIR.exists():
+                for json_file in PROCESSED_JSON_DIR.glob("*.json"):
+                    if json_file.name != "example_output.json":  # Don't delete example
+                        try:
+                            json_file.unlink()
+                            cleared_json_count += 1
+                        except Exception as e:
+                            st.warning(f"⚠️ Could not delete {json_file.name}: {e}")
+            
+            if cleared_txt_count > 0 or cleared_json_count > 0:
+                st.success(f"✅ Cleared {cleared_txt_count} old text file(s) and {cleared_json_count} old JSON file(s) from previous session")
+            
+            # Track newly uploaded files for this batch
+            newly_uploaded_files = []
+            
+            # Extract new PDFs and save originals
             for file in uploaded_files:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    shutil.copyfileobj(file, tmp)
-                    tmp_path = tmp.name
+                # Save original PDF to Uploaded_Resumes directory
+                resume_name = Path(file.name).stem
+                saved_pdf_path = UPLOADED_RESUMES_DIR / file.name
+                
+                # Save the PDF file
+                with open(saved_pdf_path, "wb") as f:
+                    f.write(file.getbuffer())
+                
+                # Update PDF mapping immediately with filename (will be updated with candidate_id later)
+                pdf_mapping_file = UPLOADED_RESUMES_DIR / "pdf_mapping.json"
+                if pdf_mapping_file.exists():
+                    try:
+                        with open(pdf_mapping_file, "r", encoding="utf-8") as f:
+                            pdf_mapping = json.load(f)
+                    except Exception:
+                        pdf_mapping = {}
+                else:
+                    pdf_mapping = {}
+                
+                # Map by filename (will be updated with candidate_id during processing)
+                pdf_mapping[file.name] = str(saved_pdf_path.resolve())
+                pdf_mapping[resume_name] = str(saved_pdf_path.resolve())  # Also map by stem
+                
                 try:
-                    output_text = route_pdf(tmp_path, str(PROCESSED_TXT_DIR), original_name=file.name)
+                    with open(pdf_mapping_file, "w", encoding="utf-8") as f:
+                        json.dump(pdf_mapping, f, indent=2)
+                except Exception:
+                    pass  # Non-critical
+                
+                # Use saved PDF for extraction
+                try:
+                    output_text = route_pdf(str(saved_pdf_path), str(PROCESSED_TXT_DIR), original_name=file.name)
                     if output_text:
                         st.success(f"✅ Extracted: {file.name}")
+                        # Track this as a newly uploaded file
+                        newly_uploaded_files.append(Path(output_text).name)  # Store just the filename
                     else:
                         st.warning(f"⚠️ Skipped: {file.name}")
                 except Exception as e:
                     st.error(f"❌ Error processing {file.name}: {e}")
+            
+            # Store list of newly uploaded files in session state for processing
+            st.session_state.newly_uploaded_files = newly_uploaded_files
 
             if st.button("⚙️ Process & Rank Resumes", disabled=st.session_state.get("pipeline_ran", False)):
                 if not st.session_state.get("pipeline_ran", False):
                     st.session_state.pipeline_ran = True
                     
-                    # Auto-clear old JSONs before processing (preserves Processed-TXT extracted text files)
-                    st.info("🧹 Clearing previous processing results...")
-                    cleared = clear_before_processing()
-                    if cleared:
-                        st.success(f"✅ Cleared {len(cleared)} files from previous run (preserved extracted text files)")
-
-                    # Enable parallel processing by default (can be disabled if needed)
-                    # Reduced to 2 workers for Streamlit Cloud free tier compatibility
-                    import os
-                    os.environ["ENABLE_PARALLEL"] = "true"
-                    os.environ["MAX_WORKERS"] = "2"  # Reduced from 5 for Streamlit Cloud free tier
-                    
-                    steps = [
-                        ("Running AI processing (TXT → JSON) [PARALLEL]...",
-                         ["python3", "InputThread/AI Processing/GptJson.py"]),
-                        ("Running Early Filtering (HR Requirements)...",
-                         ["python3", "ResumeProcessor/EarlyFilter.py"]),
-                        ("Running ProjectProcess.py ...",
-                         ["python3", "ResumeProcessor/ProjectProcess.py"]),
-                        ("Running KeywordComparitor.py ...",
-                         ["python3", "ResumeProcessor/KeywordComparitor.py"]),
-                        ("Running SemanticComparitor.py ...",
-                         ["python3", "ResumeProcessor/SemanticComparitor.py"]),
-                        ("Running FinalRanking.py (with LLM Re-ranking)...",
-                         ["python3", str(FINAL_RANKING_SCRIPT)]),
-                    ]
-
-                    progress = st.progress(0)
-                    total = len(steps)
-
-                    for i, (msg, cmd) in enumerate(steps, start=1):
+                    # Clear ranking files before processing (ProcessedJson already cleared when resumes were uploaded)
+                    st.info("🧹 Clearing previous ranking results...")
+                    cleared = []
+                    for f in FILES_TO_CLEAR:
                         try:
-                            st.info(f"🔄 Step {i}/{total}: {msg}")
-                            print(f"\n{'='*60}")
-                            print(f"STEP {i}/{total}: {msg}")
-                            print(f"{'='*60}\n")
-                                
-                            script_path = cmd[1] if isinstance(cmd, (list, tuple)) and len(cmd) > 1 else cmd
-                            print(f"Executing: {script_path}")
-                            
-                            # Run the script
-                            runpy.run_path(script_path, run_name='__main__')
-                            
-                            print(f"✅ Step {i} completed successfully\n")
-                            progress.progress(i / total)
-                            
+                            if os.path.exists(f):
+                                os.remove(f)
+                                cleared.append(f)
                         except Exception as e:
-                            error_msg = f"❌ Error in step {i}/{total} ({msg}): {str(e)}"
-                            print(f"\n{'='*60}")
-                            print(f"ERROR: {error_msg}")
-                            print(f"{'='*60}\n")
-                            import traceback
-                            traceback.print_exc()
-                            st.error(error_msg)
-                            st.exception(e)  # Show full traceback in UI
-                            break
+                            print(f"⚠️ Error deleting {f}: {e}")
+                    if cleared:
+                        st.success(f"✅ Cleared {len(cleared)} ranking file(s) from previous run")
 
-                    if i == total:
+                    # Enable parallel processing by default - optimized for local processing
+                    import os
+                    import multiprocessing
+                    # Use CPU count or default to 8 for optimal performance
+                    max_workers = min(os.cpu_count() or 8, 16)  # Cap at 16 to avoid overwhelming system
+                    os.environ["ENABLE_PARALLEL"] = "true"
+                    os.environ["MAX_WORKERS"] = str(max_workers)
+                    
+                    # Step 1: AI processing (must run first)
+                    try:
+                        st.info("🔄 Step 1/6: Running AI processing (TXT → JSON) [PARALLEL]...")
                         print(f"\n{'='*60}")
-                        print("✅ ALL STEPS COMPLETED SUCCESSFULLY")
+                        print("STEP 1/6: Running AI processing (TXT → JSON) [PARALLEL]...")
                         print(f"{'='*60}\n")
-                        st.success("🎯 Resume ranking complete!")
-                        st.session_state.active_tab = 3  # auto-jump to Rankings
-                    else:
-                        st.warning(f"⚠️ Pipeline stopped at step {i}/{total}. Please check errors above.")
+                        
+                        # Pass newly uploaded files list to GptJson via environment variable
+                        newly_uploaded = st.session_state.get("newly_uploaded_files", [])
+                        if newly_uploaded:
+                            import os
+                            os.environ["ONLY_PROCESS_FILES"] = ",".join(newly_uploaded)
+                            print(f"[INFO] Processing only {len(newly_uploaded)} newly uploaded file(s)")
+                        
+                        runpy.run_path("InputThread/AI Processing/GptJson.py", run_name='__main__')
+                        
+                        # Clear the environment variable after use
+                        if newly_uploaded:
+                            import os
+                            os.environ.pop("ONLY_PROCESS_FILES", None)
+                        
+                        print("✅ Step 1 completed successfully\n")
+                    except Exception as e:
+                        error_msg = f"❌ Error in step 1: {str(e)}"
+                        print(f"\n{'='*60}\nERROR: {error_msg}\n{'='*60}\n")
+                        import traceback
+                        traceback.print_exc()
+                        st.error(error_msg)
+                        st.exception(e)
+                        st.stop()
+                    
+                    # Step 2: Early Filtering (must run after AI processing)
+                    try:
+                        st.info("🔄 Step 2/6: Running Early Filtering (HR Requirements)...")
+                        print(f"\n{'='*60}\nSTEP 2/6: Running Early Filtering...\n{'='*60}\n")
+                        runpy.run_path("ResumeProcessor/EarlyFilter.py", run_name='__main__')
+                        print("✅ Step 2 completed successfully\n")
+                    except Exception as e:
+                        error_msg = f"❌ Error in step 2: {str(e)}"
+                        print(f"\n{'='*60}\nERROR: {error_msg}\n{'='*60}\n")
+                        import traceback
+                        traceback.print_exc()
+                        st.error(error_msg)
+                        st.exception(e)
+                        st.stop()
+                    
+                    # Steps 3-5: Parallel scoring modules (can run in parallel)
+                    from concurrent.futures import ThreadPoolExecutor, as_completed
+                    
+                    scoring_steps = [
+                        ("Running ProjectProcess.py...", "ResumeProcessor/ProjectProcess.py"),
+                        ("Running KeywordComparitor.py...", "ResumeProcessor/KeywordComparitor.py"),
+                        ("Running SemanticComparitor.py...", "ResumeProcessor/SemanticComparitor.py"),
+                    ]
+                    
+                    st.info("🔄 Steps 3-5/6: Running scoring modules in parallel...")
+                    print(f"\n{'='*60}\nSTEPS 3-5/6: Running scoring modules in parallel...\n{'='*60}\n")
+                    
+                    with ThreadPoolExecutor(max_workers=3) as executor:
+                        futures = {executor.submit(runpy.run_path, script_path, run_name='__main__'): (i+3, msg) 
+                                  for i, (msg, script_path) in enumerate(scoring_steps)}
+                        
+                        for future in as_completed(futures):
+                            step_num, msg = futures[future]
+                            try:
+                                future.result()
+                                print(f"✅ Step {step_num} ({msg}) completed successfully")
+                            except Exception as e:
+                                error_msg = f"❌ Error in step {step_num} ({msg}): {str(e)}"
+                                print(f"\n{'='*60}\nERROR: {error_msg}\n{'='*60}\n")
+                                import traceback
+                                traceback.print_exc()
+                                st.error(error_msg)
+                                st.exception(e)
+                                st.stop()
+                    
+                    # Step 6: Final Ranking (must run last)
+                    try:
+                        st.info("🔄 Step 6/6: Running FinalRanking.py (with LLM Re-ranking)...")
+                        print(f"\n{'='*60}\nSTEP 6/6: Running FinalRanking.py...\n{'='*60}\n")
+                        runpy.run_path(str(FINAL_RANKING_SCRIPT), run_name='__main__')
+                        print("✅ Step 6 completed successfully\n")
+                    except Exception as e:
+                        error_msg = f"❌ Error in step 6: {str(e)}"
+                        print(f"\n{'='*60}\nERROR: {error_msg}\n{'='*60}\n")
+                        import traceback
+                        traceback.print_exc()
+                        st.error(error_msg)
+                        st.exception(e)
+                        st.stop()
+                    
+                    print(f"\n{'='*60}\n✅ ALL STEPS COMPLETED SUCCESSFULLY\n{'='*60}\n")
+                    st.success("🎯 Resume ranking complete!")
+                    st.session_state.active_tab = 3  # auto-jump to Rankings
 
     # ---------------- Tab 4: Rankings ----------------
     with tabs[3]:
@@ -413,15 +516,73 @@ def main():
                         else:
                             return f"❌ 0/{total}", "error"
                     
+                    # Helper function to get PDF path for candidate
+                    def get_resume_pdf_path(candidate_id: str, candidate_name: str) -> Path | None:
+                        """Get PDF path for a candidate by candidate_id or name."""
+                        # Try to load mapping file
+                        if PDF_MAPPING_FILE.exists():
+                            try:
+                                with open(PDF_MAPPING_FILE, "r", encoding="utf-8") as f:
+                                    pdf_mapping = json.load(f)
+                                    
+                                    # Try candidate_id first (most reliable)
+                                    if candidate_id and candidate_id in pdf_mapping:
+                                        pdf_path = Path(pdf_mapping[candidate_id])
+                                        if pdf_path.exists():
+                                            return pdf_path
+                                    
+                                    # Try normalized candidate name
+                                    if candidate_name:
+                                        normalized_name = candidate_name.strip().title()
+                                        if normalized_name in pdf_mapping:
+                                            pdf_path = Path(pdf_mapping[normalized_name])
+                                            if pdf_path.exists():
+                                                return pdf_path
+                                        
+                                        # Try various name formats
+                                        name_variants = [
+                                            candidate_name,
+                                            candidate_name.replace(" ", "_"),
+                                            candidate_name.replace(" ", "-"),
+                                            candidate_name.lower(),
+                                            candidate_name.upper(),
+                                        ]
+                                        for variant in name_variants:
+                                            if variant in pdf_mapping:
+                                                pdf_path = Path(pdf_mapping[variant])
+                                                if pdf_path.exists():
+                                                    return pdf_path
+                            except Exception as e:
+                                print(f"⚠️ Error reading PDF mapping: {e}")
+                        
+                        # Fallback: search in Uploaded_Resumes directory by name
+                        if candidate_name and UPLOADED_RESUMES_DIR.exists():
+                            # Normalize candidate name for matching
+                            normalized_candidate = candidate_name.lower().replace(" ", "_").replace("-", "_")
+                            
+                            # Try to find PDF with similar name
+                            for pdf_file in UPLOADED_RESUMES_DIR.glob("*.pdf"):
+                                pdf_stem = pdf_file.stem.lower().replace(" ", "_").replace("-", "_")
+                                # Check if names match (either direction)
+                                if normalized_candidate in pdf_stem or pdf_stem in normalized_candidate:
+                                    return pdf_file
+                                
+                                # Also try exact match with original name
+                                if candidate_name.lower() in pdf_file.stem.lower() or \
+                                   pdf_file.stem.lower() in candidate_name.lower():
+                                    return pdf_file
+                        return None
+                    
                     # Display candidates with expandable details
                     for cand in ranking:
                         rank = cand.get("Rank", 0)
                         name = cand.get("name", "Unknown")
                         score = cand.get("Re_Rank_Score", cand.get("Final_Score", 0.0))
+                        candidate_id = cand.get("candidate_id")
                         
                         # Create expander for each candidate
                         with st.expander(f"**#{rank}** {name} | Score: {score:.3f}"):
-                            col1, col2 = st.columns(2)
+                            col1, col2, col3 = st.columns([2, 2, 1])
                             
                             with col1:
                                 st.markdown(f"**Rank:** {rank}")
@@ -463,6 +624,21 @@ def main():
                                     st.write(f"  • Keyword: {cand.get('Keyword_Score', 0):.3f}")
                                 if cand.get("Semantic_Score") is not None:
                                     st.write(f"  • Semantic: {cand.get('Semantic_Score', 0):.3f}")
+                            
+                            with col3:
+                                # Download resume PDF button
+                                pdf_path = get_resume_pdf_path(candidate_id, name)
+                                if pdf_path and pdf_path.exists():
+                                    with open(pdf_path, "rb") as pdf_file:
+                                        st.download_button(
+                                            label="📥 Download Resume",
+                                            data=pdf_file.read(),
+                                            file_name=pdf_path.name,
+                                            mime="application/pdf",
+                                            key=f"download_{candidate_id}_{rank}"
+                                        )
+                                else:
+                                    st.info("📄 PDF not available")
                             
                             # Show compliance details - ensure we have the data
                             requirements_met = cand.get("requirements_met", [])
