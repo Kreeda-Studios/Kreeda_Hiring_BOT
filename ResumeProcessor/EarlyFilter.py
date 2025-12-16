@@ -258,7 +258,11 @@ def check_location_compliance(resume: dict, requirement: str):
     if req_loc in ["any", "anywhere", "remote/onsite", "flexible", ""]:
         return True, "Location requirement is flexible (Any)"
     
-    candidate_loc = resume.get("location", "").lower()
+    # Handle None location
+    location = resume.get("location")
+    if not location or not isinstance(location, str):
+        return False, "Location not specified in resume"
+    candidate_loc = location.lower()
     
     # Check for remote/onsite/hybrid
     is_remote_req = "remote" in req_loc
@@ -439,7 +443,7 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
     
     # Check location (categorical - must match, unless "Any")
     location_req = structured.get("location")
-    if location_req and location_req.lower().strip() not in ["any", "anywhere", "remote/onsite", "flexible", ""]:
+    if location_req and isinstance(location_req, str) and location_req.lower().strip() not in ["any", "anywhere", "remote/onsite", "flexible", ""]:
         specified_requirements.append("location")
         meets, reason = check_location_compliance(resume, location_req)
         compliance["location"] = {
@@ -578,8 +582,11 @@ def main():
     print(f"   - Skill Match Threshold: {int(SKILL_MATCH_THRESHOLD*100)}%")
     print(f"   - Skill Normalization: Handled by LLM during parsing (canonical forms)")
     
-    # Process all resumes
-    resume_files = list(PROCESSED_JSON_DIR.glob("*.json"))
+    # Process all resumes (only in root directory, exclude FilteredResumes subdirectory)
+    resume_files = [
+        f for f in PROCESSED_JSON_DIR.glob("*.json")
+        if f.parent == PROCESSED_JSON_DIR  # Only root directory files
+    ]
     if not resume_files:
         print("⚠️ No resumes found")
         return

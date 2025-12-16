@@ -270,7 +270,11 @@ def main():
     jd = json.load(open(jd_files[0],"r",encoding="utf-8"))
     jd_secs = extract_sections_from_jd(jd)
 
-    resumes = sorted(PROCESSED_JSON_DIR.glob("*.json"))
+    # Only process files in root ProcessedJson directory (exclude FilteredResumes subdirectory)
+    resumes = sorted([
+        p for p in PROCESSED_JSON_DIR.glob("*.json")
+        if p.parent == PROCESSED_JSON_DIR
+    ])
     if not resumes:
         print("⚠️ No resumes found"); sys.exit(0)
 

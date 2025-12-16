@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import json
 import runpy
+import zipfile
+from typing import List, Dict, Optional
 
 from InputThread.file_router import route_pdf  # updated function name
 from PyPDF2 import PdfReader  # for PDF extraction
@@ -47,6 +49,9 @@ PROCESSED_TXT_DIR.mkdir(parents=True, exist_ok=True)
 PROCESSED_JSON_DIR.mkdir(parents=True, exist_ok=True)
 JD_FILE.parent.mkdir(parents=True, exist_ok=True)
 UPLOADED_RESUMES_DIR.mkdir(parents=True, exist_ok=True)
+
+# ZIP download configuration
+DISPLAY_RANKS_FILE = Path("Ranking/DisplayRanks.txt")
 
 # PDF extraction helper
 def extract_pdf_text(pdf_file) -> str:
@@ -102,6 +107,54 @@ def clear_before_processing():
                     except Exception as e:
                         print(f"⚠️ Error deleting {file}: {e}")
     return cleared
+
+
+# ZIP download helper function
+def create_resumes_zip(selected_candidates: List[Dict], get_pdf_path_func) -> Optional[bytes]:
+    """
+    Create a ZIP file containing selected resume PDFs and DisplayRanks.txt.
+    
+    Args:
+        selected_candidates: List of candidate dictionaries
+        get_pdf_path_func: Function to get PDF path for a candidate
+    
+    Returns:
+        ZIP file bytes or None if error
+    """
+    try:
+        import io
+        
+        # Create ZIP in memory
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add DisplayRanks.txt if it exists
+            if DISPLAY_RANKS_FILE.exists():
+                zip_file.write(DISPLAY_RANKS_FILE, DISPLAY_RANKS_FILE.name)
+            
+            # Add all selected PDFs
+            for candidate in selected_candidates:
+                candidate_id = candidate.get("candidate_id")
+                name = candidate.get("name", "Unknown")
+                
+                # Get PDF path using the provided function
+                pdf_path = get_pdf_path_func(candidate_id, name)
+                
+                if pdf_path and pdf_path.exists():
+                    # Add PDF to ZIP with original filename
+                    zip_file.write(pdf_path, pdf_path.name)
+                else:
+                    # Skip if PDF not found (shouldn't happen, but handle gracefully)
+                    print(f"⚠️ Warning: PDF not found for {name}, skipping...")
+        
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+        
+    except Exception as e:
+        print(f"❌ Error creating ZIP file: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 # ---------------- UI Layout ----------------
@@ -375,7 +428,6 @@ def main():
                         st.success(f"✅ Cleared {len(cleared)} ranking file(s) from previous run")
 
                     # Enable parallel processing by default - optimized for local processing
-                    import os
                     import multiprocessing
                     # Use CPU count or default to 8 for optimal performance
                     max_workers = min(os.cpu_count() or 8, 16)  # Cap at 16 to avoid overwhelming system
@@ -392,7 +444,6 @@ def main():
                         # Pass newly uploaded files list to GptJson via environment variable
                         newly_uploaded = st.session_state.get("newly_uploaded_files", [])
                         if newly_uploaded:
-                            import os
                             os.environ["ONLY_PROCESS_FILES"] = ",".join(newly_uploaded)
                             print(f"[INFO] Processing only {len(newly_uploaded)} newly uploaded file(s)")
                         
@@ -400,7 +451,6 @@ def main():
                         
                         # Clear the environment variable after use
                         if newly_uploaded:
-                            import os
                             os.environ.pop("ONLY_PROCESS_FILES", None)
                         
                         print("✅ Step 1 completed successfully\n")
@@ -498,25 +548,7 @@ def main():
                 if ranking:
                     st.success(f"Showing {len(ranking)} ranked candidates (pre-filtered for HR requirements)")
                     
-                    # Helper function to get compliance summary
-                    def get_compliance_summary(candidate):
-                        """Get compliance summary for display."""
-                        met = candidate.get("requirements_met", [])
-                        missing = candidate.get("requirements_missing", [])
-                        total = len(met) + len(missing)
-                        
-                        if total == 0:
-                            return "No filters", "info"
-                        
-                        met_count = len(met)
-                        if met_count == total:
-                            return f"✅ {met_count}/{total}", "success"
-                        elif met_count > 0:
-                            return f"⚠️ {met_count}/{total}", "warning"
-                        else:
-                            return f"❌ 0/{total}", "error"
-                    
-                    # Helper function to get PDF path for candidate
+                    # Helper function to get PDF path for candidate (defined before use)
                     def get_resume_pdf_path(candidate_id: str, candidate_name: str) -> Path | None:
                         """Get PDF path for a candidate by candidate_id or name."""
                         # Try to load mapping file
@@ -571,107 +603,183 @@ def main():
                                 if candidate_name.lower() in pdf_file.stem.lower() or \
                                    pdf_file.stem.lower() in candidate_name.lower():
                                     return pdf_file
+                        
                         return None
                     
-                    # Display candidates with expandable details
-                    for cand in ranking:
-                        rank = cand.get("Rank", 0)
-                        name = cand.get("name", "Unknown")
-                        score = cand.get("Re_Rank_Score", cand.get("Final_Score", 0.0))
-                        candidate_id = cand.get("candidate_id")
+                    # Download selected resumes as ZIP - wrapped in form to prevent reruns on checkbox clicks
+                    st.markdown("### 📥 Download Selected Resumes")
+                    st.info("Select candidates using checkboxes below, then click the download button to get all selected resumes in a ZIP file.")
+                    
+                    # Wrap checkboxes and download in a form to prevent reruns
+                    with st.form("resume_selection_form", clear_on_submit=False):
+                        st.markdown("---")
+                        st.markdown("### 🏆 Candidate Rankings")
                         
-                        # Create expander for each candidate
-                        with st.expander(f"**#{rank}** {name} | Score: {score:.3f}"):
-                            col1, col2, col3 = st.columns([2, 2, 1])
+                        # Helper function to get compliance summary
+                        def get_compliance_summary(candidate):
+                            """Get compliance summary for display."""
+                            met = candidate.get("requirements_met", [])
+                            missing = candidate.get("requirements_missing", [])
+                            total = len(met) + len(missing)
                             
-                            with col1:
-                                st.markdown(f"**Rank:** {rank}")
-                                st.markdown(f"**Score:** {score:.3f}")
+                            if total == 0:
+                                return "No filters", "info"
+                            
+                            met_count = len(met)
+                            if met_count == total:
+                                return f"✅ {met_count}/{total}", "success"
+                            elif met_count > 0:
+                                return f"⚠️ {met_count}/{total}", "warning"
+                            else:
+                                return f"❌ 0/{total}", "error"
+                        
+                        # Display candidates with expandable details
+                        for cand in ranking:
+                            rank = cand.get("Rank", 0)
+                            name = cand.get("name", "Unknown")
+                            score = cand.get("Re_Rank_Score", cand.get("Final_Score", 0.0))
+                            candidate_id = cand.get("candidate_id")
+                            
+                            # Create expander for each candidate
+                            with st.expander(f"**#{rank}** {name} | Score: {score:.3f}"):
+                                col1, col2, col3 = st.columns([2, 2, 1])
                                 
-                                # Show compliance summary - check both requirement_compliance and requirements_met/missing
+                                with col1:
+                                    st.markdown(f"**Rank:** {rank}")
+                                    st.markdown(f"**Score:** {score:.3f}")
+                                    
+                                    # Show compliance summary - check both requirement_compliance and requirements_met/missing
+                                    requirements_met = cand.get("requirements_met", [])
+                                    requirements_missing = cand.get("requirements_missing", [])
+                                    
+                                    # If not set, try to extract from requirement_compliance
+                                    if (not requirements_met and not requirements_missing) and cand.get("requirement_compliance"):
+                                        compliance = cand.get("requirement_compliance", {})
+                                        if isinstance(compliance, dict) and compliance:
+                                            requirements_met = [req_type for req_type, comp in compliance.items() if comp.get("meets", False)]
+                                            requirements_missing = [req_type for req_type, comp in compliance.items() if not comp.get("meets", False)]
+                                    
+                                    # Update cand dict for get_compliance_summary
+                                    if requirements_met or requirements_missing:
+                                        cand["requirements_met"] = requirements_met
+                                        cand["requirements_missing"] = requirements_missing
+                                    
+                                    if cand.get("requirement_compliance") or requirements_met or requirements_missing:
+                                        compliance_summary, status = get_compliance_summary(cand)
+                                        if status == "success":
+                                            st.success(f"**Compliance:** {compliance_summary}")
+                                        elif status == "warning":
+                                            st.warning(f"**Compliance:** {compliance_summary}")
+                                        elif status == "error":
+                                            st.error(f"**Compliance:** {compliance_summary}")
+                                        else:
+                                            st.info(f"**Compliance:** {compliance_summary}")
+                                
+                                with col2:
+                                    # Show scores breakdown
+                                    st.markdown("**Score Breakdown:**")
+                                    if cand.get("project_aggregate") is not None:
+                                        st.write(f"  • Project: {cand.get('project_aggregate', 0):.3f}")
+                                    if cand.get("Keyword_Score") is not None:
+                                        st.write(f"  • Keyword: {cand.get('Keyword_Score', 0):.3f}")
+                                    if cand.get("Semantic_Score") is not None:
+                                        st.write(f"  • Semantic: {cand.get('Semantic_Score', 0):.3f}")
+                                
+                                with col3:
+                                    # Checkbox for download selection
+                                    pdf_path = get_resume_pdf_path(candidate_id, name)
+                                    if pdf_path and pdf_path.exists():
+                                        # Checkbox for selecting candidate for ZIP download
+                                        st.checkbox(
+                                            "Select for download",
+                                            key=f"select_{candidate_id}_{rank}",
+                                            help="Check to include this candidate's resume in the ZIP download"
+                                        )
+                                    else:
+                                        st.info("📄 PDF not available")
+                                
+                                # Show compliance details - ensure we have the data
                                 requirements_met = cand.get("requirements_met", [])
                                 requirements_missing = cand.get("requirements_missing", [])
+                                compliance = cand.get("requirement_compliance", {})
                                 
                                 # If not set, try to extract from requirement_compliance
-                                if (not requirements_met and not requirements_missing) and cand.get("requirement_compliance"):
-                                    compliance = cand.get("requirement_compliance", {})
+                                if (not requirements_met and not requirements_missing) and compliance:
                                     if isinstance(compliance, dict) and compliance:
                                         requirements_met = [req_type for req_type, comp in compliance.items() if comp.get("meets", False)]
                                         requirements_missing = [req_type for req_type, comp in compliance.items() if not comp.get("meets", False)]
                                 
-                                # Update cand dict for get_compliance_summary
-                                if requirements_met or requirements_missing:
-                                    cand["requirements_met"] = requirements_met
-                                    cand["requirements_missing"] = requirements_missing
+                                if compliance or requirements_met or requirements_missing:
+                                    st.markdown("---")
+                                    st.markdown("### 📋 Compliance Details")
+                                    
+                                    if requirements_met:
+                                        st.success(f"**✅ Requirements Met ({len(requirements_met)}):** {', '.join(requirements_met)}")
+                                        for req_type in requirements_met:
+                                            req_comp = compliance.get(req_type, {})
+                                            if req_comp:
+                                                details = req_comp.get("details", "")
+                                                if details:
+                                                    st.write(f"  • **{req_type.replace('_', ' ').title()}**: {details}")
+                                    
+                                    if requirements_missing:
+                                        st.error(f"**❌ Requirements Missing ({len(requirements_missing)}):** {', '.join(requirements_missing)}")
+                                        for req_type in requirements_missing:
+                                            req_comp = compliance.get(req_type, {})
+                                            if req_comp:
+                                                details = req_comp.get("details", "")
+                                                if details:
+                                                    st.write(f"  • **{req_type.replace('_', ' ').title()}**: {details}")
+                        
+                        # Collect selected candidates from session state (after form submission)
+                        selected_candidates = []
+                        for cand in ranking:
+                            candidate_id = cand.get("candidate_id")
+                            rank = cand.get("Rank", 0)
+                            checkbox_key = f"select_{candidate_id}_{rank}"
+                            if st.session_state.get(checkbox_key, False):
+                                selected_candidates.append(cand)
+                        
+                        # Form submit button - only triggers rerun when clicked
+                        form_submitted = st.form_submit_button(
+                            label=f"📥 Download {len(selected_candidates)} Selected Resume(s) as ZIP" if selected_candidates else "📥 Download Selected Resumes (ZIP)",
+                            type="primary",
+                            use_container_width=True
+                        )
+                        
+                        # Process form submission
+                        if form_submitted:
+                            if selected_candidates:
+                                zip_filename = f"Selected_Resumes_{len(selected_candidates)}_candidates.zip"
                                 
-                                if cand.get("requirement_compliance") or requirements_met or requirements_missing:
-                                    compliance_summary, status = get_compliance_summary(cand)
-                                    if status == "success":
-                                        st.success(f"**Compliance:** {compliance_summary}")
-                                    elif status == "warning":
-                                        st.warning(f"**Compliance:** {compliance_summary}")
-                                    elif status == "error":
-                                        st.error(f"**Compliance:** {compliance_summary}")
+                                # Create ZIP file
+                                with st.spinner(f"Preparing ZIP file with {len(selected_candidates)} resume(s)..."):
+                                    zip_data = create_resumes_zip(selected_candidates, get_resume_pdf_path)
+                                    
+                                    if zip_data:
+                                        # Store ZIP data in session state for download
+                                        st.session_state["zip_download_data"] = zip_data
+                                        st.session_state["zip_download_filename"] = zip_filename
+                                        st.session_state["zip_download_count"] = len(selected_candidates)
+                                        st.success(f"✅ ZIP file ready! Click the download button below.")
                                     else:
-                                        st.info(f"**Compliance:** {compliance_summary}")
-                            
-                            with col2:
-                                # Show scores breakdown
-                                st.markdown("**Score Breakdown:**")
-                                if cand.get("project_aggregate") is not None:
-                                    st.write(f"  • Project: {cand.get('project_aggregate', 0):.3f}")
-                                if cand.get("Keyword_Score") is not None:
-                                    st.write(f"  • Keyword: {cand.get('Keyword_Score', 0):.3f}")
-                                if cand.get("Semantic_Score") is not None:
-                                    st.write(f"  • Semantic: {cand.get('Semantic_Score', 0):.3f}")
-                            
-                            with col3:
-                                # Download resume PDF button
-                                pdf_path = get_resume_pdf_path(candidate_id, name)
-                                if pdf_path and pdf_path.exists():
-                                    with open(pdf_path, "rb") as pdf_file:
-                                        st.download_button(
-                                            label="📥 Download Resume",
-                                            data=pdf_file.read(),
-                                            file_name=pdf_path.name,
-                                            mime="application/pdf",
-                                            key=f"download_{candidate_id}_{rank}"
-                                        )
-                                else:
-                                    st.info("📄 PDF not available")
-                            
-                            # Show compliance details - ensure we have the data
-                            requirements_met = cand.get("requirements_met", [])
-                            requirements_missing = cand.get("requirements_missing", [])
-                            compliance = cand.get("requirement_compliance", {})
-                            
-                            # If not set, try to extract from requirement_compliance
-                            if (not requirements_met and not requirements_missing) and compliance:
-                                if isinstance(compliance, dict) and compliance:
-                                    requirements_met = [req_type for req_type, comp in compliance.items() if comp.get("meets", False)]
-                                    requirements_missing = [req_type for req_type, comp in compliance.items() if not comp.get("meets", False)]
-                            
-                            if compliance or requirements_met or requirements_missing:
-                                st.markdown("---")
-                                st.markdown("### 📋 Compliance Details")
-                                
-                                if requirements_met:
-                                    st.success(f"**✅ Requirements Met ({len(requirements_met)}):** {', '.join(requirements_met)}")
-                                    for req_type in requirements_met:
-                                        req_comp = compliance.get(req_type, {})
-                                        if req_comp:
-                                            details = req_comp.get("details", "")
-                                            if details:
-                                                st.write(f"  • **{req_type.replace('_', ' ').title()}**: {details}")
-                                
-                                if requirements_missing:
-                                    st.error(f"**❌ Requirements Missing ({len(requirements_missing)}):** {', '.join(requirements_missing)}")
-                                    for req_type in requirements_missing:
-                                        req_comp = compliance.get(req_type, {})
-                                        if req_comp:
-                                            details = req_comp.get("details", "")
-                                            if details:
-                                                st.write(f"  • **{req_type.replace('_', ' ').title()}**: {details}")
+                                        st.error("❌ Error creating ZIP file. Please try again.")
+                            else:
+                                st.warning("⚠️ Please select at least one candidate to download.")
+                    
+                    # Display download button outside form (only shown after form submission)
+                    if "zip_download_data" in st.session_state and st.session_state.get("zip_download_count", 0) > 0:
+                        st.markdown("---")
+                        st.download_button(
+                            label=f"📥 Download {st.session_state['zip_download_count']} Selected Resume(s) as ZIP",
+                            data=st.session_state["zip_download_data"],
+                            file_name=st.session_state["zip_download_filename"],
+                            mime="application/zip",
+                            type="primary",
+                            use_container_width=True,
+                            key="final_download_zip_button"
+                        )
+                        st.success(f"✅ Ready to download {st.session_state['zip_download_count']} resume(s) + DisplayRanks.txt")
                     
                     # Download button
                     with open(DISPLAY_RANKS, "rb") as f:

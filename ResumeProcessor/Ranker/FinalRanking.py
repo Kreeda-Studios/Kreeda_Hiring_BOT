@@ -127,6 +127,9 @@ def load_resume_json(candidate_id: str) -> dict:
     
     # Try to find resume JSON file (only in root, not in subdirectories like FilteredResumes)
     for json_file in PROCESSED_JSON_DIR.glob("*.json"):
+        # Only check files in root directory, not subdirectories
+        if json_file.parent != PROCESSED_JSON_DIR:
+            continue
         try:
             with json_file.open("r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -542,8 +545,26 @@ Return validated requirements_met and requirements_missing for each candidate.""
         # Parse response
         func_call = response.choices[0].message.function_call
         if func_call:
-            args = json.loads(func_call.arguments)
-            return args.get("ranked_candidates", [])
+            try:
+                args = json.loads(func_call.arguments)
+                return args.get("ranked_candidates", [])
+            except json.JSONDecodeError as json_err:
+                # Handle malformed JSON (unterminated strings, etc.)
+                print(f"⚠️ JSON parsing error in LLM re-ranking: {json_err}")
+                print(f"   Attempting to fix JSON...")
+                # Try to fix common JSON issues
+                try:
+                    # Remove problematic characters or try to fix unterminated strings
+                    fixed_args = func_call.arguments
+                    # Basic fix: try to close unterminated strings
+                    if fixed_args.count('"') % 2 != 0:
+                        # Odd number of quotes - try to fix
+                        fixed_args = fixed_args.rsplit('"', 1)[0] + '"'
+                    args = json.loads(fixed_args)
+                    return args.get("ranked_candidates", [])
+                except Exception:
+                    print(f"   Could not fix JSON, skipping LLM re-ranking for this batch")
+                    return []
     except Exception as e:
         print(f"⚠️ Error in LLM re-ranking: {e}")
         return []
@@ -697,12 +718,68 @@ def _ranking_core():
     ranked.sort(key=lambda x: (x["Final_Score"], x.get("_years_experience", 0)), reverse=True)
     print(f"\n✅ Deduplication: Processed {len(candidates)} entries → {len(ranked)} unique candidates")
     
+    # CRITICAL: Filter out 0 compliance candidates BEFORE re-ranking
+    # Check compliance for all candidates and remove those with 0% compliance
+    filtered_ranked = []
+    filtered_to_skipped = []
+    
+    if JD_FILE.exists():
+        try:
+            with JD_FILE.open("r", encoding="utf-8") as f:
+                jd = json.load(f)
+            filter_reqs = jd.get("filter_requirements")
+            
+            if filter_reqs and filter_reqs.get("structured"):
+                print(f"\n🔍 Checking compliance for all candidates...")
+                for cand in ranked:
+                    candidate_id = cand.get("candidate_id")
+                    resume_json = load_resume_json(candidate_id) if candidate_id else {}
+                    
+                    # Check compliance
+                    compliance_report = check_all_requirements(cand, resume_json, filter_reqs)
+                    requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
+                    requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
+                    total_requirements = len(requirements_met) + len(requirements_missing)
+                    
+                    # Filter out 0% compliance candidates (0 requirements met when requirements exist)
+                    if total_requirements > 0 and len(requirements_met) == 0:
+                        cand["_filtered_reason"] = "0% compliance - no requirements met"
+                        cand["requirements_met"] = []
+                        cand["requirements_missing"] = requirements_missing
+                        cand["requirement_compliance"] = compliance_report
+                        filtered_to_skipped.append(cand)
+                        print(f"🚫 FILTERED (0% compliance) → {cand.get('name', 'Unknown')} | 0/{total_requirements} requirements met")
+                    else:
+                        # Keep candidate and add compliance data
+                        cand["requirements_met"] = requirements_met
+                        cand["requirements_missing"] = requirements_missing
+                        cand["requirement_compliance"] = compliance_report
+                        filtered_ranked.append(cand)
+            else:
+                # No filter requirements - keep all candidates
+                filtered_ranked = ranked
+        except Exception as e:
+            print(f"⚠️ Error checking compliance: {e}")
+            import traceback
+            traceback.print_exc()
+            # On error, keep all candidates
+            filtered_ranked = ranked
+    else:
+        # No JD file - keep all candidates
+        filtered_ranked = ranked
+    
+    # Move filtered candidates to skipped
+    skipped.extend(filtered_to_skipped)
+    
+    if filtered_to_skipped:
+        print(f"\n🚫 Filtered out {len(filtered_to_skipped)} candidates with 0% compliance")
+    
     # Add initial rank
-    for i, cand in enumerate(ranked, start=1):
+    for i, cand in enumerate(filtered_ranked, start=1):
         cand["Rank"] = i
     
     # LLM Re-ranking based on filter requirements (if available)
-    final_ranked_list = ranked
+    final_ranked_list = filtered_ranked
     try:
         if JD_FILE.exists():
             with JD_FILE.open("r", encoding="utf-8") as f:
@@ -835,6 +912,24 @@ def _ranking_core():
                         requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
                         candidate["requirements_met"] = requirements_met
                         candidate["requirements_missing"] = requirements_missing
+                    
+                    # CRITICAL: Filter out candidates with 0 compliance (0 requirements met when requirements exist)
+                    if filter_reqs and filter_reqs.get("structured"):
+                        requirements_met = candidate.get("requirements_met", [])
+                        requirements_missing = candidate.get("requirements_missing", [])
+                        total_requirements = len(requirements_met) + len(requirements_missing)
+                        
+                        # If there are requirements and candidate meets 0 of them, filter out
+                        if total_requirements > 0 and len(requirements_met) == 0:
+                            # Move to skipped list
+                            candidate["_filtered_reason"] = "0% compliance - no requirements met"
+                            if candidate not in skipped:
+                                skipped.append(candidate)
+                            # Remove from ranked list
+                            if candidate in final_ranked_list:
+                                final_ranked_list.remove(candidate)
+                            print(f"🚫 FILTERED (0% compliance) → {candidate.get('name', 'Unknown')} | 0/{total_requirements} requirements met")
+                            continue
     except Exception as e:
         print(f"⚠️ Error adding compliance data to all candidates: {e}")
         import traceback

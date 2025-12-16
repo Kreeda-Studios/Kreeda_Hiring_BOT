@@ -5,23 +5,61 @@
   "department": "Engineering",
   "industry": null,
   "domain_tags": [
-    "JD_SUMMARY:{\"role_title\": \"AI & Machine Learning Engineer\", \"seniority\": \"Mid\", \"domain\": \"Engineering\", \"years_experience_required\": 2.0, \"min_degree_level\": null, \"required_skills\": [\"Machine Learning\", \"Retrieval Augmented Generation\"], \"preferred_skills\": [], \"top_tools\": [], \"confidence_note\": \"seniority inferred heuristically if not provided\"}",
+    "JD_SUMMARY:{\"role_title\": \"AI & Machine Learning Engineer\", \"seniority\": \"Mid\", \"domain\": \"Engineering\", \"years_experience_required\": null, \"min_degree_level\": null, \"required_skills\": [\"Artificial Intelligence\", \"Machine Learning\", \"Cloud Computing\", \"SQL\", \"Data Pre-processing\", \"Model Optimization\", \"Data Visualization\", \"Natural Language Processing\", \"Computer Vision\", \"Graph Networks\", \"Deep Learning\", \"MLOps\"], \"preferred_skills\": [\"Lang chain\", \"Retrieval Augmented Generation\", \"Vector database\", \"Advanced Generative AI\", \"Snowflake\"], \"top_tools\": [\"AWS\", \"Google Cloud Platform\", \"Microsoft Azure\"], \"confidence_note\": \"seniority inferred heuristically if not provided\"}",
+    "REQ_SKILL:Artificial Intelligence",
     "REQ_SKILL:Machine Learning",
-    "REQ_SKILL:Retrieval Augmented Generation",
-    "PHRASE:We are seeking a dynamic AI & Machine Learning Engineer to join our team.",
-    "PHRASE:Proven experience in leading AI projects.",
-    "PHRASE:Proficiency in cloud deployment of AI solutions (AWS, GCP, or Azure)."
+    "REQ_SKILL:Cloud Computing",
+    "REQ_SKILL:SQL",
+    "REQ_SKILL:Data Pre-processing",
+    "REQ_SKILL:Model Optimization",
+    "REQ_SKILL:Data Visualization",
+    "REQ_SKILL:Natural Language Processing",
+    "REQ_SKILL:Computer Vision",
+    "REQ_SKILL:Graph Networks",
+    "REQ_SKILL:Deep Learning",
+    "REQ_SKILL:MLOps",
+    "PREF_SKILL:Lang chain",
+    "PREF_SKILL:Retrieval Augmented Generation",
+    "PREF_SKILL:Vector database",
+    "PREF_SKILL:Advanced Generative AI",
+    "PREF_SKILL:Snowflake",
+    "TOOL:AWS",
+    "TOOL:Google Cloud Platform",
+    "TOOL:Microsoft Azure",
+    "HR_NOTE:cat=general;type=inferred_requirement;impact=0.5;note=Experience in advanced Computer Vision model development is beneficial.",
+    "HR_NOTE:cat=general;type=inferred_requirement;impact=0.5;note=Practical experience in deep learning projects is highly valued.",
+    "HR_NOTE:cat=general;type=recommendation;impact=0.7;note=Consider candidates with a strong enthusiasm for continuous learning of state-of-the-art techniques in ML/Data science."
   ],
   "location": "Pune",
   "work_model": null,
   "employment_type": null,
-  "years_experience_required": 2.0,
+  "years_experience_required": null,
   "required_skills": [
+    "Artificial Intelligence",
     "Machine Learning",
-    "Retrieval Augmented Generation"
+    "Cloud Computing",
+    "SQL",
+    "Data Pre-processing",
+    "Model Optimization",
+    "Data Visualization",
+    "Natural Language Processing",
+    "Computer Vision",
+    "Graph Networks",
+    "Deep Learning",
+    "MLOps"
   ],
-  "preferred_skills": [],
-  "tools_tech": [],
+  "preferred_skills": [
+    "Lang chain",
+    "Retrieval Augmented Generation",
+    "Vector database",
+    "Advanced Generative AI",
+    "Snowflake"
+  ],
+  "tools_tech": [
+    "AWS",
+    "Google Cloud Platform",
+    "Microsoft Azure"
+  ],
   "soft_skills": [],
   "responsibilities": [
     "Develop AI & Machine Learning solutions on cloud-based platforms.",
@@ -43,41 +81,52 @@
     "responsibilities": 0.8,
     "domain_relevance": 0.6,
     "technical_depth": 0.7,
-    "soft_skills": 0.5,
-    "education": 0.0,
-    "certifications": 0.0,
-    "keywords_exact": 0.5,
-    "keywords_semantic": 0.4
+    "soft_skills": 0.4,
+    "education": null,
+    "certifications": null,
+    "keywords_exact": null,
+    "keywords_semantic": null
   },
   "keywords_flat": [
-    "AI",
+    "Artificial Intelligence",
     "Machine Learning",
-    "Retrieval Augmented Generation",
-    "cloud-based platforms",
-    "data",
+    "Cloud Computing",
     "SQL",
-    "microservices",
-    "model building",
-    "optimization",
-    "data visualization",
+    "Data Pre-processing",
+    "Model Optimization",
+    "Data Visualization",
     "Natural Language Processing",
     "Computer Vision",
     "Graph Networks",
-    "AWS",
-    "GCP",
-    "Azure",
-    "Lang chain",
-    "Vector database",
-    "Gen AI",
+    "Deep Learning",
     "MLOps",
-    "deep learning",
-    "mathematical concepts"
+    "Lang chain",
+    "Retrieval Augmented Generation",
+    "Vector database",
+    "Advanced Generative AI",
+    "Snowflake"
   ],
   "keywords_weighted": {},
-  "hr_points": 0,
-  "hr_notes": [],
+  "hr_points": 3,
+  "hr_notes": [
+    {
+      "type": "inferred_requirement",
+      "note": "Experience in advanced Computer Vision model development is beneficial.",
+      "impact": 0.5
+    },
+    {
+      "type": "inferred_requirement",
+      "note": "Practical experience in deep learning projects is highly valued.",
+      "impact": 0.5
+    },
+    {
+      "type": "recommendation",
+      "note": "Consider candidates with a strong enthusiasm for continuous learning of state-of-the-art techniques in ML/Data science.",
+      "impact": 0.7
+    }
+  ],
   "filter_requirements": {
-    "raw_prompt": "Experience needed: 1-2 years , Must have: ML, RAG , Location: Pune only",
+    "raw_prompt": "Experience needed: 1-2 years, Must have: RAG, ML, Location: Pune only",
     "structured": {
       "experience": {
         "min": 1,
@@ -85,8 +134,8 @@
         "specified": true
       },
       "hard_skills": [
-        "Machine Learning",
-        "Retrieval Augmented Generation"
+        "Retrieval Augmented Generation",
+        "Machine Learning"
       ],
       "preferred_skills": [],
       "location": "Pune",
@@ -97,69 +146,31 @@
   },
   "meta": {
     "raw_text_length": 2676,
-    "last_updated": "2025-12-15"
+    "last_updated": "2025-12-16"
   },
   "canonical_skills": {
     "ml_ai": [
+      "Artificial Intelligence",
       "Machine Learning",
-      "Retrieval Augmented Generation"
+      "Natural Language Processing",
+      "Computer Vision",
+      "Graph Networks",
+      "Deep Learning",
+      "MLOps"
     ],
     "cloud": [
       "AWS",
-      "GCP",
-      "Azure"
+      "Google Cloud Platform",
+      "Microsoft Azure"
     ],
     "databases": [
       "SQL",
       "Snowflake"
     ],
-    "backend": [
-      "microservices"
-    ],
-    "frontend": [],
-    "testing": [],
-    "devtools": [],
-    "methodologies": [],
-    "programming": [],
-    "frameworks": [],
-    "libraries": []
-  },
-  "embedding_hints": {
-    "skills_embed": "AI, Machine Learning, Retrieval Augmented Generation, cloud-based platforms, SQL",
-    "responsibilities_embed": "Develop AI & Machine Learning solutions, Identify data, Implement models, Construct backend systems",
-    "overall_embed": "AI & Machine Learning Engineer, cloud-based solutions, data manipulation",
-    "negatives_embed": "",
-    "seniority_embed": "Mid"
-  },
-  "explainability": {
-    "top_jd_sentences": [
-      "We are seeking a dynamic AI & Machine Learning Engineer to join our team.",
-      "Proven experience in leading AI projects.",
-      "Proficiency in cloud deployment of AI solutions (AWS, GCP, or Azure)."
-    ],
-    "key_phrases": [
-      "AI & Machine Learning solutions",
-      "cloud-based platforms",
-      "data manipulation",
-      "model building",
-      "optimization"
-    ],
-    "rationales": [
-      "The role requires a strong foundation in AI and Machine Learning, particularly in cloud environments, which is reflected in the responsibilities and required skills."
+    "devtools": [
+      "Lang chain",
+      "Retrieval Augmented Generation",
+      "Vector database"
     ]
-  },
-  "provenance_spans": [
-    {
-      "type": "experience",
-      "text": "Experience needed: 1-2 years"
-    },
-    {
-      "type": "hard_skills",
-      "text": "Must have: ML, RAG"
-    },
-    {
-      "type": "location",
-      "text": "Location: Pune only"
-    }
-  ]
+  }
 }

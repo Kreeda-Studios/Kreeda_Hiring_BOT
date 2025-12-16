@@ -506,32 +506,59 @@ def process_resume_file(path: str) -> Dict[str, Any]:
 
 
 # ---------------------------
+# Data normalization
+# ---------------------------
+# Data normalization function to auto-fix validation issues
+def normalize_resume_data(parsed: dict) -> dict:
+    """
+    Normalize resume data to fix common validation issues:
+    - Convert string achievements to list
+    - Round float years to int
+    - Handle list.strip() errors
+    """
+    try:
+        # Fix experience_entries achievements (string -> list)
+        if "experience_entries" in parsed and isinstance(parsed["experience_entries"], list):
+            for exp in parsed["experience_entries"]:
+                if "achievements" in exp:
+                    achievements = exp["achievements"]
+                    if isinstance(achievements, str):
+                        # Convert string to list
+                        if achievements.strip():
+                            exp["achievements"] = [achievements.strip()]
+                        else:
+                            exp["achievements"] = []
+                    elif not isinstance(achievements, list):
+                        exp["achievements"] = []
+        
+        # Fix skill_proficiency years_last_used (float -> int)
+        if "skill_proficiency" in parsed and isinstance(parsed["skill_proficiency"], list):
+            for skill in parsed["skill_proficiency"]:
+                if "years_last_used" in skill:
+                    years = skill["years_last_used"]
+                    if isinstance(years, float):
+                        skill["years_last_used"] = int(round(years))
+                    elif not isinstance(years, int):
+                        skill["years_last_used"] = 0
+        
+        # Fix any string fields that should be strings but got lists
+        # Handle list.strip() errors by ensuring strings are strings
+        if "ats_boost_line" in parsed and isinstance(parsed["ats_boost_line"], list):
+            parsed["ats_boost_line"] = " ".join(str(x) for x in parsed["ats_boost_line"])
+        
+        if "profile_keywords_line" in parsed and isinstance(parsed["profile_keywords_line"], list):
+            parsed["profile_keywords_line"] = " ".join(str(x) for x in parsed["profile_keywords_line"])
+            
+    except Exception as e:
+        # If normalization fails, log but continue with original data
+        logging.warning(f"Warning: Data normalization failed: {e}")
+    
+    return parsed
+
+
+# ---------------------------
 # Batch processing
 # ---------------------------
-# def process_all(input_dir: str, output_dir: str):
-#     files = sorted([f for f in os.listdir(input_dir) if f.lower().endswith(".txt")])
-#     if not files:
-#         print(f"[INFO] No .txt files found in {input_dir}")
-#         return
-
-#     print(f"[INFO] Processing {len(files)} files from {input_dir} -> {output_dir}")
-#     for i, fname in enumerate(files, start=1):
-#         in_path = os.path.join(input_dir, fname)
-#         out_path = os.path.join(output_dir, Path(fname).stem + ".json")
-#         print(f"[{i}/{len(files)}] {fname}")
-
-#         try:
-#             parsed = process_resume_file(in_path)
-#             with open(out_path, "w", encoding="utf-8") as wf:
-#                 json.dump(parsed, wf, indent=2, ensure_ascii=False)
-#             print(f"  [OK] -> {out_path}")
-
-#         except Exception as e:
-#             err_msg = f"Failed to process {fname}: {repr(e)}"
-#             print(f"  [ERROR] {err_msg}")
-#             logging.error(err_msg)
-
-
 # Optimized function with caching and parallel processing support
 def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids: set) -> tuple[bool, str]:
     """
@@ -565,6 +592,12 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
     
     try:
         parsed = process_resume_file(in_path)
+        
+        # Handle AttributeError: 'list' object has no attribute 'strip'
+        # This can happen if LLM returns wrong data type
+        if not isinstance(parsed, dict):
+            return False, f"ERROR: Invalid data type returned from LLM: {type(parsed)}"
+        
         candidate_id = parsed.get("candidate_id")
         
         # Skip if duplicate candidate
@@ -572,6 +605,9 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
             return True, f"Skipped (duplicate): {in_path_obj.name} -> {candidate_id}"
         
         existing_candidate_ids.add(candidate_id)
+        
+        # Auto-fix validation issues: normalize data types
+        parsed = normalize_resume_data(parsed)
         
         # Map PDF path to candidate_id for download feature
         # Look for corresponding PDF in Uploaded_Resumes directory

@@ -87,20 +87,50 @@ def collect_jd_keywords(jd: dict):
 # Collect resume tokens
 def collect_resume_tokens(resume: dict) -> set:
     tokens = set()
-    for cat_vals in (resume.get("canonical_skills") or {}).values():
-        tokens.update(norm(v) for v in cat_vals if v)
-    for inf in resume.get("inferred_skills", []):
-        if inf.get("skill") and inf.get("confidence", 0) >= 0.6:
-            tokens.add(norm(inf["skill"]))
-    for sp in resume.get("skill_proficiency", []):
-        if sp.get("skill"):
-            tokens.add(norm(sp["skill"]))
-    for proj in resume.get("projects", []):
-        tokens.update(norm(x) for x in proj.get("tech_keywords", []))
-        tokens.update(norm(x) for x in proj.get("primary_skills", []))
-    for exp in resume.get("experience_entries", []):
-        tokens.update(norm(x) for x in exp.get("primary_tech", []))
-        tokens.update(norm(x) for x in exp.get("responsibilities_keywords", []))
+    # Handle None canonical_skills
+    canonical_skills = resume.get("canonical_skills") or {}
+    if isinstance(canonical_skills, dict):
+        for cat_vals in canonical_skills.values():
+            if isinstance(cat_vals, list):
+                tokens.update(norm(v) for v in cat_vals if v)
+    
+    # Handle None inferred_skills
+    inferred_skills = resume.get("inferred_skills") or []
+    if isinstance(inferred_skills, list):
+        for inf in inferred_skills:
+            if isinstance(inf, dict) and inf.get("skill") and inf.get("confidence", 0) >= 0.6:
+                tokens.add(norm(inf["skill"]))
+    
+    # Handle None skill_proficiency
+    skill_proficiency = resume.get("skill_proficiency") or []
+    if isinstance(skill_proficiency, list):
+        for sp in skill_proficiency:
+            if isinstance(sp, dict) and sp.get("skill"):
+                tokens.add(norm(sp["skill"]))
+    
+    # Handle None projects
+    projects = resume.get("projects") or []
+    if isinstance(projects, list):
+        for proj in projects:
+            if isinstance(proj, dict):
+                tech_keywords = proj.get("tech_keywords") or []
+                primary_skills = proj.get("primary_skills") or []
+                if isinstance(tech_keywords, list):
+                    tokens.update(norm(x) for x in tech_keywords)
+                if isinstance(primary_skills, list):
+                    tokens.update(norm(x) for x in primary_skills)
+    
+    # Handle None experience_entries
+    experience_entries = resume.get("experience_entries") or []
+    if isinstance(experience_entries, list):
+        for exp in experience_entries:
+            if isinstance(exp, dict):
+                primary_tech = exp.get("primary_tech") or []
+                responsibilities_keywords = exp.get("responsibilities_keywords") or []
+                if isinstance(primary_tech, list):
+                    tokens.update(norm(x) for x in primary_tech)
+                if isinstance(responsibilities_keywords, list):
+                    tokens.update(norm(x) for x in responsibilities_keywords)
     for phrase in [resume.get("profile_keywords_line") or "", resume.get("ats_boost_line") or ""]:
         parts = [p.strip() for p in phrase.replace("/", ",").replace(";", ",").split(",") if p.strip()]
         tokens.update(norm(p) for p in parts)
@@ -255,7 +285,11 @@ def main():
             weights[key] = value
     jd_keywords = collect_jd_keywords(jd)
 
-    resume_files = [p for p in PROCESSED_JSON_DIR.glob("*.json") if p.name != SKIP_FILENAME]
+    # Only process files in root ProcessedJson directory (exclude FilteredResumes subdirectory)
+    resume_files = [
+        p for p in PROCESSED_JSON_DIR.glob("*.json") 
+        if p.name != SKIP_FILENAME and p.parent == PROCESSED_JSON_DIR
+    ]
     if not resume_files:
         print(f"⚠️ No resumes found", file=sys.stderr)
         sys.exit(0)

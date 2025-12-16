@@ -62,7 +62,11 @@ def main():
     import os
     from concurrent.futures import ThreadPoolExecutor, as_completed
     
-    json_files = sorted([f for f in PROCESSED_JSON_DIR.glob("*.json") if f.name != "example_output.json"])
+    # Only process files in root ProcessedJson directory (exclude FilteredResumes subdirectory)
+    json_files = sorted([
+        f for f in PROCESSED_JSON_DIR.glob("*.json") 
+        if f.name != "example_output.json" and f.parent == PROCESSED_JSON_DIR
+    ])
     
     # Check for parallel processing flag
     parallel = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"

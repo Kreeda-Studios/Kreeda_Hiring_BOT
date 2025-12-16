@@ -1,1 +1,1 @@
-'Experience needed: 1-2 years ', 'Must have: ML, RAG ',  'Location: Pune only'
+'Experience needed: 1-2 years, 'Must have: RAG, ML', 'Location: Pune only'
