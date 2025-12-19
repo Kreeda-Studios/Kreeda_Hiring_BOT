@@ -551,23 +551,40 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
 
 def main():
     """Main function to filter resumes based on HR requirements."""
-    # Load JD
-    jd_files = list(JD_DIR.glob("*.json"))
-    if not jd_files:
-        print(f"❌ No JD JSON found in {JD_DIR}")
-        return
+    # Load HR Filter Requirements (priority) or use empty
+    # NOTE: We read from HR_Filter_Requirements.json instead of JD's filter_requirements
+    # This ensures only HR-specified requirements are used for compliance
+    hr_filter_file = Path("InputThread/JD/HR_Filter_Requirements.json")
     
-    with jd_files[0].open("r", encoding="utf-8") as f:
-        jd = json.load(f)
+    if hr_filter_file.exists():
+        with hr_filter_file.open("r", encoding="utf-8") as f:
+            filter_requirements = json.load(f)
+    else:
+        filter_requirements = None
     
-    # Get filter requirements
-    filter_requirements = jd.get("filter_requirements")
+    # Check if any requirements are actually specified
     if not filter_requirements or not filter_requirements.get("structured"):
-        print("ℹ️ No filter requirements found. Skipping early filtering.")
+        print("ℹ️ No HR filter requirements provided. Skipping early filtering.")
+        print("   → All candidates will pass through to ranking/scoring")
         return
     
-    print(f"ℹ️ Found filter requirements in JD")
     structured = filter_requirements.get("structured", {})
+    
+    # Check if ANY requirement is specified
+    has_experience = structured.get("experience") and structured.get("experience", {}).get("specified")
+    has_skills = bool(structured.get("hard_skills", []))
+    has_department = structured.get("department") and structured.get("department", {}).get("specified")
+    has_location = bool(structured.get("location"))
+    has_education = bool(structured.get("education", []))
+    has_other = bool(structured.get("other_criteria", []))
+    
+    if not any([has_experience, has_skills, has_department, has_location, has_education, has_other]):
+        print("ℹ️ No specific HR requirements specified. Skipping early filtering.")
+        print("   → All candidates will pass through to ranking/scoring")
+        return
+    
+    print(f"ℹ️ Found HR filter requirements")
+    print(f"   - Source: HR_Filter_Requirements.json (not from JD)")
     exp_req = structured.get("experience", {})
     exp_str = f"{exp_req.get('min', 'N/A')}-{exp_req.get('max', 'N/A')} years" if exp_req and exp_req.get("specified") else "None"
     print(f"   - Experience: {exp_str}")

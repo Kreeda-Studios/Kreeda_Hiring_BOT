@@ -723,14 +723,27 @@ def _ranking_core():
     filtered_ranked = []
     filtered_to_skipped = []
     
-    if JD_FILE.exists():
+    # Load HR filter requirements (not from JD)
+    # This ensures compliance filtering is based on HR requirements only
+    hr_filter_file = Path("InputThread/JD/HR_Filter_Requirements.json")
+    if hr_filter_file.exists():
         try:
-            with JD_FILE.open("r", encoding="utf-8") as f:
-                jd = json.load(f)
-            filter_reqs = jd.get("filter_requirements")
+            with hr_filter_file.open("r", encoding="utf-8") as f:
+                filter_reqs = json.load(f)
             
-            if filter_reqs and filter_reqs.get("structured"):
-                print(f"\n🔍 Checking compliance for all candidates...")
+            # Check if any requirements are actually specified
+            structured = filter_reqs.get("structured", {})
+            has_any_requirement = any([
+                structured.get("experience") and structured.get("experience", {}).get("specified"),
+                bool(structured.get("hard_skills", [])),
+                structured.get("department") and structured.get("department", {}).get("specified"),
+                bool(structured.get("location")),
+                bool(structured.get("education", [])),
+                bool(structured.get("other_criteria", []))
+            ])
+            
+            if has_any_requirement:
+                print(f"\n🔍 Checking compliance for all candidates (HR requirements)...")
                 for cand in ranked:
                     candidate_id = cand.get("candidate_id")
                     resume_json = load_resume_json(candidate_id) if candidate_id else {}
@@ -743,7 +756,7 @@ def _ranking_core():
                     
                     # Filter out 0% compliance candidates (0 requirements met when requirements exist)
                     if total_requirements > 0 and len(requirements_met) == 0:
-                        cand["_filtered_reason"] = "0% compliance - no requirements met"
+                        cand["_filtered_reason"] = "0% compliance - no requirements met (HR)"
                         cand["requirements_met"] = []
                         cand["requirements_missing"] = requirements_missing
                         cand["requirement_compliance"] = compliance_report
@@ -756,7 +769,14 @@ def _ranking_core():
                         cand["requirement_compliance"] = compliance_report
                         filtered_ranked.append(cand)
             else:
-                # No filter requirements - keep all candidates
+                print(f"\n✅ No HR requirements specified - all candidates pass compliance check")
+                # IMPORTANT: Clear any compliance data since no HR requirements specified
+                for cand in ranked:
+                    cand["requirements_met"] = []
+                    cand["requirements_missing"] = []
+                    cand["requirement_compliance"] = {}
+                    if "_filtered_reason" in cand:
+                        del cand["_filtered_reason"]
                 filtered_ranked = ranked
         except Exception as e:
             print(f"⚠️ Error checking compliance: {e}")
@@ -765,7 +785,8 @@ def _ranking_core():
             # On error, keep all candidates
             filtered_ranked = ranked
     else:
-        # No JD file - keep all candidates
+        # No HR filter file - keep all candidates
+        print(f"\n✅ No HR filter requirements file found - all candidates pass compliance check")
         filtered_ranked = ranked
     
     # Move filtered candidates to skipped
@@ -781,92 +802,96 @@ def _ranking_core():
     # LLM Re-ranking based on filter requirements (if available)
     final_ranked_list = filtered_ranked
     try:
-        if JD_FILE.exists():
-            with JD_FILE.open("r", encoding="utf-8") as f:
-                jd = json.load(f)
-            
-            filter_reqs = jd.get("filter_requirements")
-            if filter_reqs and filter_reqs.get("structured"):
-                print(f"\n🔄 Starting LLM-based re-ranking with filter requirements...")
-                re_rank_results = llm_re_rank_candidates(ranked, filter_reqs)
+        # Only do LLM re-ranking if HR requirements were specified
+        if has_any_requirement:
+            if JD_FILE.exists():
+                with JD_FILE.open("r", encoding="utf-8") as f:
+                    jd = json.load(f)
                 
-                if re_rank_results:
-                    # Create map of re-ranking results
-                    re_rank_map = {r["candidate_id"]: r for r in re_rank_results}
+                filter_reqs = jd.get("filter_requirements")
+                if filter_reqs and filter_reqs.get("structured"):
+                    print(f"\n🔄 Starting LLM-based re-ranking with filter requirements...")
+                    re_rank_results = llm_re_rank_candidates(ranked, filter_reqs)
                     
-                    # Update candidates with re-ranking scores and compliance data
-                    for candidate in ranked:
-                        candidate_id = candidate.get("candidate_id")
-                        resume_json = load_resume_json(candidate_id) if candidate_id else {}
+                    if re_rank_results:
+                        # Create map of re-ranking results
+                        re_rank_map = {r["candidate_id"]: r for r in re_rank_results}
                         
-                        if candidate_id in re_rank_map:
-                            re_rank_data = re_rank_map[candidate_id]
-                            candidate["Re_Rank_Score"] = re_rank_data.get("re_rank_score", candidate["Final_Score"])
-                            candidate["Meets_Requirements"] = re_rank_data.get("meets_requirements", True)
+                        # Update candidates with re-ranking scores and compliance data
+                        for candidate in ranked:
+                            candidate_id = candidate.get("candidate_id")
+                            resume_json = load_resume_json(candidate_id) if candidate_id else {}
                             
-                            # Use LLM-validated requirements (LLM may have corrected programmatic results)
-                            llm_requirements_met = re_rank_data.get("requirements_met", [])
-                            llm_requirements_missing = re_rank_data.get("requirements_missing", [])
-                            
-                            # Keep compliance breakdown for detailed view
-                            compliance_report = re_rank_data.get("compliance_report", {})
-                            if not compliance_report:
-                                # Generate compliance if not in results
-                                compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
-                            
-                            candidate["requirement_compliance"] = compliance_report
-                            
-                            # Use LLM-validated requirements if available, otherwise extract from compliance_report
-                            if llm_requirements_met or llm_requirements_missing:
-                                candidate["requirements_met"] = llm_requirements_met
-                                candidate["requirements_missing"] = llm_requirements_missing
+                            if candidate_id in re_rank_map:
+                                re_rank_data = re_rank_map[candidate_id]
+                                candidate["Re_Rank_Score"] = re_rank_data.get("re_rank_score", candidate["Final_Score"])
+                                candidate["Meets_Requirements"] = re_rank_data.get("meets_requirements", True)
+                                
+                                # Use LLM-validated requirements (LLM may have corrected programmatic results)
+                                llm_requirements_met = re_rank_data.get("requirements_met", [])
+                                llm_requirements_missing = re_rank_data.get("requirements_missing", [])
+                                
+                                # Keep compliance breakdown for detailed view
+                                compliance_report = re_rank_data.get("compliance_report", {})
+                                if not compliance_report:
+                                    # Generate compliance if not in results
+                                    compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
+                                
+                                candidate["requirement_compliance"] = compliance_report
+                                
+                                # Use LLM-validated requirements if available, otherwise extract from compliance_report
+                                if llm_requirements_met or llm_requirements_missing:
+                                    candidate["requirements_met"] = llm_requirements_met
+                                    candidate["requirements_missing"] = llm_requirements_missing
+                                else:
+                                    # Extract from compliance_report if LLM didn't provide
+                                    requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
+                                    requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
+                                    candidate["requirements_met"] = requirements_met
+                                    candidate["requirements_missing"] = requirements_missing
                             else:
-                                # Extract from compliance_report if LLM didn't provide
+                                # Fallback: use original score and generate compliance
+                                candidate["Re_Rank_Score"] = candidate["Final_Score"]
+                                candidate["Meets_Requirements"] = True
+                                compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
+                                candidate["requirement_compliance"] = compliance_report
+                                
+                                # Determine requirements met/missing from compliance
                                 requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
                                 requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
                                 candidate["requirements_met"] = requirements_met
                                 candidate["requirements_missing"] = requirements_missing
-                        else:
-                            # Fallback: use original score and generate compliance
-                            candidate["Re_Rank_Score"] = candidate["Final_Score"]
-                            candidate["Meets_Requirements"] = True
+                        
+                        # Re-sort by Re_Rank_Score (or Final_Score), then by experience (descending) as tie-breaker
+                        ranked.sort(key=lambda x: (x.get("Re_Rank_Score", x["Final_Score"]), x.get("_years_experience", 0)), reverse=True)
+                        
+                        # Update ranks
+                        for i, candidate in enumerate(ranked, start=1):
+                            candidate["Rank"] = i
+                        
+                        final_ranked_list = ranked
+                        print(f"✅ Re-ranking complete. Rankings updated based on filter requirements.")
+                    else:
+                        print("⚠️ No re-ranking results returned. Using original rankings.")
+                        # Still add compliance data even without re-ranking
+                        for candidate in ranked:
+                            candidate_id = candidate.get("candidate_id")
+                            resume_json = load_resume_json(candidate_id) if candidate_id else {}
                             compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
                             candidate["requirement_compliance"] = compliance_report
-                            
-                            # Determine requirements met/missing from compliance
                             requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
                             requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
                             candidate["requirements_met"] = requirements_met
                             candidate["requirements_missing"] = requirements_missing
-                    
-                    # Re-sort by Re_Rank_Score (or Final_Score), then by experience (descending) as tie-breaker
-                    ranked.sort(key=lambda x: (x.get("Re_Rank_Score", x["Final_Score"]), x.get("_years_experience", 0)), reverse=True)
-                    
-                    # Update ranks
-                    for i, candidate in enumerate(ranked, start=1):
-                        candidate["Rank"] = i
-                    
-                    final_ranked_list = ranked
-                    print(f"✅ Re-ranking complete. Rankings updated based on filter requirements.")
                 else:
-                    print("⚠️ No re-ranking results returned. Using original rankings.")
-                    # Still add compliance data even without re-ranking
-                    for candidate in ranked:
-                        candidate_id = candidate.get("candidate_id")
-                        resume_json = load_resume_json(candidate_id) if candidate_id else {}
-                        compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
-                        candidate["requirement_compliance"] = compliance_report
-                        requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
-                        requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
-                        candidate["requirements_met"] = requirements_met
-                        candidate["requirements_missing"] = requirements_missing
-            else:
-                print("ℹ️ No filter requirements found. Using original rankings.")
+                    print("ℹ️ No filter requirements found in JD. Using original rankings.")
+        else:
+            print("ℹ️ No HR requirements specified. Skipping LLM re-ranking.") 
     except Exception as e:
         print(f"⚠️ Error during re-ranking: {e}. Using original rankings.")
-        # Still add compliance data on error
+        # Only add compliance data on error if HR requirements were specified
         try:
-            if JD_FILE.exists():
+            if has_any_requirement and JD_FILE.exists():
                 with JD_FILE.open("r", encoding="utf-8") as f:
                     jd = json.load(f)
                 filter_reqs = jd.get("filter_requirements")
@@ -884,9 +909,9 @@ def _ranking_core():
             pass
     
     # CRITICAL: Ensure ALL candidates have compliance data (even if LLM re-ranking failed or skipped some)
-    # This ensures DisplayRanks.txt and UI show compliance for all candidates
+    # ONLY if HR requirements were specified
     try:
-        if JD_FILE.exists():
+        if has_any_requirement and JD_FILE.exists():
             with JD_FILE.open("r", encoding="utf-8") as f:
                 jd = json.load(f)
             filter_reqs = jd.get("filter_requirements")

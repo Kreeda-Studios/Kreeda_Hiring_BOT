@@ -87,3 +87,7 @@ Processed_Resume_Index.txt
 # InputThread/JD/JD.json
 # InputThread/JD/JD.txt
 # InputThread/JD/Filter_Requirements.txt
+
+# Ignore all Markdown files but allow the repository README
+*.md
+!README.md

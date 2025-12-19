@@ -109,6 +109,225 @@ def clear_before_processing():
     return cleared
 
 
+# Parse HR filter requirements from text
+def parse_hr_filter_requirements(hr_text: str) -> dict:
+    """
+    Parse HR requirements text into structured format.
+    Returns filter_requirements structure compatible with EarlyFilter and FinalRanking.
+    """
+    if not hr_text or not hr_text.strip():
+        return {
+            "raw_prompt": "",
+            "structured": {
+                "experience": None,
+                "hard_skills": [],
+                "preferred_skills": [],
+                "department": None,
+                "location": None,
+                "education": [],
+                "other_criteria": []
+            }
+        }
+    
+    # Use OpenAI to structure the HR requirements
+    try:
+        from openai import OpenAI
+        import os
+        
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            try:
+                api_key = st.secrets.get("OPENAI_API_KEY", None)
+            except:
+                api_key = None
+        
+        if not api_key:
+            # Fallback: return basic parsing
+            st.warning("⚠️ OpenAI API not configured. Using basic HR requirement parsing.")
+            return parse_hr_requirements_fallback(hr_text)
+        
+        client = OpenAI(api_key=api_key)
+        
+        # Use same schema as JDGpt filter_requirements
+        parse_function = {
+            "name": "parse_hr_requirements",
+            "description": "Parse HR filter requirements from natural language text into structured format",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "structured": {
+                        "type": "object",
+                        "properties": {
+                            "experience": {
+                                "type": "object",
+                                "properties": {
+                                    "min": {"type": "number"},
+                                    "max": {"type": "number"},
+                                    "field": {"type": "string"},
+                                    "specified": {"type": "boolean"}
+                                }
+                            },
+                            "hard_skills": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Must-have skills. Empty array if not specified."
+                            },
+                            "preferred_skills": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Nice-to-have skills. Empty array if not specified."
+                            },
+                            "department": {
+                                "type": "object",
+                                "properties": {
+                                    "category": {"type": "string", "enum": ["IT", "Non-IT", "Specific"]},
+                                    "allowed_departments": {"type": "array", "items": {"type": "string"}},
+                                    "excluded_departments": {"type": "array", "items": {"type": "string"}},
+                                    "specified": {"type": "boolean"}
+                                }
+                            },
+                            "location": {"type": "string", "description": "Location requirement or null if not specified"},
+                            "education": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Education requirements. Empty array if not specified."
+                            },
+                            "other_criteria": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Other filtering criteria not covered by standard fields"
+                            }
+                        }
+                    }
+                },
+                "required": ["structured"]
+            }
+        }
+        
+        system_msg = {
+            "role": "system",
+            "content": (
+                "Parse HR filter requirements from natural language into structured format.\n"
+                "IMPORTANT: Only extract what HR explicitly mentioned. Mark 'specified: true' only if mentioned.\n"
+                "- experience: {min, max, field, specified} - ONLY if HR mentioned experience\n"
+                "- hard_skills: [...] - Only if HR specified must-have skills\n"
+                "- preferred_skills: [...] - Only if HR specified nice-to-have skills\n"
+                "- department: {category, allowed, excluded, specified} - ONLY if HR mentioned department\n"
+                "- location: string - ONLY if HR mentioned location (null if not specified)\n"
+                "- education: [...] - Only if HR specified education requirements\n"
+                "- other_criteria: [...] - Extract ANY other requirements mentioned in natural language\n"
+                "Return ONLY the function call with structured data."
+            )
+        }
+        
+        user_msg = {"role": "user", "content": f"HR Requirements:\n{hr_text}"}
+        
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[system_msg, user_msg],
+            functions=[parse_function],
+            function_call="auto",
+            temperature=0.0,
+            max_tokens=1500
+        )
+        
+        # Extract function call
+        msg = resp.choices[0].message
+        func_call = getattr(msg, "function_call", None)
+        if func_call:
+            args_text = getattr(func_call, "arguments", None)
+            if args_text:
+                parsed = json.loads(args_text)
+                return {
+                    "raw_prompt": hr_text,
+                    "structured": parsed.get("structured", {})
+                }
+    
+    except Exception as e:
+        print(f"⚠️ Error parsing HR requirements with LLM: {e}")
+    
+    # Fallback parsing
+    return parse_hr_requirements_fallback(hr_text)
+
+
+def parse_hr_requirements_fallback(hr_text: str) -> dict:
+    """
+    Fallback parsing for HR requirements if LLM is not available.
+    Simple regex-based extraction.
+    """
+    import re
+    
+    structured = {
+        "experience": None,
+        "hard_skills": [],
+        "preferred_skills": [],
+        "department": None,
+        "location": None,
+        "education": [],
+        "other_criteria": []
+    }
+    
+    text_lower = hr_text.lower()
+    
+    # Extract experience (e.g., "2-3 years", "1+ years")
+    exp_match = re.search(r'(\d+)\s*[-–to]+\s*(\d+)\s*years?', text_lower)
+    if exp_match:
+        structured["experience"] = {
+            "min": int(exp_match.group(1)),
+            "max": int(exp_match.group(2)),
+            "field": None,
+            "specified": True
+        }
+    else:
+        min_match = re.search(r'(?:at least|minimum|min|requires?)\s*(\d+)\s*years?', text_lower)
+        if min_match:
+            structured["experience"] = {
+                "min": int(min_match.group(1)),
+                "max": None,
+                "field": None,
+                "specified": True
+            }
+    
+    # Extract location
+    if "location" in text_lower and "any" not in text_lower:
+        location_match = re.search(r'location[:\s]+([^,.;]+)', hr_text, re.IGNORECASE)
+        if location_match:
+            structured["location"] = location_match.group(1).strip()
+    
+    # Extract skills (basic - looks for "skills:", "must have:", "required:")
+    skills_patterns = [
+        r'(?:must have|required|hard skills?)[:\s]+([^,.;]+)',
+        r'skills?[:\s]+([^,.;]+)'
+    ]
+    for pattern in skills_patterns:
+        matches = re.finditer(pattern, hr_text, re.IGNORECASE)
+        for match in matches:
+            skills_text = match.group(1)
+            skills = [s.strip() for s in skills_text.split(',') if s.strip()]
+            structured["hard_skills"].extend(skills)
+    
+    # Extract preferred skills
+    if "preferred" in text_lower or "nice-to-have" in text_lower:
+        pref_patterns = [
+            r'(?:preferred|nice-to-have)[:\s]+([^,.;]+)',
+        ]
+        for pattern in pref_patterns:
+            matches = re.finditer(pattern, hr_text, re.IGNORECASE)
+            for match in matches:
+                skills_text = match.group(1)
+                skills = [s.strip() for s in skills_text.split(',') if s.strip()]
+                structured["preferred_skills"].extend(skills)
+    
+    # Deduplicate skills
+    structured["hard_skills"] = list(set(structured["hard_skills"]))
+    structured["preferred_skills"] = list(set(structured["preferred_skills"]))
+    
+    return {
+        "raw_prompt": hr_text,
+        "structured": structured
+    }
+
+
 # ZIP download helper function
 def create_resumes_zip(selected_candidates: List[Dict], get_pdf_path_func) -> Optional[bytes]:
     """
@@ -273,18 +492,37 @@ def main():
                     f.write(final_text.strip())
                 st.success(f"✅ JD saved at {JD_FILE}")
                 
-                # Save filter requirements if provided
+                # Parse and save HR filter requirements if provided
                 if filter_requirements and filter_requirements.strip():
-                    filter_file = Path("InputThread/JD/Filter_Requirements.txt")
-                    filter_file.parent.mkdir(parents=True, exist_ok=True)
-                    with open(filter_file, "w", encoding="utf-8") as f:
-                        f.write(filter_requirements.strip())
-                    st.success("✅ Filter requirements saved")
+                    # Parse HR requirements into structured format
+                    st.info("🔄 Parsing HR requirements...")
+                    hr_filter_structured = parse_hr_filter_requirements(filter_requirements.strip())
+                    
+                    # Save as JSON for EarlyFilter and FinalRanking to use
+                    hr_filter_json = Path("InputThread/JD/HR_Filter_Requirements.json")
+                    hr_filter_json.parent.mkdir(parents=True, exist_ok=True)
+                    with open(hr_filter_json, "w", encoding="utf-8") as f:
+                        json.dump(hr_filter_structured, f, indent=2)
+                    st.success("✅ HR filter requirements parsed and saved")
                 else:
-                    # Clear filter file if empty
-                    filter_file = Path("InputThread/JD/Filter_Requirements.txt")
-                    if filter_file.exists():
-                        filter_file.unlink()
+                    # Clear HR filter file if empty - create empty filter
+                    hr_filter_json = Path("InputThread/JD/HR_Filter_Requirements.json")
+                    empty_filter = {
+                        "raw_prompt": "",
+                        "structured": {
+                            "experience": None,
+                            "hard_skills": [],
+                            "preferred_skills": [],
+                            "department": None,
+                            "location": None,
+                            "education": [],
+                            "other_criteria": []
+                        }
+                    }
+                    hr_filter_json.parent.mkdir(parents=True, exist_ok=True)
+                    with open(hr_filter_json, "w", encoding="utf-8") as f:
+                        json.dump(empty_filter, f, indent=2)
+                    st.info("ℹ️ No HR requirements provided - compliance filtering will be skipped")
 
                 try:
                     st.info("🔄 Running AI JD processing...")
@@ -614,6 +852,26 @@ def main():
                     with st.form("resume_selection_form", clear_on_submit=False):
                         st.markdown("---")
                         st.markdown("### 🏆 Candidate Rankings")
+                        
+                        # Add "Select All" / "Deselect All" buttons
+                        col_select_all, col_deselect_all = st.columns(2)
+                        with col_select_all:
+                            if st.form_submit_button("✅ Select All", use_container_width=True):
+                                for cand in ranking:
+                                    candidate_id = cand.get("candidate_id")
+                                    rank = cand.get("Rank", 0)
+                                    checkbox_key = f"select_{candidate_id}_{rank}"
+                                    st.session_state[checkbox_key] = True
+                        
+                        with col_deselect_all:
+                            if st.form_submit_button("❌ Deselect All", use_container_width=True):
+                                for cand in ranking:
+                                    candidate_id = cand.get("candidate_id")
+                                    rank = cand.get("Rank", 0)
+                                    checkbox_key = f"select_{candidate_id}_{rank}"
+                                    st.session_state[checkbox_key] = False
+                        
+                        st.markdown("---")
                         
                         # Helper function to get compliance summary
                         def get_compliance_summary(candidate):
