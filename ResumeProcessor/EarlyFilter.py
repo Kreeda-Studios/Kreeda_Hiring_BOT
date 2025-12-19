@@ -396,6 +396,22 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
         }
     
     structured = filter_requirements.get("structured", {})
+
+    def field_has_value(val):
+        if val is None:
+            return False
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (list, tuple, set)):
+            return len(val) > 0
+        if isinstance(val, dict):
+            for k, v in val.items():
+                if k == "specified" and bool(v):
+                    return True
+                if v not in (None, [], {}, ""):
+                    return True
+            return False
+        return bool(val)
     compliance = {}
     requirements_met = []
     requirements_missing = []
@@ -406,7 +422,7 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
     
     # Check hard_skills (categorical - must match)
     skills_req = structured.get("hard_skills", [])
-    if skills_req:  # Non-empty array = specified
+    if field_has_value(skills_req):  # Non-empty array = specified
         specified_requirements.append("hard_skills")
         required_skills = skills_req
         meets, reason, found, missing = check_skills_compliance(resume, required_skills)
@@ -426,7 +442,7 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
     
     # Check department (categorical - must match)
     dept_req = structured.get("department")
-    if dept_req and dept_req.get("specified"):
+    if field_has_value(dept_req):
         specified_requirements.append("department")
         meets, reason = check_department_compliance(resume, dept_req)
         compliance["department"] = {
@@ -443,7 +459,7 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
     
     # Check location (categorical - must match, unless "Any")
     location_req = structured.get("location")
-    if location_req and isinstance(location_req, str) and location_req.lower().strip() not in ["any", "anywhere", "remote/onsite", "flexible", ""]:
+    if field_has_value(location_req) and isinstance(location_req, str) and location_req.lower().strip() not in ["any", "anywhere", "remote/onsite", "flexible", ""]:
         specified_requirements.append("location")
         meets, reason = check_location_compliance(resume, location_req)
         compliance["location"] = {
@@ -460,7 +476,7 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
     
     # Check other_criteria (categorical - must match)
     other_criteria = structured.get("other_criteria", [])
-    if other_criteria:  # Non-empty array = specified
+    if field_has_value(other_criteria):  # Non-empty array = specified
         specified_requirements.append("other_criteria")
         meets, met_criteria, failed_criteria = check_other_criteria_compliance(resume, other_criteria)
         compliance["other_criteria"] = {
@@ -481,13 +497,13 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
     
     # Check experience (numerical - only check minimum)
     exp_req = structured.get("experience")
-    if not exp_req and structured.get("other_criteria"):
+    if not exp_req and field_has_value(structured.get("other_criteria")):
         # Try to extract experience from other_criteria
         exp_req = extract_experience_from_other_criteria(structured["other_criteria"])
         if exp_req:
             exp_req["specified"] = True
     
-    if exp_req and exp_req.get("specified"):
+    if field_has_value(exp_req):
         specified_requirements.append("experience")
         meets, reason = check_experience_compliance(resume, exp_req)
         compliance["experience"] = {
@@ -567,17 +583,33 @@ def main():
         print("ℹ️ No HR filter requirements provided. Skipping early filtering.")
         print("   → All candidates will pass through to ranking/scoring")
         return
-    
+
     structured = filter_requirements.get("structured", {})
-    
+
+    def field_has_value(val):
+        if val is None:
+            return False
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (list, tuple, set)):
+            return len(val) > 0
+        if isinstance(val, dict):
+            for k, v in val.items():
+                if k == "specified" and bool(v):
+                    return True
+                if v not in (None, [], {}, ""):
+                    return True
+            return False
+        return bool(val)
+
     # Check if ANY requirement is specified
-    has_experience = structured.get("experience") and structured.get("experience", {}).get("specified")
-    has_skills = bool(structured.get("hard_skills", []))
-    has_department = structured.get("department") and structured.get("department", {}).get("specified")
-    has_location = bool(structured.get("location"))
-    has_education = bool(structured.get("education", []))
-    has_other = bool(structured.get("other_criteria", []))
-    
+    has_experience = field_has_value(structured.get("experience"))
+    has_skills = field_has_value(structured.get("hard_skills"))
+    has_department = field_has_value(structured.get("department"))
+    has_location = field_has_value(structured.get("location"))
+    has_education = field_has_value(structured.get("education"))
+    has_other = field_has_value(structured.get("other_criteria"))
+
     if not any([has_experience, has_skills, has_department, has_location, has_education, has_other]):
         print("ℹ️ No specific HR requirements specified. Skipping early filtering.")
         print("   → All candidates will pass through to ranking/scoring")

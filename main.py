@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+# Load environment variables from .env file
+load_dotenv()
+
 import streamlit as st
 from pathlib import Path
 import tempfile
@@ -891,6 +895,41 @@ def main():
                             else:
                                 return f"❌ 0/{total}", "error"
                         
+                        # Determine whether HR requirements exist (so UI shows compliance only when HR provided)
+                        hr_filter_file = Path("InputThread/JD/HR_Filter_Requirements.json")
+                        hr_has_requirements = False
+                        if hr_filter_file.exists():
+                            try:
+                                with hr_filter_file.open("r", encoding="utf-8") as _f:
+                                    _hr = json.load(_f)
+                                _structured = _hr.get("structured", {})
+                                def _field_has_value(v):
+                                    if v is None:
+                                        return False
+                                    if isinstance(v, bool):
+                                        return v
+                                    if isinstance(v, (list, tuple, set)):
+                                        return len(v) > 0
+                                    if isinstance(v, dict):
+                                        for kk, vv in v.items():
+                                            if kk == "specified" and bool(vv):
+                                                return True
+                                            if vv not in (None, [], {}, ""):
+                                                return True
+                                        return False
+                                    return bool(v)
+                                hr_has_requirements = any([
+                                    _field_has_value(_structured.get("experience")),
+                                    _field_has_value(_structured.get("hard_skills")),
+                                    _field_has_value(_structured.get("preferred_skills")),
+                                    _field_has_value(_structured.get("department")),
+                                    _field_has_value(_structured.get("location")),
+                                    _field_has_value(_structured.get("education")),
+                                    _field_has_value(_structured.get("other_criteria"))
+                                ])
+                            except:
+                                hr_has_requirements = False
+
                         # Display candidates with expandable details
                         for cand in ranking:
                             rank = cand.get("Rank", 0)
@@ -922,7 +961,7 @@ def main():
                                         cand["requirements_met"] = requirements_met
                                         cand["requirements_missing"] = requirements_missing
                                     
-                                    if cand.get("requirement_compliance") or requirements_met or requirements_missing:
+                                    if hr_has_requirements and (cand.get("requirement_compliance") or requirements_met or requirements_missing):
                                         compliance_summary, status = get_compliance_summary(cand)
                                         if status == "success":
                                             st.success(f"**Compliance:** {compliance_summary}")
@@ -967,7 +1006,7 @@ def main():
                                         requirements_met = [req_type for req_type, comp in compliance.items() if comp.get("meets", False)]
                                         requirements_missing = [req_type for req_type, comp in compliance.items() if not comp.get("meets", False)]
                                 
-                                if compliance or requirements_met or requirements_missing:
+                                if hr_has_requirements and (compliance or requirements_met or requirements_missing):
                                     st.markdown("---")
                                     st.markdown("### 📋 Compliance Details")
                                     
