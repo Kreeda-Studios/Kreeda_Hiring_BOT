@@ -2,31 +2,35 @@
 """
 EarlyFilter.py
 
-Early filtering based on HR requirements from JD.json filter_requirements.
+Early filtering based on MANDATORY HR compliances.
 Filters candidates BEFORE scoring to improve efficiency.
-Uses structured requirements extracted by LLM from natural language.
+Uses dynamic requirement checking - works with any requirement type.
 
-CONFIGURATION:
-- FILTER_MODE: "strict" (all skills required) or "flexible" (50% skills threshold)
-- SKILL_MATCH_THRESHOLD: Minimum percentage of required skills needed (0.0-1.0)
-- ENABLE_SKILL_SYNONYMS: Use synonym matching for skills (RAG, ML, etc.)
+FILTERING LOGIC:
+- Mandatory compliances: 100% strict (all must be met)
+- Candidates missing ANY mandatory requirement are filtered out
+- Soft compliances are handled in FinalRanking.py for display only
 """
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+# Import dynamic requirement checker from FinalRanking
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from ResumeProcessor.Ranker.FinalRanking import check_dynamic_requirement
 
 JD_DIR = Path("InputThread/JD")
 PROCESSED_JSON_DIR = Path("ProcessedJson")
 SKIPPED_FILE = Path("Ranking/Skipped.json")
 
 # ==================== CONFIGURATION ====================
-FILTER_MODE = "flexible"  # "strict" or "flexible"
-SKILL_MATCH_THRESHOLD = 0.5  # Require at least 50% of skills (0.0-1.0)
+# Note: Mandatory compliances are 100% strict (all must be met)
+# Soft compliances are handled in FinalRanking.py for display only
+# Skill normalization is handled by LLM during JD/Resume parsing
 # =======================================================
-# Note: Skill normalization is now handled by LLM during JD/Resume parsing
-# Skills are normalized to canonical forms, so exact matching should work
 
 
 def normalize_name(name: str) -> str:
@@ -146,23 +150,16 @@ def check_skills_compliance(resume: dict, required_skills: List[str]):
         if not skill_found:
             missing.append(req_skill)
     
-    # Determine compliance based on filter mode
+    # Mandatory compliances: 100% strict (all skills required)
     total_skills = len(required_skills)
     found_count = len(found)
     match_ratio = found_count / total_skills if total_skills > 0 else 0
     
-    if FILTER_MODE == "strict":
-        # Strict: require ALL skills
-        meets = found_count == total_skills
-    else:
-        # Flexible: require at least threshold percentage
-        meets = match_ratio >= SKILL_MATCH_THRESHOLD
+    # Strict: require ALL skills (mandatory = 100% compliance)
+    meets = found_count == total_skills
     
     if meets:
-        if found_count == total_skills:
-            return True, f"Has all required skills: {', '.join(found)}", found, missing
-        else:
-            return True, f"Has {found_count}/{total_skills} required skills (flexible mode: {int(SKILL_MATCH_THRESHOLD*100)}% threshold). Found: {', '.join(found)}", found, missing
+        return True, f"Has all required skills: {', '.join(found)}", found, missing
     else:
         return False, f"Has {found_count}/{total_skills} required skills. Missing: {', '.join(missing)}", found, missing
 
@@ -380,24 +377,80 @@ def extract_experience_from_other_criteria(other_criteria: List[str]) -> Optiona
 
 def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str, Any]:
     """
-    Check all HR requirements and determine if candidate should be filtered.
-    Only filters on explicitly specified requirements.
+    Check ONLY mandatory compliances and determine if candidate should be filtered.
+    Uses dynamic requirement checking - works with any requirement type.
     Returns compliance result with should_filter flag and compliance score.
     """
-    if not filter_requirements or not filter_requirements.get("structured"):
-        return {
-            "should_filter": False,
-            "filter_reason": None,
-            "compliance": {},
-            "requirements_met": [],
-            "requirements_missing": [],
-            "compliance_score": 1.0,
-            "specified_requirements_count": 0
-        }
+    # Extract mandatory compliances
+    mandatory_compliances = filter_requirements.get("mandatory_compliances", {})
+    if not mandatory_compliances:
+        # Backward compatibility: check if old format exists
+        if filter_requirements.get("structured"):
+            mandatory_compliances = {
+                "raw_prompt": filter_requirements.get("raw_prompt", ""),
+                "structured": filter_requirements.get("structured", {})
+            }
+        else:
+            return {
+                "should_filter": False,
+                "filter_reason": None,
+                "compliance": {},
+                "requirements_met": [],
+                "requirements_missing": [],
+                "compliance_score": 1.0,
+                "specified_requirements_count": 0
+            }
     
-    structured = filter_requirements.get("structured", {})
+    structured = mandatory_compliances.get("structured", {})
+    
+    # Normalize structure if it has nested "requirements" array
+    if isinstance(structured, dict) and "requirements" in structured and isinstance(structured["requirements"], list):
+        print("   🔄 Normalizing nested requirements structure...")
+        # Import normalization function from main.py
+        try:
+            import sys
+            from pathlib import Path
+            main_path = Path(__file__).parent.parent / "main.py"
+            if main_path.exists():
+                # Use the normalization logic inline
+                normalized = {}
+                for req_obj in structured["requirements"]:
+                    if isinstance(req_obj, dict):
+                        req_type = req_obj.get("type", "").lower()
+                        req_data = req_obj.get("data", {}) or req_obj.get("value") or req_obj
+                        
+                        if req_type in ["skills", "skill"]:
+                            if isinstance(req_data, dict):
+                                skill_value = req_data.get("skill") or req_data.get("skills") or req_data.get("required")
+                                skills_list = [s.strip() for s in skill_value.split(",")] if isinstance(skill_value, str) else (skill_value if isinstance(skill_value, list) else [])
+                            else:
+                                skills_list = [str(req_data)] if req_data else []
+                            
+                            # Filter out empty strings and only create if skills exist
+                            skills_list = [s for s in skills_list if s and s.strip()]
+                            if skills_list:
+                                normalized["hard_skills"] = {
+                                    "type": "list",
+                                    "specified": True,
+                                    "required": skills_list,
+                                    "optional": []
+                                }
+                        elif req_type in ["numeric", "experience", "years"]:
+                            normalized["experience"] = {
+                                "type": "numeric",
+                                "specified": True,
+                                "min": req_data.get("min") if isinstance(req_data, dict) else (float(req_data) if req_data else None),
+                                "max": req_data.get("max") if isinstance(req_data, dict) else None,
+                                "unit": "years"
+                            }
+                if normalized:
+                    structured = normalized
+                    print(f"   ✅ Normalized to {len(normalized)} field(s)")
+        except Exception as e:
+            print(f"   ⚠️ Normalization error (continuing with original): {e}")
 
     def field_has_value(val):
+        """Check if a field has a meaningful value."""
         if val is None:
             return False
         if isinstance(val, bool):
@@ -405,118 +458,79 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
         if isinstance(val, (list, tuple, set)):
             return len(val) > 0
         if isinstance(val, dict):
+            # Check if specified flag is true AND has actual values
+            if val.get("specified", False):
+                # Even if specified=True, check if it has meaningful content
+                # For list types, check if required/optional arrays have items
+                if val.get("type") == "list":
+                    required = val.get("required", [])
+                    optional = val.get("optional", [])
+                    if required and len(required) > 0:
+                        return True
+                    if optional and len(optional) > 0:
+                        return True
+                    return False  # specified=True but empty arrays = no value
+                # For numeric types, check if min/max exists
+                elif val.get("type") == "numeric":
+                    if val.get("min") is not None or val.get("max") is not None:
+                        return True
+                    return False  # specified=True but no min/max = no value
+                # For other types, check for any non-empty values
+                for k, v in val.items():
+                    if k not in ("specified", "type") and v not in (None, [], {}, ""):
+                        return True
+                return False  # specified=True but no actual values
+            # Not specified, check for any non-empty values
             for k, v in val.items():
-                if k == "specified" and bool(v):
-                    return True
-                if v not in (None, [], {}, ""):
+                if k != "specified" and v not in (None, [], {}, ""):
                     return True
             return False
         return bool(val)
+    
+    # Dynamic checking: Loop through all fields in structured dict
     compliance = {}
     requirements_met = []
     requirements_missing = []
     filter_reasons = []
-    specified_requirements = []  # Track only specified requirements
+    specified_requirements = []
     
-    # CATEGORICAL FILTERS (strict matching - filter out if doesn't match)
-    
-    # Check hard_skills (categorical - must match)
-    skills_req = structured.get("hard_skills", [])
-    if field_has_value(skills_req):  # Non-empty array = specified
-        specified_requirements.append("hard_skills")
-        required_skills = skills_req
-        meets, reason, found, missing = check_skills_compliance(resume, required_skills)
-        compliance["hard_skills"] = {
-            "meets": meets,
-            "requirement": required_skills,
-            "found": found,
-            "missing": missing,
-            "details": reason
-        }
-        if meets:
-            requirements_met.append("hard_skills")
-        else:
-            # Categorical: filter out if doesn't match
-            requirements_missing.append("hard_skills")
-            filter_reasons.append(f"Skills: {reason}")
-    
-    # Check department (categorical - must match)
-    dept_req = structured.get("department")
-    if field_has_value(dept_req):
-        specified_requirements.append("department")
-        meets, reason = check_department_compliance(resume, dept_req)
-        compliance["department"] = {
-            "meets": meets,
-            "requirement": dept_req,
-            "details": reason
-        }
-        if meets:
-            requirements_met.append("department")
-        else:
-            # Categorical: filter out if doesn't match
-            requirements_missing.append("department")
-            filter_reasons.append(f"Department: {reason}")
-    
-    # Check location (categorical - must match, unless "Any")
-    location_req = structured.get("location")
-    if field_has_value(location_req) and isinstance(location_req, str) and location_req.lower().strip() not in ["any", "anywhere", "remote/onsite", "flexible", ""]:
-        specified_requirements.append("location")
-        meets, reason = check_location_compliance(resume, location_req)
-        compliance["location"] = {
-            "meets": meets,
-            "requirement": location_req,
-            "details": reason
-        }
-        if meets:
-            requirements_met.append("location")
-        else:
-            # Categorical: filter out if doesn't match
-            requirements_missing.append("location")
-            filter_reasons.append(f"Location: {reason}")
-    
-    # Check other_criteria (categorical - must match)
-    other_criteria = structured.get("other_criteria", [])
-    if field_has_value(other_criteria):  # Non-empty array = specified
-        specified_requirements.append("other_criteria")
-        meets, met_criteria, failed_criteria = check_other_criteria_compliance(resume, other_criteria)
-        compliance["other_criteria"] = {
-            "meets": meets,
-            "requirement": other_criteria,
-            "met_criteria": met_criteria,
-            "failed_criteria": failed_criteria,
-            "details": f"Met: {len(met_criteria)}/{len(other_criteria)} criteria" if other_criteria else "No other criteria"
-        }
-        if meets:
-            requirements_met.append("other_criteria")
-        else:
-            # Categorical: filter out if doesn't match
-            requirements_missing.append("other_criteria")
-            filter_reasons.append(f"Other criteria: Missing {', '.join(failed_criteria[:3])}")
-    
-    # NUMERICAL FILTERS (minimum threshold only - max handled in ranking)
-    
-    # Check experience (numerical - only check minimum)
-    exp_req = structured.get("experience")
-    if not exp_req and field_has_value(structured.get("other_criteria")):
-        # Try to extract experience from other_criteria
-        exp_req = extract_experience_from_other_criteria(structured["other_criteria"])
-        if exp_req:
-            exp_req["specified"] = True
-    
-    if field_has_value(exp_req):
-        specified_requirements.append("experience")
-        meets, reason = check_experience_compliance(resume, exp_req)
-        compliance["experience"] = {
-            "meets": meets,
-            "requirement": exp_req,
-            "details": reason
-        }
-        if meets:
-            requirements_met.append("experience")
-        else:
-            # Numerical: filter out if below minimum
-            requirements_missing.append("experience")
-            filter_reasons.append(f"Experience: {reason}")
+    # Check each field dynamically
+    for field_name, field_spec in structured.items():
+        if not field_has_value(field_spec):
+            continue  # Skip empty fields
+        
+        specified_requirements.append(field_name)
+        
+        # Use dynamic requirement checker
+        # Note: resume is already the JSON dict from ProcessedJson, so we pass it directly
+        try:
+            result = check_dynamic_requirement(resume, field_name, field_spec)
+            if result is None:
+                # None means requirement is not meaningful (e.g., empty required array)
+                # Skip this field - don't count it as met or missing
+                continue
+            
+            if result:
+                meets = result.get("meets", False)
+                compliance[field_name] = result
+                
+                if meets:
+                    requirements_met.append(field_name)
+                else:
+                    # Mandatory: filter out if doesn't meet (100% strict)
+                    requirements_missing.append(field_name)
+                    details = result.get("details", f"Missing {field_name}")
+                    filter_reasons.append(f"{field_name}: {details}")
+        except Exception as e:
+            # On error, mark as missing (strict filtering)
+            print(f"⚠️ Error checking requirement '{field_name}': {e}")
+            requirements_missing.append(field_name)
+            compliance[field_name] = {
+                "meets": False,
+                "field": field_name,
+                "details": f"Error checking requirement: {str(e)}"
+            }
+            filter_reasons.append(f"{field_name}: Error checking requirement")
     
     # Calculate compliance score (only for specified requirements)
     specified_count = len(specified_requirements)
@@ -526,33 +540,14 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
         compliance_score = len(requirements_met) / specified_count
     
     # Determine if should filter
-    # CRITICAL: 0% compliance ALWAYS filters out, regardless of mode
+    # Mandatory compliances: 100% strict - filter out if ANY requirement not met
     should_filter = False
     filter_reason = None
     
-    # PRIORITY 1: Always filter out 0% compliance (no requirements met)
+    # Filter out if 0% compliance (no mandatory requirements met)
     if specified_count > 0 and compliance_score == 0.0:
         should_filter = True
-        filter_reason = "; ".join(filter_reasons[:3]) if filter_reasons else "0% compliance - no requirements met"
-    # PRIORITY 2: Handle partial compliance based on filter mode
-    elif requirements_missing:
-        # Partial compliance - keep but mark as partial
-        # Only filter if critical categorical requirements are missing
-        critical_categorical = ["hard_skills", "department"]
-        critical_missing = [r for r in requirements_missing if r in critical_categorical]
-        
-        if FILTER_MODE == "strict" and critical_missing:
-            # Strict mode: filter if any critical categorical requirement is missing
-            should_filter = True
-            filter_reason = "; ".join(filter_reasons[:3])
-        elif FILTER_MODE == "flexible":
-            # Flexible mode: only filter if ALL skills missing (0% skills match)
-            if "hard_skills" in requirements_missing:
-                skills_compliance = compliance.get("hard_skills", {})
-                skills_found = skills_compliance.get("found", [])
-                if len(skills_found) == 0:  # 0 skills found
-                    should_filter = True
-                    filter_reason = "; ".join(filter_reasons[:3])
+        filter_reason = "; ".join(filter_reasons[:3]) if filter_reasons else "0% mandatory compliance - no requirements met"
     
     return {
         "should_filter": should_filter,
@@ -566,27 +561,42 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
 
 
 def main():
-    """Main function to filter resumes based on HR requirements."""
-    # Load HR Filter Requirements (priority) or use empty
-    # NOTE: We read from HR_Filter_Requirements.json instead of JD's filter_requirements
-    # This ensures only HR-specified requirements are used for compliance
+    """Main function to filter resumes based on mandatory HR requirements."""
+    import time
+    
+    print(f"\n{'='*60}")
+    print(f"STEP 2/6: Early Filtering (Mandatory Compliances)")
+    print(f"{'='*60}")
+    
+    # Load HR Filter Requirements
     hr_filter_file = Path("InputThread/JD/HR_Filter_Requirements.json")
     
     if hr_filter_file.exists():
-        with hr_filter_file.open("r", encoding="utf-8") as f:
-            filter_requirements = json.load(f)
+        try:
+            with hr_filter_file.open("r", encoding="utf-8") as f:
+                filter_requirements = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Error loading HR requirements: {e}")
+            print("   → All candidates will pass through to ranking/scoring")
+            return
     else:
         filter_requirements = None
     
-    # Check if any requirements are actually specified
-    if not filter_requirements or not filter_requirements.get("structured"):
-        print("ℹ️ No HR filter requirements provided. Skipping early filtering.")
-        print("   → All candidates will pass through to ranking/scoring")
-        return
-
-    structured = filter_requirements.get("structured", {})
+    # Extract mandatory compliances (new format) or check old format for backward compatibility
+    mandatory_compliances = filter_requirements.get("mandatory_compliances", {}) if filter_requirements else {}
+    
+    # Backward compatibility: check old format
+    if not mandatory_compliances and filter_requirements and filter_requirements.get("structured"):
+        print("ℹ️ Detected old format - converting to new format")
+        mandatory_compliances = {
+            "raw_prompt": filter_requirements.get("raw_prompt", ""),
+            "structured": filter_requirements.get("structured", {})
+        }
+    
+    structured = mandatory_compliances.get("structured", {}) if mandatory_compliances else {}
 
     def field_has_value(val):
+        """Check if a field has a meaningful value."""
         if val is None:
             return False
         if isinstance(val, bool):
@@ -594,42 +604,29 @@ def main():
         if isinstance(val, (list, tuple, set)):
             return len(val) > 0
         if isinstance(val, dict):
+            if val.get("specified", False):
+                return True
             for k, v in val.items():
-                if k == "specified" and bool(v):
-                    return True
-                if v not in (None, [], {}, ""):
+                if k != "specified" and v not in (None, [], {}, ""):
                     return True
             return False
         return bool(val)
 
-    # Check if ANY requirement is specified
-    has_experience = field_has_value(structured.get("experience"))
-    has_skills = field_has_value(structured.get("hard_skills"))
-    has_department = field_has_value(structured.get("department"))
-    has_location = field_has_value(structured.get("location"))
-    has_education = field_has_value(structured.get("education"))
-    has_other = field_has_value(structured.get("other_criteria"))
+    # Check if ANY mandatory requirement is specified
+    has_any_requirement = any(field_has_value(v) for v in structured.values())
 
-    if not any([has_experience, has_skills, has_department, has_location, has_education, has_other]):
-        print("ℹ️ No specific HR requirements specified. Skipping early filtering.")
+    if not has_any_requirement:
+        print("ℹ️ No mandatory compliances specified. Skipping early filtering.")
         print("   → All candidates will pass through to ranking/scoring")
         return
     
-    print(f"ℹ️ Found HR filter requirements")
-    print(f"   - Source: HR_Filter_Requirements.json (not from JD)")
-    exp_req = structured.get("experience", {})
-    exp_str = f"{exp_req.get('min', 'N/A')}-{exp_req.get('max', 'N/A')} years" if exp_req and exp_req.get("specified") else "None"
-    print(f"   - Experience: {exp_str}")
-    print(f"   - Hard Skills: {len(structured.get('hard_skills', []))} skills")
-    dept_req = structured.get("department", {})
-    dept_str = dept_req.get("category", "None") if dept_req and dept_req.get("specified") else "None"
-    print(f"   - Department: {dept_str}")
-    print(f"   - Location: {structured.get('location', 'None')}")
-    print(f"   - Other Criteria: {len(structured.get('other_criteria', []))} criteria")
-    print(f"\n⚙️ Filter Configuration:")
-    print(f"   - Mode: {FILTER_MODE}")
-    print(f"   - Skill Match Threshold: {int(SKILL_MATCH_THRESHOLD*100)}%")
-    print(f"   - Skill Normalization: Handled by LLM during parsing (canonical forms)")
+    # Log mandatory requirements found
+    mandatory_fields = [field for field, val in structured.items() if field_has_value(val)]
+    print(f"📋 Mandatory Compliances Found:")
+    print(f"   - Source: HR_Filter_Requirements.json")
+    print(f"   - Fields: {', '.join(sorted(mandatory_fields))}")
+    print(f"   - Total mandatory requirements: {len(mandatory_fields)}")
+    print(f"   - Filtering mode: 100% strict (all mandatory requirements must be met)")
     
     # Process all resumes (only in root directory, exclude FilteredResumes subdirectory)
     resume_files = [
@@ -637,14 +634,15 @@ def main():
         if f.parent == PROCESSED_JSON_DIR  # Only root directory files
     ]
     if not resume_files:
-        print("⚠️ No resumes found")
+        print("⚠️ No resumes found in ProcessedJson/")
         return
     
     filtered_resumes = []
     compliant_resumes = []
     
-    print(f"\n🔍 Filtering {len(resume_files)} resumes...\n")
+    print(f"\n🔍 Filtering {len(resume_files)} resumes against mandatory compliances...\n")
     
+    start_time = time.time()
     for resume_file in resume_files:
         try:
             with resume_file.open("r", encoding="utf-8") as f:
@@ -653,8 +651,13 @@ def main():
             name = resume.get("name", resume_file.stem)
             candidate_id = resume.get("candidate_id")
             
-            # Check compliance
-            result = check_all_requirements(resume, filter_requirements)
+            # Create filter_requirements structure for check_all_requirements
+            filter_reqs_for_check = {
+                "mandatory_compliances": mandatory_compliances
+            }
+            
+            # Check mandatory compliance
+            result = check_all_requirements(resume, filter_reqs_for_check)
             
             compliance_score = result.get("compliance_score", 1.0)
             specified_count = result.get("specified_requirements_count", 0)
@@ -670,20 +673,24 @@ def main():
                     "compliance_score": compliance_score
                 }
                 filtered_resumes.append(filtered_resume)
-                print(f"🚫 FILTERED → {name} | Compliance: {int(compliance_score*100)}% ({len(result['requirements_met'])}/{specified_count}) | Reason: {result['filter_reason']}")
+                print(f"🚫 FILTERED → {name} | Mandatory Compliance: {int(compliance_score*100)}% ({len(result['requirements_met'])}/{specified_count}) | Reason: {result['filter_reason']}")
             else:
                 # Keep resume for processing
                 compliant_resumes.append(resume_file)
                 if result["requirements_missing"]:
-                    print(f"⚠️ PARTIAL → {name} | Compliance: {int(compliance_score*100)}% ({len(result['requirements_met'])}/{specified_count}) | Missing: {', '.join(result['requirements_missing'])}")
+                    print(f"⚠️ PARTIAL → {name} | Mandatory Compliance: {int(compliance_score*100)}% ({len(result['requirements_met'])}/{specified_count}) | Missing: {', '.join(result['requirements_missing'])}")
                 else:
-                    print(f"✅ COMPLIANT → {name} | Compliance: {int(compliance_score*100)}% ({len(result['requirements_met'])}/{specified_count})")
+                    print(f"✅ COMPLIANT → {name} | Mandatory Compliance: {int(compliance_score*100)}% ({len(result['requirements_met'])}/{specified_count})")
         
         except Exception as e:
             print(f"⚠️ Error processing {resume_file.name}: {e}")
+            import traceback
+            traceback.print_exc()
             # On error, keep resume (don't filter out)
             compliant_resumes.append(resume_file)
             continue
+    
+    duration = time.time() - start_time
     
     # Save filtered resumes to Skipped.json
     if filtered_resumes:
@@ -704,9 +711,7 @@ def main():
         
         print(f"\n📝 Saved {len(filtered_resumes)} filtered resumes to {SKIPPED_FILE}")
     
-    # Move filtered resumes to a separate directory or mark them
-    # For now, we'll just skip them in subsequent processing
-    # Create a marker file or move them to FilteredResumes/ directory
+    # Move filtered resumes to FilteredResumes directory
     FILTERED_DIR = PROCESSED_JSON_DIR / "FilteredResumes"
     FILTERED_DIR.mkdir(exist_ok=True)
     
@@ -719,10 +724,17 @@ def main():
             except Exception as e:
                 print(f"⚠️ Could not move {resume_file.name}: {e}")
     
-    print(f"\n✅ Early filtering complete!")
-    print(f"   - Compliant resumes: {len(compliant_resumes)}")
-    print(f"   - Filtered resumes: {len(filtered_resumes)}")
-    print(f"   - Filtered resumes moved to: {FILTERED_DIR}")
+    # Summary logging
+    print(f"\n{'='*60}")
+    print(f"📊 Step 2 Summary:")
+    print(f"   - Total resumes processed: {len(resume_files)}")
+    print(f"   - Mandatory requirements checked: {len(mandatory_fields)} field(s)")
+    print(f"   - Passed (met all mandatory): {len(compliant_resumes)}")
+    print(f"   - Filtered (missing mandatory): {len(filtered_resumes)}")
+    print(f"   - Filtered moved to: {FILTERED_DIR}")
+    print(f"   - Processing time: {duration:.2f}s")
+    print(f"{'='*60}\n")
+    print(f"✅ Step 2 completed successfully\n")
 
 
 if __name__ == "__main__":

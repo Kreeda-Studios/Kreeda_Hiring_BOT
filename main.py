@@ -113,27 +113,186 @@ def clear_before_processing():
     return cleared
 
 
-# Parse HR filter requirements from text
+def normalize_parsed_requirements(parsed: dict) -> dict:
+    """
+    Normalize parsed requirements structure.
+    Handles nested arrays, maps field names, and ensures proper structure.
+    """
+    if not isinstance(parsed, dict):
+        return {}
+    
+    normalized = {}
+    
+    # Field name mapping for common variations
+    field_mapping = {
+        "skills": "hard_skills",
+        "required_skills": "hard_skills",
+        "technical_skills": "hard_skills",
+        "must_have_skills": "hard_skills",
+        "years_of_experience": "experience",
+        "years_experience": "experience",
+        "exp": "experience",
+        "loc": "location",
+        "edu": "education"
+    }
+    
+    for field_name, field_value in parsed.items():
+        # Handle nested "requirements" array structure
+        if field_name == "requirements" and isinstance(field_value, list):
+            # Convert array of requirement objects to flat fields
+            for req_obj in field_value:
+                if not isinstance(req_obj, dict):
+                    continue
+                
+                req_type = req_obj.get("type", "").lower()
+                req_data = req_obj.get("data", {}) or req_obj.get("value") or req_obj
+                
+                # Map requirement type to field name
+                if req_type in ["skills", "skill"]:
+                    mapped_field = "hard_skills"
+                    # Extract skills from data
+                    if isinstance(req_data, dict):
+                        skill_value = req_data.get("skill") or req_data.get("skills") or req_data.get("required")
+                        if isinstance(skill_value, str):
+                            skills_list = [s.strip() for s in skill_value.split(",")]
+                        elif isinstance(skill_value, list):
+                            skills_list = skill_value
+                        else:
+                            skills_list = []
+                    else:
+                        skills_list = [str(req_data)] if req_data else []
+                    
+                    # Filter out empty strings and only create field if skills exist
+                    skills_list = [s for s in skills_list if s and s.strip()]
+                    if skills_list:  # Only create field if we have skills
+                        normalized[mapped_field] = {
+                            "type": "list",
+                            "specified": True,
+                            "required": skills_list,
+                            "optional": []
+                        }
+                
+                elif req_type in ["numeric", "experience", "years"]:
+                    mapped_field = "experience"
+                    if isinstance(req_data, dict):
+                        normalized[mapped_field] = {
+                            "type": "numeric",
+                            "specified": True,
+                            "min": req_data.get("min") or req_data.get("value") or req_data.get("years"),
+                            "max": req_data.get("max"),
+                            "unit": req_data.get("unit", "years")
+                        }
+                    else:
+                        # Only create field if we have a valid numeric value
+                        try:
+                            min_val = float(req_data) if req_data else None
+                            if min_val is not None:
+                                normalized[mapped_field] = {
+                                    "type": "numeric",
+                                    "specified": True,
+                                    "min": min_val,
+                                    "unit": "years"
+                                }
+                        except (ValueError, TypeError):
+                            pass  # Skip invalid numeric values
+                
+                elif req_type in ["location", "loc"]:
+                    mapped_field = "location"
+                    if isinstance(req_data, dict):
+                        normalized[mapped_field] = {
+                            "type": "location",
+                            "specified": True,
+                            "required": req_data.get("required") or req_data.get("location"),
+                            "allowed": req_data.get("allowed", [])
+                        }
+                    else:
+                        normalized[mapped_field] = {
+                            "type": "location",
+                            "specified": True,
+                            "required": str(req_data) if req_data else ""
+                        }
+                
+                else:
+                    # Generic field - use type as field name or keep original
+                    generic_field = req_type if req_type else "other_criteria"
+                    base_dict = {
+                        "type": req_type or "text",
+                        "specified": True
+                    }
+                    if isinstance(req_data, dict):
+                        # Merge dictionaries
+                        base_dict.update(req_data)
+                        normalized[generic_field] = base_dict
+                    else:
+                        base_dict["value"] = req_data
+                        normalized[generic_field] = base_dict
+        
+        else:
+            # Normal field - map name if needed
+            mapped_name = field_mapping.get(field_name.lower(), field_name)
+            
+            # Ensure proper structure
+            if isinstance(field_value, dict):
+                # Already structured
+                if "type" not in field_value:
+                    # Try to infer type
+                    if "required" in field_value or "optional" in field_value:
+                        field_value["type"] = "list"
+                    elif "min" in field_value or "max" in field_value:
+                        field_value["type"] = "numeric"
+                    else:
+                        field_value["type"] = "text"
+                
+                if "specified" not in field_value:
+                    field_value["specified"] = True
+                
+                normalized[mapped_name] = field_value
+            
+            elif isinstance(field_value, list):
+                # List value - convert to proper structure
+                normalized[mapped_name] = {
+                    "type": "list",
+                    "specified": True,
+                    "required": field_value,
+                    "optional": []
+                }
+            
+            elif isinstance(field_value, (int, float)):
+                # Numeric value
+                normalized[mapped_name] = {
+                    "type": "numeric",
+                    "specified": True,
+                    "min": float(field_value),
+                    "unit": "years" if mapped_name == "experience" else ""
+                }
+            
+            elif isinstance(field_value, str):
+                # String value
+                normalized[mapped_name] = {
+                    "type": "text" if mapped_name != "location" else "location",
+                    "specified": True,
+                    "required": field_value
+                }
+    
+    return normalized
+
+
+# Parse HR filter requirements from text (Dynamic - optimized for cost/latency)
 def parse_hr_filter_requirements(hr_text: str) -> dict:
     """
-    Parse HR requirements text into structured format.
-    Returns filter_requirements structure compatible with EarlyFilter and FinalRanking.
+    Parse HR requirements text into structured format using LLM (dynamic fields).
+    Optimized for minimum latency and cost - uses efficient prompt and model.
+    Returns: {"raw_prompt": str, "structured": dict} where structured can have any field names.
     """
+    import time
+    
     if not hr_text or not hr_text.strip():
         return {
             "raw_prompt": "",
-            "structured": {
-                "experience": None,
-                "hard_skills": [],
-                "preferred_skills": [],
-                "department": None,
-                "location": None,
-                "education": [],
-                "other_criteria": []
-            }
+            "structured": {}
         }
     
-    # Use OpenAI to structure the HR requirements
+    # Use OpenAI to structure the HR requirements dynamically
     try:
         from openai import OpenAI
         import os
@@ -146,60 +305,80 @@ def parse_hr_filter_requirements(hr_text: str) -> dict:
                 api_key = None
         
         if not api_key:
-            # Fallback: return basic parsing
-            st.warning("⚠️ OpenAI API not configured. Using basic HR requirement parsing.")
-            return parse_hr_requirements_fallback(hr_text)
+            # Fallback: return empty structure (no parsing without API)
+            st.warning("⚠️ OpenAI API not configured. Returning empty structure.")
+            return {
+                "raw_prompt": hr_text,
+                "structured": {}
+            }
         
         client = OpenAI(api_key=api_key)
         
-        # Use same schema as JDGpt filter_requirements
+        # Optimized prompt for cost/latency - use JSON mode for faster parsing
+        llm_call_id = f"LLM_{int(time.time() * 1000)}"
+        print(f"[{llm_call_id}] 🔄 Starting LLM call: parse_hr_requirements")
+        print(f"[{llm_call_id}] 📤 Request: gpt-4o-mini, dynamic parsing")
+        start_time = time.time()
+        
+        # Use function calling for better structure control
+        # This ensures proper field names and structure
         parse_function = {
             "name": "parse_hr_requirements",
-            "description": "Parse HR filter requirements from natural language text into structured format",
+            "description": "Parse HR requirements into structured format with proper field names",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "structured": {
                         "type": "object",
+                        "description": "Structured requirements with field names. Use standard field names: hard_skills (for skills), experience (for years), location, education, etc. Each field should be a dict with 'type' and 'specified': true",
                         "properties": {
+                            "hard_skills": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {"type": "string", "enum": ["list"]},
+                                    "specified": {"type": "boolean"},
+                                    "required": {"type": "array", "items": {"type": "string"}},
+                                    "optional": {"type": "array", "items": {"type": "string"}}
+                                },
+                                "description": "Required skills (use this field name for any skill requirements)"
+                            },
                             "experience": {
                                 "type": "object",
                                 "properties": {
+                                    "type": {"type": "string", "enum": ["numeric"]},
+                                    "specified": {"type": "boolean"},
                                     "min": {"type": "number"},
                                     "max": {"type": "number"},
-                                    "field": {"type": "string"},
-                                    "specified": {"type": "boolean"}
-                                }
+                                    "unit": {"type": "string"}
+                                },
+                                "description": "Experience requirement in years"
                             },
-                            "hard_skills": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Must-have skills. Empty array if not specified."
-                            },
-                            "preferred_skills": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Nice-to-have skills. Empty array if not specified."
-                            },
-                            "department": {
+                            "location": {
                                 "type": "object",
                                 "properties": {
-                                    "category": {"type": "string", "enum": ["IT", "Non-IT", "Specific"]},
-                                    "allowed_departments": {"type": "array", "items": {"type": "string"}},
-                                    "excluded_departments": {"type": "array", "items": {"type": "string"}},
-                                    "specified": {"type": "boolean"}
-                                }
+                                    "type": {"type": "string", "enum": ["location", "text"]},
+                                    "specified": {"type": "boolean"},
+                                    "required": {"type": "string"},
+                                    "allowed": {"type": "array", "items": {"type": "string"}}
+                                },
+                                "description": "Location requirement"
                             },
-                            "location": {"type": "string", "description": "Location requirement or null if not specified"},
                             "education": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Education requirements. Empty array if not specified."
-                            },
-                            "other_criteria": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Other filtering criteria not covered by standard fields"
+                                "type": "object",
+                                "properties": {
+                                    "type": {"type": "string", "enum": ["education", "text"]},
+                                    "specified": {"type": "boolean"},
+                                    "minimum": {"type": "string"},
+                                    "required": {"type": "string"}
+                                },
+                                "description": "Education requirement"
+                            }
+                        },
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "specified": {"type": "boolean"}
                             }
                         }
                     }
@@ -208,50 +387,74 @@ def parse_hr_filter_requirements(hr_text: str) -> dict:
             }
         }
         
-        system_msg = {
-            "role": "system",
-            "content": (
-                "Parse HR filter requirements from natural language into structured format.\n"
-                "IMPORTANT: Only extract what HR explicitly mentioned. Mark 'specified: true' only if mentioned.\n"
-                "- experience: {min, max, field, specified} - ONLY if HR mentioned experience\n"
-                "- hard_skills: [...] - Only if HR specified must-have skills\n"
-                "- preferred_skills: [...] - Only if HR specified nice-to-have skills\n"
-                "- department: {category, allowed, excluded, specified} - ONLY if HR mentioned department\n"
-                "- location: string - ONLY if HR mentioned location (null if not specified)\n"
-                "- education: [...] - Only if HR specified education requirements\n"
-                "- other_criteria: [...] - Extract ANY other requirements mentioned in natural language\n"
-                "Return ONLY the function call with structured data."
+        try:
+            # Use function calling for structured output
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Parse HR requirements into structured JSON format.
+CRITICAL RULES:
+1. Use standard field names: hard_skills (for any skills), experience (for years), location, education
+2. For skills: Use field name "hard_skills" with type "list", put skills in "required" array
+3. For experience: Use field name "experience" with type "numeric", use "min" and "max" for range
+4. For location: Use field name "location" with type "location" or "text"
+5. Each field MUST have "type" and "specified": true
+6. Return flat structure (no nested "requirements" arrays)
+7. Map common terms: "skills" -> hard_skills, "years" -> experience, "location" -> location"""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Parse these HR requirements into structured JSON with proper field names:\n\n{hr_text}\n\nRemember: Use 'hard_skills' for skills, 'experience' for years, 'location' for location."
+                    }
+                ],
+                functions=[parse_function],
+                function_call={"name": "parse_hr_requirements"},
+                temperature=0.0,
+                max_tokens=1000
             )
+            
+            msg = response.choices[0].message
+            func_call = getattr(msg, "function_call", None)
+            if func_call:
+                args_text = getattr(func_call, "arguments", None)
+                if args_text:
+                    parsed = json.loads(args_text)
+                    parsed = parsed.get("structured", {})
+                else:
+                    parsed = {}
+            else:
+                parsed = {}
+            
+        except Exception as parse_error:
+            print(f"[{llm_call_id}] ⚠️ Function calling failed: {parse_error}")
+            parsed = {}
+        
+        duration = time.time() - start_time
+        print(f"[{llm_call_id}] ✅ Completed in {duration:.2f}s")
+        print(f"[{llm_call_id}] 📥 Response: {len(parsed)} field(s)")
+        
+        # Normalize parsed structure (handle nested arrays, map field names)
+        normalized = normalize_parsed_requirements(parsed)
+        
+        if normalized != parsed:
+            print(f"[{llm_call_id}] 🔄 Normalized structure: {len(normalized)} field(s)")
+        
+        return {
+            "raw_prompt": hr_text,
+            "structured": normalized if isinstance(normalized, dict) else {}
         }
-        
-        user_msg = {"role": "user", "content": f"HR Requirements:\n{hr_text}"}
-        
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[system_msg, user_msg],
-            functions=[parse_function],
-            function_call="auto",
-            temperature=0.0,
-            max_tokens=1500
-        )
-        
-        # Extract function call
-        msg = resp.choices[0].message
-        func_call = getattr(msg, "function_call", None)
-        if func_call:
-            args_text = getattr(func_call, "arguments", None)
-            if args_text:
-                parsed = json.loads(args_text)
-                return {
-                    "raw_prompt": hr_text,
-                    "structured": parsed.get("structured", {})
-                }
     
     except Exception as e:
         print(f"⚠️ Error parsing HR requirements with LLM: {e}")
-    
-    # Fallback parsing
-    return parse_hr_requirements_fallback(hr_text)
+        import traceback
+        traceback.print_exc()
+        # Return empty structure on error
+        return {
+            "raw_prompt": hr_text,
+            "structured": {}
+        }
 
 
 def parse_hr_requirements_fallback(hr_text: str) -> dict:
@@ -464,15 +667,33 @@ def main():
         st.markdown("---")
         st.markdown("### 🔍 Filter Requirements (Optional)")
         st.info(
-            "Enter additional filtering criteria for candidate re-ranking.\n"
-            "Examples: 'Experience needed: 2-3 years in Python', 'Must have: React, Node.js', 'Location: Remote only'"
+            "Enter filtering criteria for candidate screening.\n"
+            "**Mandatory Compliances**: Candidates missing ANY mandatory requirement will be filtered out.\n"
+            "**Soft Compliances**: These will be shown in rankings but won't filter candidates."
         )
-        filter_requirements = st.text_area(
-            "Filter Requirements:",
-            height=100,
-            key="filter_requirements",
-            placeholder="Example: Experience needed: 2-3 years in Python development. Must have: React, Node.js, AWS. Location: Remote only."
-        )
+        
+        # Two separate sections for mandatory and soft compliances
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 🔴 Mandatory Compliances (Must-Have)")
+            mandatory_requirements = st.text_area(
+                "Mandatory Requirements:",
+                height=120,
+                key="mandatory_requirements",
+                placeholder="Example: Must have: Python, React. Experience: 2-3 years. Department: IT only.",
+                help="Candidates missing ANY mandatory requirement will be filtered out before ranking."
+            )
+        
+        with col2:
+            st.markdown("#### 🟢 Soft Compliances (Nice-to-Have)")
+            soft_requirements = st.text_area(
+                "Soft Requirements:",
+                height=120,
+                key="soft_requirements",
+                placeholder="Example: Location: Pune preferred. Nice to have: AWS, Docker.",
+                help="These will be displayed in rankings but won't filter candidates."
+            )
 
         if st.button("⚙️ Process JD", disabled=st.session_state.get("jd_done", False)):
             final_text = ""
@@ -496,37 +717,67 @@ def main():
                     f.write(final_text.strip())
                 st.success(f"✅ JD saved at {JD_FILE}")
                 
-                # Parse and save HR filter requirements if provided
-                if filter_requirements and filter_requirements.strip():
-                    # Parse HR requirements into structured format
-                    st.info("🔄 Parsing HR requirements...")
-                    hr_filter_structured = parse_hr_filter_requirements(filter_requirements.strip())
+                # Parse and save HR filter requirements (mandatory and soft separately)
+                hr_filter_json = Path("InputThread/JD/HR_Filter_Requirements.json")
+                hr_filter_json.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Parse mandatory requirements if provided
+                mandatory_text = mandatory_requirements.strip() if mandatory_requirements else ""
+                soft_text = soft_requirements.strip() if soft_requirements else ""
+                
+                if mandatory_text or soft_text:
+                    # Parse both sections separately
+                    hr_filter_structured = {}
                     
-                    # Save as JSON for EarlyFilter and FinalRanking to use
-                    hr_filter_json = Path("InputThread/JD/HR_Filter_Requirements.json")
-                    hr_filter_json.parent.mkdir(parents=True, exist_ok=True)
+                    if mandatory_text:
+                        st.info("🔄 Parsing mandatory compliances...")
+                        mandatory_parsed = parse_hr_filter_requirements(mandatory_text)
+                        hr_filter_structured["mandatory_compliances"] = {
+                            "raw_prompt": mandatory_text,
+                            "structured": mandatory_parsed.get("structured", {})
+                        }
+                        st.success(f"✅ Parsed {len(mandatory_parsed.get('structured', {}))} mandatory requirement field(s)")
+                    
+                    if soft_text:
+                        st.info("🔄 Parsing soft compliances...")
+                        soft_parsed = parse_hr_filter_requirements(soft_text)
+                        hr_filter_structured["soft_compliances"] = {
+                            "raw_prompt": soft_text,
+                            "structured": soft_parsed.get("structured", {})
+                        }
+                        st.success(f"✅ Parsed {len(soft_parsed.get('structured', {}))} soft requirement field(s)")
+                    
+                    # Ensure both sections exist (even if empty)
+                    if "mandatory_compliances" not in hr_filter_structured:
+                        hr_filter_structured["mandatory_compliances"] = {
+                            "raw_prompt": "",
+                            "structured": {}
+                        }
+                    if "soft_compliances" not in hr_filter_structured:
+                        hr_filter_structured["soft_compliances"] = {
+                            "raw_prompt": "",
+                            "structured": {}
+                        }
+                    
+                    # Save as JSON
                     with open(hr_filter_json, "w", encoding="utf-8") as f:
                         json.dump(hr_filter_structured, f, indent=2)
                     st.success("✅ HR filter requirements parsed and saved")
                 else:
-                    # Clear HR filter file if empty - create empty filter
-                    hr_filter_json = Path("InputThread/JD/HR_Filter_Requirements.json")
+                    # Create empty filter structure if no requirements provided
                     empty_filter = {
-                        "raw_prompt": "",
-                        "structured": {
-                            "experience": None,
-                            "hard_skills": [],
-                            "preferred_skills": [],
-                            "department": None,
-                            "location": None,
-                            "education": [],
-                            "other_criteria": []
+                        "mandatory_compliances": {
+                            "raw_prompt": "",
+                            "structured": {}
+                        },
+                        "soft_compliances": {
+                            "raw_prompt": "",
+                            "structured": {}
                         }
                     }
-                    hr_filter_json.parent.mkdir(parents=True, exist_ok=True)
                     with open(hr_filter_json, "w", encoding="utf-8") as f:
                         json.dump(empty_filter, f, indent=2)
-                    st.info("ℹ️ No HR requirements provided - compliance filtering will be skipped")
+                    st.info("ℹ️ No HR requirements provided - all candidates will pass through without filtering")
 
                 try:
                     st.info("🔄 Running AI JD processing...")
@@ -895,14 +1146,22 @@ def main():
                             else:
                                 return f"❌ 0/{total}", "error"
                         
-                        # Determine whether HR requirements exist (so UI shows compliance only when HR provided)
+                        # Determine whether HR requirements exist (check soft compliances for display)
                         hr_filter_file = Path("InputThread/JD/HR_Filter_Requirements.json")
                         hr_has_requirements = False
                         if hr_filter_file.exists():
                             try:
                                 with hr_filter_file.open("r", encoding="utf-8") as _f:
                                     _hr = json.load(_f)
-                                _structured = _hr.get("structured", {})
+                                
+                                # Check new format: soft_compliances
+                                _soft_compliances = _hr.get("soft_compliances", {})
+                                _structured = _soft_compliances.get("structured", {}) if _soft_compliances else {}
+                                
+                                # Backward compatibility: check old format
+                                if not _structured and _hr.get("structured"):
+                                    _structured = _hr.get("structured", {})
+                                
                                 def _field_has_value(v):
                                     if v is None:
                                         return False
@@ -911,22 +1170,16 @@ def main():
                                     if isinstance(v, (list, tuple, set)):
                                         return len(v) > 0
                                     if isinstance(v, dict):
+                                        if v.get("specified", False):
+                                            return True
                                         for kk, vv in v.items():
-                                            if kk == "specified" and bool(vv):
-                                                return True
-                                            if vv not in (None, [], {}, ""):
+                                            if kk != "specified" and vv not in (None, [], {}, ""):
                                                 return True
                                         return False
                                     return bool(v)
-                                hr_has_requirements = any([
-                                    _field_has_value(_structured.get("experience")),
-                                    _field_has_value(_structured.get("hard_skills")),
-                                    _field_has_value(_structured.get("preferred_skills")),
-                                    _field_has_value(_structured.get("department")),
-                                    _field_has_value(_structured.get("location")),
-                                    _field_has_value(_structured.get("education")),
-                                    _field_has_value(_structured.get("other_criteria"))
-                                ])
+                                
+                                # Check if ANY soft compliance field has value (dynamic - works with any field)
+                                hr_has_requirements = any(_field_has_value(v) for v in _structured.values())
                             except:
                                 hr_has_requirements = False
 
@@ -961,7 +1214,9 @@ def main():
                                         cand["requirements_met"] = requirements_met
                                         cand["requirements_missing"] = requirements_missing
                                     
-                                    if hr_has_requirements and (cand.get("requirement_compliance") or requirements_met or requirements_missing):
+                                    # Show compliance if candidate has compliance data OR if HR requirements exist
+                                    has_compliance_data = (cand.get("requirement_compliance") or requirements_met or requirements_missing)
+                                    if (hr_has_requirements or has_compliance_data) and has_compliance_data:
                                         compliance_summary, status = get_compliance_summary(cand)
                                         if status == "success":
                                             st.success(f"**Compliance:** {compliance_summary}")
@@ -1006,7 +1261,9 @@ def main():
                                         requirements_met = [req_type for req_type, comp in compliance.items() if comp.get("meets", False)]
                                         requirements_missing = [req_type for req_type, comp in compliance.items() if not comp.get("meets", False)]
                                 
-                                if hr_has_requirements and (compliance or requirements_met or requirements_missing):
+                                # Show compliance details if candidate has compliance data OR if HR requirements exist
+                                has_compliance_data = (compliance or requirements_met or requirements_missing)
+                                if (hr_has_requirements or has_compliance_data) and has_compliance_data:
                                     st.markdown("---")
                                     st.markdown("### 📋 Compliance Details")
                                     

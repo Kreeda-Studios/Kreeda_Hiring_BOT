@@ -600,11 +600,12 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
         
         candidate_id = parsed.get("candidate_id")
         
-        # Skip if duplicate candidate
-        if candidate_id and candidate_id in existing_candidate_ids:
-            return True, f"Skipped (duplicate): {in_path_obj.name} -> {candidate_id}"
-        
-        existing_candidate_ids.add(candidate_id)
+        # Skip if duplicate candidate (only if candidate_id is not None)
+        if candidate_id:
+            if candidate_id in existing_candidate_ids:
+                return True, f"Skipped (duplicate): {in_path_obj.name} -> {candidate_id}"
+            existing_candidate_ids.add(candidate_id)
+        # Note: If candidate_id is None, we still process it (might be a new candidate without ID)
         
         # Auto-fix validation issues: normalize data types
         parsed = normalize_resume_data(parsed)

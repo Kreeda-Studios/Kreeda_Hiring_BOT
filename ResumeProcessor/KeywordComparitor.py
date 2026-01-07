@@ -461,12 +461,18 @@ def main():
     # First add all entries with candidate_id
     for candidate_id, entry in existing_map_by_id.items():
         if candidate_id not in seen_ids:
+            # Ensure Keyword_Score is always set (default to 0.0 if missing)
+            if "Keyword_Score" not in entry or entry.get("Keyword_Score") is None:
+                entry["Keyword_Score"] = 0.0
             final_results.append(entry)
             seen_ids.add(candidate_id)
     # Then add entries that only exist in name map (for backward compatibility)
     for name, entry in existing_map_by_name.items():
         entry_id = entry.get("candidate_id")
         if not entry_id or entry_id not in seen_ids:
+            # Ensure Keyword_Score is always set (default to 0.0 if missing)
+            if "Keyword_Score" not in entry or entry.get("Keyword_Score") is None:
+                entry["Keyword_Score"] = 0.0
             final_results.append(entry)
             if entry_id:
                 seen_ids.add(entry_id)

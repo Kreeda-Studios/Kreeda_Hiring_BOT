@@ -76,6 +76,10 @@ ProcessedJson/FilteredResumes/*
 Ranking/*
 !Ranking/.gitkeep
 
+# Temporary test files
+text.json
+pdf_mapping.json
+
 # Uploaded resumes (PRIVACY - DO NOT COMMIT)
 Uploaded_Resumes/*
 !Uploaded_Resumes/.gitkeep

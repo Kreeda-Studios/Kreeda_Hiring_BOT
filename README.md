@@ -1,481 +1,316 @@
-# HR User Guide - Resume Screening Platform
+# HR Hiring Bot - AI Resume Screening Platform
 
-## Welcome
+## Overview
 
-This guide will help you use the **AI Resume Screening Platform** to efficiently evaluate candidates against job descriptions. The system uses AI to automatically parse, score, and rank resumes based on your requirements.
+An AI-powered resume screening system that automates candidate evaluation against job descriptions. The system uses OpenAI GPT models for parsing, embeddings for semantic matching, and a hybrid scoring system for ranking candidates.
+
+**Key Features:**
+- 📄 Automatic resume parsing from PDFs
+- 🎯 AI-powered JD analysis and skill extraction
+- 🔍 Multi-dimensional candidate scoring (Project, Semantic, Keyword)
+- 📊 Intelligent ranking with compliance filtering
+- 🚀 Parallel processing for fast batch operations
+- 💾 Smart caching to reduce API costs
 
 ---
 
 ## Quick Start
 
-### Step 1: Start the Application
+> **📖 For detailed setup instructions, see [SETUP.md](SETUP.md)**
 
-1. Open your web browser
-2. Navigate to the application URL (provided by your IT team)
-3. You'll see the main dashboard with 4 tabs
+### Prerequisites
 
-### Step 2: Upload Job Description
+- Python 3.10 or higher
+- pip (Python package manager)
+- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
 
-1. Go to the **"📌 Upload Requirements"** tab
-2. Either:
-   - Upload a JD PDF file, OR
-   - Paste the JD text directly
-3. (Optional) Add filter requirements (see below)
-4. Click **"⚙️ Process JD"**
-5. Wait for confirmation: **"🎯 JD processing complete!"**
+### Quick Installation
 
-### Step 3: Upload Resumes
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd Kreeda_Hiring_BOT
+   ```
 
-1. Go to the **"📁 Upload Resumes"** tab
-2. Upload one or multiple resume PDFs
-3. Wait for extraction confirmation for each resume
+2. **Create and activate virtual environment:**
+   ```bash
+   # Windows
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+   
+   # Linux/Mac
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
 
-### Step 4: Process & Rank
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-1. Click **"⚙️ Process & Rank Resumes"**
-2. Wait for all 6 steps to complete (progress bar will show progress)
-3. Processing typically takes 1-2 minutes for 20 resumes
+4. **Set up environment variables:**
+   
+   Create a `.env` file in the root directory:
+   ```env
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
 
-### Step 5: View Rankings
+5. **Run the application:**
+   ```bash
+   streamlit run main.py
+   ```
 
-1. Go to the **"🏆 Rankings"** tab
-2. View ranked candidates with scores
-3. Click on candidate names to see detailed compliance information
-4. Download rankings using the download button
+   The application will open in your browser at `http://localhost:8501`
 
----
-
-## Detailed Instructions
-
-### Tab 1: 📘 Documentation
-
-This tab provides:
-- Overview of how the system works
-- Data flow explanation
-- Precautions and best practices
-- Ideal workflow steps
-
-**Read this first** if you're new to the platform.
-
----
-
-### Tab 2: 📌 Upload Requirements
-
-#### Uploading Job Description
-
-**Option A: Upload PDF**
-- Click "Upload JD (PDF only)"
-- Select your JD PDF file
-- The system will extract text automatically
-
-**Option B: Paste Text**
-- Type or paste JD text in the text area
-- You can combine both PDF and text input
-
-#### Filter Requirements (Optional)
-
-Use this section to add **additional filtering criteria** that aren't in the main JD:
-
-**Examples**:
-- `Experience needed: 1-2 years in Python development`
-- `Must have: React, Node.js, AWS`
-- `Location: Remote only`
-- `Must have worked in fintech industry`
-
-**How it works**:
-- The system will filter candidates based on these requirements
-- Candidates not meeting requirements will be filtered out
-- You'll see compliance details in the rankings
-
-**Tips**:
-- Be specific: "2-3 years" is better than "some experience"
-- List must-have skills clearly
-- Mention location preferences if important
-
-#### Processing JD
-
-1. After uploading JD and (optionally) filter requirements
-2. Click **"⚙️ Process JD"**
-3. Wait for processing (usually 5-10 seconds)
-4. You'll see: **"🎯 JD processing complete!"**
-
-**What happens**:
-- JD is analyzed by AI
-- Skills are extracted and normalized
-- Requirements are structured for matching
-- System is ready for resume processing
+**For detailed setup instructions, troubleshooting, and verification steps, see [SETUP.md](SETUP.md)**
 
 ---
 
-### Tab 3: 📁 Upload Resumes
+## Project Structure
 
-#### Uploading Resumes
-
-1. Click "Upload multiple PDF resumes"
-2. Select one or multiple PDF files
-3. Each resume will be extracted automatically
-4. You'll see: **"✅ Extracted: filename.pdf"** for each
-
-**Important**:
-- Only PDF format is supported
-- Resumes should be text-based (not scanned images)
-- You can upload multiple resumes at once
-
-#### Already Processed Resumes
-
-- The system shows resumes that were already processed
-- These won't be reprocessed (saves time and cost)
-
-#### Processing & Ranking
-
-1. After uploading resumes, click **"⚙️ Process & Rank Resumes"**
-2. The system will run 6 steps:
-   - Step 1: AI processing (converts resumes to structured data) [PARALLEL]
-   - Step 2: Early filtering (applies your filter requirements)
-   - Step 3: Project scoring (evaluates project depth)
-   - Step 4: Keyword matching (ATS-style matching)
-   - Step 5: Semantic matching (deep understanding)
-   - Step 6: Final ranking (combines all scores)
-
-3. Wait for completion (progress bar shows progress)
-4. You'll see: **"🎯 Resume ranking complete!"**
-
-**Processing Time**:
-- 1-2 minutes for 20 resumes (parallel processing)
-- Faster if resumes were processed before (caching)
+```
+Kreeda_Hiring_BOT/
+├── main.py                          # Streamlit UI and orchestration
+├── requirements.txt                 # Python dependencies
+├── utils/                           # Shared utilities
+│   ├── validation.py               # Pydantic schemas for data validation
+│   ├── retry.py                    # Retry logic and circuit breakers
+│   ├── cache.py                    # File-based caching
+│   └── common.py                   # Common utility functions
+├── InputThread/                    # Input processing
+│   ├── file_router.py              # PDF routing and classification
+│   ├── extract_pdf.py              # PDF text extraction
+│   └── AI Processing/
+│       ├── JDGpt.py                # JD parsing with GPT
+│       └── GptJson.py              # Resume parsing with GPT (parallel)
+├── ResumeProcessor/                # Ranking and scoring
+│   ├── EarlyFilter.py              # HR requirements filtering
+│   ├── ProjectProcess.py           # Project-based scoring
+│   ├── KeywordComparitor.py       # Keyword matching scoring
+│   ├── SemanticComparitor.py      # Semantic similarity scoring
+│   └── Ranker/
+│       └── FinalRanking.py         # Final ranking aggregation
+├── JD/                             # Job description files
+│   ├── JD.txt                      # Raw JD text
+│   └── JD.json                     # Structured JD data
+├── Processed-TXT/                  # Extracted resume text
+├── ProcessedJson/                   # Structured resume JSON
+└── Ranking/                        # Final ranking results
+    ├── Scores.json                 # All scores combined
+    ├── Final_Ranking.json          # Ranked candidates
+    └── DisplayRanks.txt            # Human-readable ranking
+```
 
 ---
 
-### Tab 4: 🏆 Rankings
+## Usage Guide
 
-#### Viewing Rankings
+### For HR Users
 
-The rankings tab shows:
-- **Rank**: Candidate's position (1, 2, 3, ...)
-- **Name**: Candidate name
-- **Score**: Final match score (0.0 to 1.0, higher is better)
-- **Compliance**: How well candidate meets filter requirements
+1. **Upload Job Description:**
+   - Go to "📌 Upload Requirements" tab
+   - Upload JD PDF or paste text
+   - (Optional) Add filter requirements (experience, skills, location, etc.)
+   - Click "⚙️ Process JD"
 
-#### Understanding Scores
+2. **Upload Resumes:**
+   - Go to "📁 Upload Resumes" tab
+   - Upload one or multiple PDF resumes
+   - Wait for extraction confirmation
 
-**Score Range**: 0.0 to 1.0
-- **0.9 - 1.0**: Excellent match (strong candidate)
-- **0.7 - 0.9**: Good match (worth considering)
-- **0.5 - 0.7**: Moderate match (may need review)
-- **Below 0.5**: Weak match (may not be suitable)
+3. **Process & Rank:**
+   - Click "⚙️ Process & Rank Resumes"
+   - Wait for all 6 steps to complete (progress bar shows progress)
+   - Processing typically takes 1-2 minutes for 20 resumes
 
-**Score Components**:
-- **Project Score**: Technical depth and project quality
-- **Keyword Score**: Skills and experience matching
-- **Semantic Score**: Deep understanding and relevance
+4. **View Rankings:**
+   - Go to "🏆 Rankings" tab
+   - View ranked candidates with scores
+   - Click candidate names for detailed compliance information
+   - Use "✅ Select All" / "❌ Deselect All" for bulk download
+   - Download rankings or selected PDFs
 
-#### Candidate Details
+### Understanding Scores
 
-Click on a candidate's name to expand and see:
-- **Compliance Details**: Which requirements were met/missing
-- **Score Breakdown**: Individual scores for each component
-- **Requirements Met**: List of requirements candidate satisfies
-- **Requirements Missing**: List of requirements candidate lacks
+- **Score Range**: 0.0 to 1.0 (higher is better)
+- **0.9 - 1.0**: Excellent match
+- **0.7 - 0.9**: Good match
+- **0.5 - 0.7**: Moderate match
+- **Below 0.5**: Weak match
 
-#### Compliance Indicators
-
-- **✅ Green**: All requirements met
-- **⚠️ Yellow**: Some requirements met (partial compliance)
-- **❌ Red**: Requirements not met
-
-#### Download Rankings
-
-1. Click **"⬇️ Download Rankings File"**
-2. File will download as `DisplayRanks.txt`
-3. Format: `Rank. Name | Score`
-4. Easy to share with hiring managers
-
-#### Clearing Previous Run
-
-**When to clear**:
-- Starting a new batch of resumes
-- Seeing duplicate candidates
-- Want to reprocess everything from scratch
-
-**What gets cleared**:
-- All processed resumes
-- All ranking files
-- Processing index
-
-**What doesn't get cleared**:
-- JD files (can be reused)
-
-**To clear**: Click **"🗑️ Clear Previous Run Data"**
+**Score Components:**
+- **Project Score**: Technical depth and project quality (35%)
+- **Semantic Score**: Deep understanding and relevance (35%)
+- **Keyword Score**: Skills and experience matching (30%)
 
 ---
 
-## Understanding Filter Requirements
+## Configuration
 
-### What Are Filter Requirements?
+### Environment Variables
 
-Filter requirements are **additional criteria** you specify beyond the main JD. They help narrow down candidates to those who meet specific needs.
+| Variable | Description | Required | Source |
+|----------|-------------|----------|--------|
+| `OPENAI_API_KEY` | OpenAI API key for GPT models and embeddings | **Yes** | [OpenAI Platform](https://platform.openai.com/api-keys) |
 
-### Examples
+### Optional Configuration
 
-**Experience Requirements**:
-```
-Experience needed: 2-3 years in Python development
-```
-
-**Skill Requirements**:
-```
-Must have: React, Node.js, AWS
-```
-
-**Location Requirements**:
-```
-Location: Remote only
-```
-
-**Industry Requirements**:
-```
-Must have worked in fintech or healthcare
-```
-
-**Combined Requirements**:
-```
-Experience needed: 1-2 years
-Must have: RAG, ML
-Location: Remote
-```
-
-### How Filtering Works
-
-The system has two modes:
-
-**Flexible Mode** (Default):
-- Candidates need to meet **at least 50%** of skill requirements
-- Example: If you require "RAG" and "ML", candidate with just "ML" will pass
-- More candidates pass through
-
-**Strict Mode**:
-- Candidates must meet **ALL** requirements
-- Example: Must have both "RAG" and "ML"
-- Fewer candidates pass through
-
-**Current Setting**: Flexible mode (can be changed by developers)
-
-### Filtering Results
-
-After filtering, you'll see:
-- **Compliant resumes**: Passed all/most requirements → Continue to ranking
-- **Filtered resumes**: Failed requirements → Moved to skipped list
+- **Parallel Processing**: Enabled by default (5 workers)
+- **Caching**: Enabled by default (reduces API costs)
+- **Filtering Mode**: Flexible (50% skill match threshold)
 
 ---
 
-## Best Practices
+## Key Features
 
-### 1. JD Quality
+### 1. Smart Caching
+- File-based caching for JD and resume parsing
+- Hash-based cache keys (content-based invalidation)
+- Embedding cache to reduce API costs
+- Instant processing for repeated inputs
 
-**Do**:
-- ✅ Provide complete, detailed JD
-- ✅ Include all required skills
-- ✅ Specify experience ranges clearly
-- ✅ Mention preferred qualifications
+### 2. Parallel Processing
+- ThreadPoolExecutor for batch resume processing
+- 3-4x speedup for large batches
+- Configurable worker count (default: 5)
 
-**Don't**:
-- ❌ Use vague descriptions
-- ❌ Skip important requirements
-- ❌ Use only abbreviations (spell out skills)
+### 3. Robust Error Handling
+- Retry logic with exponential backoff
+- Circuit breaker pattern to prevent cascading failures
+- Graceful degradation (assigns 0 scores, continues processing)
+- Comprehensive error logging
 
-### 2. Filter Requirements
+### 4. Data Validation
+- Pydantic schemas for JD and resume validation
+- Type checking and range validation
+- Non-blocking warnings for validation issues
 
-**Do**:
-- ✅ Be specific: "2-3 years" not "some experience"
-- ✅ List must-have skills clearly
-- ✅ Mention location if important
-- ✅ Add industry experience if relevant
-
-**Don't**:
-- ❌ Be too vague
-- ❌ Add conflicting requirements
-- ❌ Over-filter (you might miss good candidates)
-
-### 3. Resume Upload
-
-**Do**:
-- ✅ Upload text-based PDFs
-- ✅ Upload multiple resumes at once
-- ✅ Wait for processing to complete
-
-**Don't**:
-- ❌ Upload scanned/image PDFs (won't work)
-- ❌ Upload non-PDF files
-- ❌ Interrupt processing
-
-### 4. Interpreting Results
-
-**Do**:
-- ✅ Review top-ranked candidates first
-- ✅ Check compliance details
-- ✅ Consider score breakdown
-- ✅ Use rankings as a guide, not absolute truth
-
-**Don't**:
-- ❌ Ignore candidates with lower scores (may still be good)
-- ❌ Rely solely on scores (review resumes manually too)
-- ❌ Skip checking compliance details
+### 5. HR Requirements Filtering
+- Dynamic filtering based on user-specified requirements
+- Experience, skills, location, department validation
+- Flexible or strict filtering modes
+- Compliance reporting for each candidate
 
 ---
 
-## Common Questions
+## Performance
 
-### Q: How long does processing take?
+### Processing Times (Estimated)
 
-**A**: 
-- JD processing: 5-10 seconds
-- Resume processing: 1-2 minutes for 20 resumes
-- Faster if resumes were processed before (caching)
+| Operation | Time | Notes |
+|-----------|------|-------|
+| JD Processing | 5-10 sec | First run |
+| JD Processing (cached) | <1 sec | Subsequent runs |
+| Resume Processing (20, parallel) | 1-2 min | 3-4x faster than sequential |
+| Resume Processing (20, cached) | 10-30 sec | All cached |
+| Filtering | 1-2 sec | Per batch |
+| Scoring (all modules) | 5-10 sec | Per resume |
+| Final Ranking | 5-10 sec | Total |
 
-### Q: Can I process multiple JDs?
+### Token Usage
 
-**A**: 
-- Process one JD at a time
-- Clear previous run before processing new JD
-- Or use different filter requirements for same JD
-
-### Q: What if a candidate is filtered out?
-
-**A**: 
-- Check the compliance details to see why
-- They may still be in the rankings if they partially meet requirements
-- Filtered candidates are in the "Skipped" list
-
-### Q: Can I change filter requirements after processing?
-
-**A**: 
-- Yes, update filter requirements and reprocess
-- Or clear previous run and start fresh
-
-### Q: What if processing fails?
-
-**A**: 
-- Check error messages in the UI
-- Verify JD and resumes are in correct format
-- Contact IT support if issues persist
-
-### Q: How accurate are the rankings?
-
-**A**: 
-- Rankings are based on AI analysis and scoring
-- Use as a guide, but always review resumes manually
-- Top-ranked candidates are most likely to be good matches
-
-### Q: Can I export results?
-
-**A**: 
-- Yes, download rankings using the download button
-- File format: `DisplayRanks.txt`
-- Easy to share with hiring managers
+- **JD Parsing**: ~350 tokens per JD (optimized)
+- **Resume Parsing**: ~300 tokens per resume (optimized)
+- **Embeddings**: ~800 tokens per resume (cached)
+- **Total per resume**: ~1,100 tokens (first run), ~300 tokens (cached)
 
 ---
 
 ## Troubleshooting
 
-### Issue: JD Processing Fails
+### Common Issues
 
-**Possible Causes**:
-- JD file is corrupted
-- JD text is empty
-- API connection issue
+**Issue: "Module not found" errors**
+- **Solution**: Ensure virtual environment is activated and dependencies installed:
+  ```bash
+  pip install -r requirements.txt
+  ```
 
-**Solutions**:
-- Try uploading JD again
-- Or paste JD text directly
-- Check internet connection
+**Issue: "OPENAI_API_KEY not found"**
+- **Solution**: 
+  - Check that `.env` file exists in root directory
+  - Verify key is correctly set (no extra spaces or quotes)
+  - For Streamlit Cloud, configure secrets in UI
 
-### Issue: Resume Processing Fails
+**Issue: PDF extraction errors**
+- **Solution**: Ensure PyMuPDF and PyPDF2 are installed:
+  ```bash
+  pip install --upgrade PyMuPDF PyPDF2
+  ```
+  - Only text-based PDFs are supported (scanned/image PDFs are skipped)
 
-**Possible Causes**:
-- Resume PDF is scanned/image-based
-- Resume file is corrupted
-- Too many resumes at once
-
-**Solutions**:
-- Ensure resumes are text-based PDFs
-- Try processing fewer resumes at once
-- Check individual resume files
-
-### Issue: No Rankings Appear
-
-**Possible Causes**:
-- Processing didn't complete
-- All candidates were filtered out
-- Error in processing
-
-**Solutions**:
-- Check that all 6 steps completed
-- Review filter requirements (may be too strict)
-- Check error messages
-- Try clearing and reprocessing
-
-### Issue: Rankings Seem Wrong
-
-**Possible Causes**:
-- JD or filter requirements unclear
-- Resumes don't match JD well
-- Scoring weights may need adjustment
-
-**Solutions**:
-- Review JD and filter requirements
-- Check candidate compliance details
-- Consider adjusting filter requirements
-- Contact developers if persistent issues
+**Issue: No rankings appear**
+- **Solution**:
+  - Check that all 6 processing steps completed
+  - Review filter requirements (may be too strict)
+  - Check error messages in UI
+  - Try clearing and reprocessing
 
 ---
 
-## Tips for Best Results
+## Technology Stack
 
-1. **Clear JD**: Write detailed, specific job descriptions
-2. **Specific Filters**: Be precise with filter requirements
-3. **Review Top Candidates**: Focus on top 5-10 ranked candidates
-4. **Check Compliance**: Review why candidates passed/failed filters
-5. **Manual Review**: Always review resumes manually, don't rely solely on scores
-6. **Iterate**: Adjust filter requirements based on results
+| Component | Technology |
+|-----------|-----------|
+| **UI Framework** | Streamlit 1.51.0 |
+| **LLM** | OpenAI GPT-4o-mini (function calling) |
+| **Embeddings** | OpenAI text-embedding-3-small |
+| **PDF Processing** | PyMuPDF 1.26.4, PyPDF2 3.0.1 |
+| **Data Validation** | Pydantic 2.11.7 |
+| **Retry Logic** | Tenacity 8.2.3 |
+| **Data Processing** | Pandas 2.3.2, NumPy 2.3.2 |
+
+---
+
+## Deployment
+
+### Streamlit Cloud
+
+1. **Prepare repository:**
+   - Ensure all changes are committed
+   - Verify `main.py` and `requirements.txt` exist
+
+2. **Deploy:**
+   - Go to [Streamlit Cloud](https://share.streamlit.io/)
+   - Sign in with GitHub
+   - Click "New app"
+   - Select repository and branch
+   - Set main file path: `main.py`
+
+3. **Configure secrets:**
+   - Go to Settings → Secrets
+   - Add:
+     ```toml
+     OPENAI_API_KEY = "sk-your-actual-api-key-here"
+     ```
+
+**Note**: Free tier has limitations (ephemeral storage, timeout limits). Process small batches (5-10 resumes) and download results immediately.
+
+---
+
+## Documentation
+
+- **[SETUP.md](SETUP.md)** - Detailed setup and installation guide
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design
+- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development workflow and testing
 
 ---
 
 ## Support
 
-For technical issues or questions:
+For technical issues:
 - Check error messages in the UI
-- Review this user guide
-- Contact your IT support team
+- Review log files: `processing_errors.log`, `processing_errors.log1`
+- Check `Ranking/Skipped.json` for filtered candidates
+- Review code comments and docstrings
 
 ---
 
-## What to Expect
+## License
 
-### Typical Workflow
-
-1. **Upload JD** → 5-10 seconds
-2. **Add Filter Requirements** → Instant
-3. **Process JD** → 5-10 seconds
-4. **Upload Resumes** → Instant (file upload)
-5. **Process & Rank** → 1-2 minutes (20 resumes)
-6. **Review Rankings** → Instant display
-
-### Expected Results
-
-- **Ranked list** of candidates (best match first)
-- **Scores** showing match quality (0.0 to 1.0)
-- **Compliance details** for each candidate
-- **Downloadable rankings** for sharing
-
-### Performance
-
-- **Fast processing** with parallel execution
-- **Caching** for repeated processing (instant)
-- **Accurate rankings** based on AI analysis
-- **Transparent filtering** with compliance details
+[Add your license information here]
 
 ---
 
 **Last Updated**: 2025-01-XX  
 **Version**: 2.0
-

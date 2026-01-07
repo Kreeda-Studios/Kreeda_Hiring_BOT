@@ -1,10 +1,31 @@
 {
-  "raw_prompt": "Experience needed: 2-3 years",
-  "structured": {
-    "experience": {
-      "min": 2,
-      "max": 3,
-      "specified": true
+  "mandatory_compliances": {
+    "raw_prompt": "skills : Machine learning , RAG",
+    "structured": {
+      "hard_skills": {
+        "type": "list",
+        "specified": true,
+        "required": [
+          "Machine learning",
+          "RAG"
+        ]
+      }
+    }
+  },
+  "soft_compliances": {
+    "raw_prompt": "Experience = 1-2  years, Location : Any",
+    "structured": {
+      "experience": {
+        "type": "numeric",
+        "specified": true,
+        "min": 1,
+        "max": 2
+      },
+      "location": {
+        "type": "text",
+        "specified": true,
+        "required": "Any"
+      }
     }
   }
 }

@@ -122,22 +122,29 @@ Parse ALL requirements mentioned. Be comprehensive and dynamic!"""
 
 def compute_final_score(entry: dict) -> float | None:
     raw_scores = {
-        "project_aggregate": entry.get("project_aggregate", 0.0),
-        "Semantic_Score": entry.get("Semantic_Score", 0.0),
-        "Keyword_Score": entry.get("Keyword_Score", 0.0),
+        "project_aggregate": entry.get("project_aggregate"),
+        "Semantic_Score": entry.get("Semantic_Score"),
+        "Keyword_Score": entry.get("Keyword_Score"),
     }
 
-    valid_scores = {k: v for k, v in raw_scores.items() if isinstance(v, (int, float)) and v > 0.0}
+    # Include scores that are numeric (including 0.0) and not None
+    valid_scores = {k: v for k, v in raw_scores.items() if isinstance(v, (int, float)) and v is not None}
 
     if len(valid_scores) == 0:
         return None
 
+    # If only one score is available, apply decay penalty
     if len(valid_scores) == 1:
         score_value = list(valid_scores.values())[0]
         adjusted = max(score_value - ONE_SCORE_DECAY, 0.0)
         return round(adjusted, 3)
 
+    # Calculate weighted average using all available scores (including 0.0 scores)
+    # This ensures proper weightage is applied even if some scores are 0
     total_weight = sum(WEIGHTS[k] for k in valid_scores)
+    if total_weight == 0:
+        return None
+    
     final = sum((WEIGHTS[k] / total_weight) * valid_scores[k] for k in valid_scores)
     return round(final, 3)
 
@@ -404,10 +411,63 @@ def get_resume_field_value(resume_json: dict, field_name: str):
     """
     Get value from resume_json based on HR field name.
     Uses FIELD_MAPPING to intelligently map HR field names to resume data.
+    Special handling for skills fields - collects from multiple sources.
     Falls back to direct field lookup if mapping not found.
     """
+    field_lower = field_name.lower()
+    
+    # Special handling for skills fields
+    if field_lower in ["hard_skills", "skills", "required_skills", "technical_skills"]:
+        # Collect all skills from resume
+        skills = set()
+        
+        # From canonical_skills
+        canonical = resume_json.get("canonical_skills", {})
+        for cat_skills in canonical.values():
+            if isinstance(cat_skills, list):
+                skills.update(s.lower().strip() for s in cat_skills if s)
+        
+        # From inferred_skills
+        for inf in resume_json.get("inferred_skills", []):
+            if inf.get("skill"):
+                skills.add(inf["skill"].lower().strip())
+        
+        # From skill_proficiency
+        for sp in resume_json.get("skill_proficiency", []):
+            if sp.get("skill"):
+                skills.add(sp["skill"].lower().strip())
+        
+        # From projects
+        for proj in resume_json.get("projects", []):
+            for skill_list in [proj.get("tech_keywords", []), proj.get("primary_skills", [])]:
+                skills.update(s.lower().strip() for s in skill_list if s)
+        
+        return list(skills) if skills else []
+    
+    # Special handling for experience fields
+    if field_lower in ["experience", "years_experience", "years_of_experience", "exp"]:
+        # Try direct field lookup first
+        exp_value = resume_json.get("years_experience") or resume_json.get("experience")
+        if exp_value is not None:
+            return exp_value
+        # Try to calculate from experience entries
+        experience_entries = resume_json.get("experience", [])
+        if experience_entries:
+            total_years = 0
+            for exp in experience_entries:
+                if isinstance(exp, dict):
+                    duration = exp.get("duration", "")
+                    # Try to parse duration (e.g., "2 years", "1.5 years")
+                    import re
+                    years_match = re.search(r'(\d+\.?\d*)\s*years?', str(duration).lower())
+                    if years_match:
+                        total_years += float(years_match.group(1))
+            if total_years > 0:
+                return total_years
+        return None
+    
     # Try mapped field name first
-    mapped_field = FIELD_MAPPING.get(field_name.lower())
+    mapped_field = FIELD_MAPPING.get(field_lower)
     if mapped_field and mapped_field in resume_json:
         return resume_json.get(mapped_field)
     
@@ -416,7 +476,6 @@ def get_resume_field_value(resume_json: dict, field_name: str):
         return resume_json.get(field_name)
     
     # Try lowercase version
-    field_lower = field_name.lower()
     for key in resume_json:
         if key.lower() == field_lower:
             return resume_json.get(key)
@@ -454,6 +513,10 @@ def check_numeric_requirement(resume_json: dict, field_name: str, requirement_sp
     min_val = requirement_spec.get("min")
     max_val = requirement_spec.get("max")
     unit = requirement_spec.get("unit", "")
+    
+    # If no min/max specified, requirement is not meaningful
+    if min_val is None and max_val is None:
+        return None
     
     # Check if meets requirement
     meets = True
@@ -497,17 +560,48 @@ def check_list_requirement(resume_json: dict, field_name: str, requirement_spec:
     if not optional:
         optional = []
     
-    # Normalize requirement items
-    required_items = [str(item).lower().strip() for item in required if item]
-    optional_items = [str(item).lower().strip() for item in optional if item]
+    # Normalize requirement items (filter out empty strings)
+    required_items = [str(item).lower().strip() for item in required if item and str(item).strip()]
+    optional_items = [str(item).lower().strip() for item in optional if item and str(item).strip()]
     
-    # Check if all required items are present
-    required_met = all(req in candidate_items for req in required_items)
+    # If no required items specified, this requirement is not meaningful - return None
+    if not required_items:
+        return None
+    
+    # Check if all required items are present (case-insensitive, partial matching for skills)
+    found_required = []
+    missing_required = []
+    
+    for req_item in required_items:
+        # Try exact match first
+        if req_item in candidate_items:
+            found_required.append(req_item)
+        else:
+            # Try partial match (for skills like "machine learning" matching "ml" or variations)
+            found = False
+            for cand_item in candidate_items:
+                if req_item in cand_item or cand_item in req_item:
+                    found_required.append(req_item)
+                    found = True
+                    break
+            if not found:
+                missing_required.append(req_item)
+    
+    required_met = len(missing_required) == 0
     
     # Count optional items met
     optional_met = [opt for opt in optional_items if opt in candidate_items]
     
     meets = required_met
+    
+    # Better details for skills
+    if field_name.lower() in ["hard_skills", "skills", "required_skills"]:
+        if meets:
+            details = f"Skills: Found all required skills ({', '.join(found_required)})"
+        else:
+            details = f"Skills: Found {', '.join(found_required) or 'none'}. Missing: {', '.join(missing_required)}"
+    else:
+        details = f"{field_name}: Found {len(found_required)}/{len(required_items)} required. Missing: {', '.join(missing_required[:3]) or 'none'}"
     
     return {
         "meets": meets,
@@ -515,9 +609,10 @@ def check_list_requirement(resume_json: dict, field_name: str, requirement_spec:
         "type": "list",
         "candidate_value": list(candidate_value),
         "requirement": requirement_spec,
-        "required_met": required_items,
+        "required_met": found_required,
+        "missing_required": missing_required,
         "optional_met": optional_met,
-        "details": f"{field_name}: Found {', '.join(candidate_items) or 'none'}. Required: {', '.join(required_items) or 'none'}"
+        "details": details
     }
 
 
@@ -556,6 +651,18 @@ def check_text_requirement(resume_json: dict, field_name: str, requirement_spec:
 def check_location_requirement(resume_json: dict, field_name: str, requirement_spec: dict) -> dict:
     """Check if location requirement is met."""
     candidate_location = get_resume_field_value(resume_json, "location")
+    
+    # Check if requirement is "Any" or empty - always meets
+    required_location = requirement_spec.get("required", "")
+    if isinstance(required_location, str) and required_location.lower().strip() in ["any", "anywhere", ""]:
+        return {
+            "meets": True,
+            "field": field_name,
+            "type": "location",
+            "candidate_value": candidate_location,
+            "requirement": requirement_spec,
+            "details": f"Location: {candidate_location or 'Not specified'} (required: Any)"
+        }
     
     if not candidate_location:
         return {
@@ -646,6 +753,11 @@ def check_dynamic_requirement(resume_json: dict, field_name: str, requirement_sp
         requirement_spec = {"type": "text", "value": requirement_spec}
     
     requirement_type = requirement_spec.get("type", "text")
+    
+    # IMPORTANT: Check field_name first - if it's "location", use location checker even if type is "text"
+    field_lower = field_name.lower()
+    if field_lower in ["location", "loc", "work_location"]:
+        return check_location_requirement(resume_json, field_name, requirement_spec)
     
     try:
         if requirement_type == "numeric":
@@ -890,46 +1002,148 @@ def check_other_criteria_compliance(candidate: dict, resume_json: dict, other_cr
 
 def check_all_requirements(candidate: dict, resume_json: dict, filter_requirements: dict) -> dict:
     """
-    Dynamically check ALL requirements without hardcoding any fields.
+    Dynamically check requirements (mandatory or soft) without hardcoding any fields.
     Works with any requirement type HR specifies.
     
-    Returns compliance report with only the requirements that are specified in filter_requirements.
+    Args:
+        candidate: Candidate dict (for compatibility)
+        resume_json: Resume JSON data
+        filter_requirements: Dict with "mandatory_compliances" or "soft_compliances" key
+    
+    Returns compliance report with only the requirements that are specified.
     """
-    if not filter_requirements or not filter_requirements.get("structured"):
+    # Extract compliances (mandatory or soft)
+    # IMPORTANT: Use explicit check - don't use 'or' which can fail if mandatory_compliances exists but is empty
+    compliances = None
+    
+    # Check for soft_compliances first if explicitly requested
+    if "soft_compliances" in filter_requirements:
+        soft_compliances = filter_requirements.get("soft_compliances")
+        if soft_compliances and soft_compliances.get("structured"):
+            compliances = soft_compliances
+    
+    # Fallback to mandatory_compliances if soft not found
+    if not compliances and "mandatory_compliances" in filter_requirements:
+        mandatory_compliances = filter_requirements.get("mandatory_compliances")
+        if mandatory_compliances and mandatory_compliances.get("structured"):
+            compliances = mandatory_compliances
+    
+    # Backward compatibility: check old format
+    if not compliances and filter_requirements.get("structured"):
+        compliances = {
+            "raw_prompt": filter_requirements.get("raw_prompt", ""),
+            "structured": filter_requirements.get("structured", {})
+        }
+    
+    if not compliances:
         return {}
     
-    structured = filter_requirements.get("structured", {})
+    structured = compliances.get("structured", {}) if isinstance(compliances, dict) else {}
+    
+    # Normalize structure if it has nested "requirements" array
+    if isinstance(structured, dict) and "requirements" in structured and isinstance(structured["requirements"], list):
+        # Convert nested array to flat fields
+        normalized = {}
+        for req_obj in structured["requirements"]:
+            if isinstance(req_obj, dict):
+                req_type = req_obj.get("type", "").lower()
+                req_data = req_obj.get("data", {}) or req_obj.get("value") or req_obj
+                
+                if req_type in ["skills", "skill"]:
+                    if isinstance(req_data, dict):
+                        skill_value = req_data.get("skill") or req_data.get("skills") or req_data.get("required")
+                        skills_list = [s.strip() for s in skill_value.split(",")] if isinstance(skill_value, str) else (skill_value if isinstance(skill_value, list) else [])
+                    else:
+                        skills_list = [str(req_data)] if req_data else []
+                    
+                    normalized["hard_skills"] = {
+                        "type": "list",
+                        "specified": True,
+                        "required": skills_list,
+                        "optional": []
+                    }
+                elif req_type in ["numeric", "experience", "years"]:
+                    normalized["experience"] = {
+                        "type": "numeric",
+                        "specified": True,
+                        "min": req_data.get("min") if isinstance(req_data, dict) else (float(req_data) if req_data else None),
+                        "max": req_data.get("max") if isinstance(req_data, dict) else None,
+                        "unit": "years"
+                    }
+                elif req_type in ["location", "loc"]:
+                    if isinstance(req_data, dict):
+                        loc_value = req_data.get("required") or req_data.get("location")
+                        if loc_value:
+                            normalized["location"] = {
+                                "type": "location",
+                                "specified": True,
+                                "required": loc_value,
+                                "allowed": req_data.get("allowed", [])
+                            }
+                    else:
+                        if req_data:
+                            normalized["location"] = {
+                                "type": "location",
+                                "specified": True,
+                                "required": str(req_data)
+                            }
+        if normalized:
+            structured = normalized
+    
     compliance = {}
+    
+    def field_has_value(val):
+        """Check if a field has a meaningful value."""
+        if val is None:
+            return False
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (list, tuple, set)):
+            return len(val) > 0
+        if isinstance(val, dict):
+            # Check if specified flag is true AND has actual values
+            if val.get("specified", False):
+                # Even if specified=True, check if it has meaningful content
+                # For list types, check if required/optional arrays have items
+                if val.get("type") == "list":
+                    required = val.get("required", [])
+                    optional = val.get("optional", [])
+                    if required and len(required) > 0:
+                        return True
+                    if optional and len(optional) > 0:
+                        return True
+                    return False  # specified=True but empty arrays = no value
+                # For numeric types, check if min/max exists
+                elif val.get("type") == "numeric":
+                    if val.get("min") is not None or val.get("max") is not None:
+                        return True
+                    return False  # specified=True but no min/max = no value
+                # For other types, check for any non-empty values
+                for k, v in val.items():
+                    if k not in ("specified", "type") and v not in (None, [], {}, ""):
+                        return True
+                return False  # specified=True but no actual values
+            # Not specified, check for any non-empty values
+            for k, v in val.items():
+                if k != "specified" and v not in (None, [], {}, ""):
+                    return True
+            return False
+        return bool(val)
     
     # Loop through ALL fields in structured dict (no hardcoding!)
     for field_name, field_spec in structured.items():
-        if not field_spec:
+        if not field_has_value(field_spec):
             continue
-        
-        # Only check if marked as specified or has content
-        if isinstance(field_spec, dict):
-            is_specified = field_spec.get("specified", False)
-            # Check if field has actual values (not empty list or empty dict)
-            has_value = False
-            for key, val in field_spec.items():
-                if key != "specified" and val not in (None, [], {}, "", ""):
-                    has_value = True
-                    break
-            
-            if not (is_specified or has_value):
-                continue
-        else:
-            # Non-dict value (should have value)
-            if not field_spec:
-                continue
         
         try:
             # Use generic dynamic checker for all requirement types
             result = check_dynamic_requirement(resume_json, field_name, field_spec)
-            if result:
+            if result is not None:  # None means requirement not meaningful, skip it
                 compliance[field_name] = result
         except Exception as e:
             print(f"⚠️ Error checking requirement '{field_name}': {e}")
+            import traceback
+            traceback.print_exc()
             # Add error to compliance so we know it failed
             compliance[field_name] = {
                 "meets": False,
@@ -1172,14 +1386,34 @@ def llm_re_rank_candidates(candidates: List[dict], filter_requirements: dict) ->
         }
         candidate_summaries.append(summary)
     
-    # Process in batches
+    # Process in batches with detailed logging
+    import time
+    
+    total_candidates = len(candidate_summaries)
+    total_batches = (total_candidates + RE_RANK_BATCH_SIZE - 1) // RE_RANK_BATCH_SIZE
+    
+    print(f"\n🔄 LLM Re-ranking: {total_candidates} candidates in {total_batches} batch(es)")
+    print(f"   - Batch size: {RE_RANK_BATCH_SIZE}")
+    print(f"   - Model: gpt-4o-mini")
+    
     all_results = []
+    batch_start_time = time.time()
+    
     for i in range(0, len(candidate_summaries), RE_RANK_BATCH_SIZE):
+        batch_num = i // RE_RANK_BATCH_SIZE + 1
         batch = candidate_summaries[i:i + RE_RANK_BATCH_SIZE]
-        print(f"🔄 Re-ranking batch {i//RE_RANK_BATCH_SIZE + 1} ({len(batch)} candidates)...")
+        batch_range = f"{i+1}-{min(i+RE_RANK_BATCH_SIZE, total_candidates)}"
+        
+        llm_call_id = f"LLM_RE_RANK_{int(time.time() * 1000)}"
+        print(f"\n[{llm_call_id}] 📦 Batch {batch_num}/{total_batches}: Processing candidates {batch_range}")
+        print(f"[{llm_call_id}] 📤 Request: {len(batch)} candidates")
+        
+        batch_call_start = time.time()
         
         # Pass specified_fields to the batch function
         results = llm_re_rank_batch(batch, filter_requirements, client, specified_fields)
+        
+        batch_call_duration = time.time() - batch_call_start
         
         # Add compliance reports to results
         for result in results:
@@ -1188,6 +1422,16 @@ def llm_re_rank_candidates(candidates: List[dict], filter_requirements: dict) ->
                 result["compliance_report"] = compliance_reports[candidate_id]
         
         all_results.extend(results)
+        
+        print(f"[{llm_call_id}] ✅ Batch {batch_num}/{total_batches}: Completed in {batch_call_duration:.2f}s")
+        print(f"[{llm_call_id}] 📥 Response: {len(results)} candidates re-ranked")
+    
+    total_duration = time.time() - batch_start_time
+    print(f"\n✅ LLM Re-ranking Complete:")
+    print(f"   - Total batches processed: {total_batches}")
+    print(f"   - Total candidates re-ranked: {len(all_results)}")
+    print(f"   - Total time: {total_duration:.2f}s")
+    print(f"   - Average time per batch: {total_duration/total_batches:.2f}s")
     
     return all_results
 
@@ -1204,8 +1448,9 @@ def _ranking_core():
     ranked, skipped = [], []
     seen_candidate_ids = set()
     seen_names = set()
+    duplicates_found = 0
 
-    print("\n🔍 Log of skipped resumes (if any):\n")
+    print("\n🔍 Deduplication check (Step 6):\n")
 
     for cand in candidates:
         # ✅ Deduplicate: Check by candidate_id first, then normalized name
@@ -1215,11 +1460,13 @@ def _ranking_core():
         
         # Skip if duplicate
         if candidate_id and candidate_id in seen_candidate_ids:
+            duplicates_found += 1
             print(f"⚠️ DUPLICATE SKIPPED → {name} (candidate_id: {candidate_id})")
             continue
         if normalized_name and normalized_name in seen_names:
             # Only skip by name if no candidate_id (to avoid false positives)
             if not candidate_id:
+                duplicates_found += 1
                 print(f"⚠️ DUPLICATE SKIPPED → {name} (by name)")
                 continue
         
@@ -1267,23 +1514,50 @@ def _ranking_core():
             candidate["_years_experience"] = 0
     
     ranked.sort(key=lambda x: (x["Final_Score"], x.get("_years_experience", 0)), reverse=True)
-    print(f"\n✅ Deduplication: Processed {len(candidates)} entries → {len(ranked)} unique candidates")
+    
+    # Deduplication summary
+    if duplicates_found > 0:
+        print(f"\n📊 Deduplication Summary:")
+        print(f"   - Total entries in Scores.json: {len(candidates)}")
+        print(f"   - Duplicates found: {duplicates_found}")
+        print(f"   - Unique candidates: {len(ranked)}")
+    else:
+        print(f"\n✅ Deduplication: No duplicates found")
+        print(f"   - Processed {len(candidates)} entries → {len(ranked)} unique candidates")
     
     # CRITICAL: Filter out 0 compliance candidates BEFORE re-ranking
-    # Check compliance for all candidates and remove those with 0% compliance
+    # Note: Mandatory compliances already filtered in Step 2, so we only check soft compliances here
     filtered_ranked = []
     filtered_to_skipped = []
     
-    # Load HR filter requirements with auto-parsing support
-    # This ensures compliance filtering is based on HR requirements only
+    # Load HR filter requirements (new format: mandatory_compliances and soft_compliances)
     hr_filter_file = Path("InputThread/JD/HR_Filter_Requirements.json")
     if hr_filter_file.exists():
         try:
-            # Use new auto-parsing function
-            filter_reqs = load_and_parse_hr_requirements(hr_filter_file)
+            with hr_filter_file.open("r", encoding="utf-8") as f:
+                filter_reqs = json.load(f)
             
-            # Check if any requirements are actually specified (works with any dynamic fields)
-            structured = filter_reqs.get("structured", {})
+            # Extract soft compliances (mandatory already filtered in Step 2)
+            soft_compliances = filter_reqs.get("soft_compliances", {})
+            
+            # Backward compatibility: check old format
+            if not soft_compliances or not soft_compliances.get("structured"):
+                if filter_reqs.get("structured"):
+                    print("ℹ️ Detected old format - treating as soft compliances")
+                    soft_compliances = {
+                        "raw_prompt": filter_reqs.get("raw_prompt", ""),
+                        "structured": filter_reqs.get("structured", {})
+                    }
+                else:
+                    # No soft compliances at all
+                    soft_compliances = {"raw_prompt": "", "structured": {}}
+            
+            structured = soft_compliances.get("structured", {}) if soft_compliances else {}
+            
+            if structured:
+                print(f"   📋 Found soft compliances with {len(structured)} field(s): {', '.join(sorted(structured.keys()))}")
+            else:
+                print(f"   ℹ️ No soft compliances found")
 
             def field_has_value(val):
                 # Returns True if the structured field contains meaningful requirement info
@@ -1294,59 +1568,87 @@ def _ranking_core():
                 if isinstance(val, (list, tuple, set)):
                     return len(val) > 0
                 if isinstance(val, dict):
-                    # If dict, check for any non-empty/non-null entry
+                    # Check if specified flag is true AND has actual values
+                    if val.get("specified", False):
+                        # For list types, check if required/optional arrays have items
+                        if val.get("type") == "list":
+                            required = val.get("required", [])
+                            if required and len(required) > 0:
+                                return True
+                            return False
+                        # For numeric types, check if min/max exists
+                        elif val.get("type") == "numeric":
+                            if val.get("min") is not None or val.get("max") is not None:
+                                return True
+                            return False
+                        # For other types, check for any non-empty values
+                        for k, v in val.items():
+                            if k not in ("specified", "type") and v not in (None, [], {}, ""):
+                                return True
+                        return False
+                    # Not specified, check for any non-empty values
                     for k, v in val.items():
-                        if k == "specified" and bool(v):
-                            return True
-                        if v not in (None, [], {}, ""):
+                        if k != "specified" and v not in (None, [], {}, ""):
                             return True
                     return False
                 # strings, numbers, etc.
                 return bool(val)
 
-            # Check if ANY requirement is specified (works with dynamic fields!)
+            # Check if ANY soft requirement is specified (works with dynamic fields!)
             has_any_requirement = any(field_has_value(v) for v in structured.values())
             
             if has_any_requirement:
-                print(f"\n🔍 Checking compliance for all candidates (HR requirements)...")
+                print(f"\n🔍 Checking soft compliances for all candidates (for display only)...")
                 # Determine which fields are actually specified (works with ANY field names!)
                 specified_fields = set()
                 for field_name, field_spec in structured.items():
                     if field_has_value(field_spec):
                         specified_fields.add(field_name)
                 
-                print(f"   📋 Specified requirements: {', '.join(sorted(specified_fields))}")
+                print(f"   📋 Soft compliance fields: {', '.join(sorted(specified_fields))}")
+                print(f"   ℹ️ Note: Mandatory compliances already filtered in Step 2")
+                
+                # Create filter_reqs structure for check_all_requirements
+                filter_reqs_for_check = {
+                    "soft_compliances": soft_compliances
+                }
+                
                 for cand in ranked:
                     candidate_id = cand.get("candidate_id")
                     resume_json = load_resume_json(candidate_id) if candidate_id else {}
                     
-                    # Check compliance
-                    compliance_report = check_all_requirements(cand, resume_json, filter_reqs)
+                    # Check soft compliance only (for display)
+                    compliance_report = check_all_requirements(cand, resume_json, filter_reqs_for_check)
                     
-                    # FILTER: Keep only specified fields in compliance report
-                    compliance_report = {k: v for k, v in compliance_report.items() if k in specified_fields}
-                    
-                    requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
-                    requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
-                    total_requirements = len(requirements_met) + len(requirements_missing)
-                    
-                    # Filter out 0% compliance candidates (0 requirements met when requirements exist)
-                    if total_requirements > 0 and len(requirements_met) == 0:
-                        cand["_filtered_reason"] = "0% compliance - no requirements met (HR)"
-                        cand["requirements_met"] = []
-                        cand["requirements_missing"] = requirements_missing
-                        cand["requirement_compliance"] = compliance_report
-                        filtered_to_skipped.append(cand)
-                        print(f"🚫 FILTERED (0% compliance) → {cand.get('name', 'Unknown')} | 0/{total_requirements} requirements met")
-                    else:
-                        # Keep candidate and add compliance data
+                    # DYNAMIC: Show ALL compliance fields detected by check_all_requirements
+                    # Don't filter - show whatever compliance data exists (handles any field names dynamically)
+                    if compliance_report:
+                        # Build requirements_met and requirements_missing dynamically from compliance_report
+                        requirements_met = []
+                        requirements_missing = []
+                        
+                        for req_type, comp in compliance_report.items():
+                            if isinstance(comp, dict):
+                                meets = comp.get("meets", False)
+                                if meets:
+                                    requirements_met.append(req_type)
+                                else:
+                                    requirements_missing.append(req_type)
+                        
+                        # Soft compliances: Always keep candidates (no filtering), just show compliance
                         cand["requirements_met"] = requirements_met
                         cand["requirements_missing"] = requirements_missing
                         cand["requirement_compliance"] = compliance_report
-                        filtered_ranked.append(cand)
+                    else:
+                        # No compliance data found - clear fields
+                        cand["requirements_met"] = []
+                        cand["requirements_missing"] = []
+                        cand["requirement_compliance"] = {}
+                    
+                    filtered_ranked.append(cand)
             else:
-                print(f"\n✅ No HR requirements specified - all candidates pass compliance check")
-                # IMPORTANT: Clear any compliance data since no HR requirements specified
+                print(f"\n✅ No soft compliances specified - showing all candidates without compliance details")
+                # Clear compliance data since no soft requirements specified
                 for cand in ranked:
                     cand["requirements_met"] = []
                     cand["requirements_missing"] = []
@@ -1378,20 +1680,25 @@ def _ranking_core():
     # LLM Re-ranking based on filter requirements (if available)
     final_ranked_list = filtered_ranked
     try:
-        # Only do LLM re-ranking if HR requirements were specified
+        # Only do LLM re-ranking if soft compliances were specified
         if has_any_requirement:
             # IMPORTANT: Use filter_reqs that was already loaded from HR_Filter_Requirements.json
-            # DO NOT load from JD.json - always use HR's requirements
-            if filter_reqs and filter_reqs.get("structured"):
-                print(f"\n🔄 Starting LLM-based re-ranking with filter requirements...")
-                # CRITICAL: Only re-rank COMPLIANT candidates (filtered_ranked), not all candidates
-                # This ensures 0% compliance candidates are NOT added back to rankings
-                re_rank_results = llm_re_rank_candidates(filtered_ranked, filter_reqs)
+            # Create filter_reqs structure for re-ranking
+            filter_reqs_for_rerank = {
+                "soft_compliances": soft_compliances
+            }
+            
+            if filter_reqs_for_rerank and structured:
+                print(f"\n🔄 Starting LLM-based re-ranking with soft compliances...")
+                # CRITICAL: Only re-rank candidates that passed Step 2 (mandatory filtering)
+                # This ensures candidates who failed mandatory compliances are NOT added back
+                re_rank_results = llm_re_rank_candidates(filtered_ranked, filter_reqs_for_rerank)
                 
                 if re_rank_results:
                     # Determine which fields are actually specified (for filtering compliance output)
+                    # IMPORTANT: Use soft_compliances structured, not filter_reqs (which may be old format)
                     specified_fields = set()
-                    structured_temp = filter_reqs.get("structured", {})
+                    structured_temp = soft_compliances.get("structured", {}) if soft_compliances else {}
                     # Determine specified fields dynamically from the structured dict
                     for field_name, field_spec in structured_temp.items():
                         if field_has_value(field_spec):
@@ -1422,11 +1729,13 @@ def _ranking_core():
                             # Keep compliance breakdown for detailed view
                             compliance_report = re_rank_data.get("compliance_report", {})
                             if not compliance_report:
-                                # Generate compliance if not in results
-                                compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
+                                # Generate compliance if not in results - use filter_reqs_for_rerank (has soft_compliances)
+                                compliance_report = check_all_requirements(candidate, resume_json, filter_reqs_for_rerank)
                             
-                            # FILTER: Keep only specified fields
-                            compliance_report = {k: v for k, v in compliance_report.items() if k in specified_fields}
+                            # FILTER: Keep only specified fields (only if specified_fields is not empty)
+                            # If specified_fields is empty, keep all compliance data (don't filter)
+                            if specified_fields:
+                                compliance_report = {k: v for k, v in compliance_report.items() if k in specified_fields}
                             
                             candidate["requirement_compliance"] = compliance_report
                             
@@ -1441,21 +1750,30 @@ def _ranking_core():
                                 candidate["requirements_met"] = requirements_met
                                 candidate["requirements_missing"] = requirements_missing
                         else:
-                            # Fallback: use original score and generate compliance
+                            # Fallback: use original score and preserve existing compliance data
                             candidate["Re_Rank_Score"] = candidate["Final_Score"]
                             candidate["Meets_Requirements"] = True
-                            compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
                             
-                            # FILTER: Keep only specified fields
-                            compliance_report = {k: v for k, v in compliance_report.items() if k in specified_fields}
+                            # Preserve existing compliance data if present, otherwise generate new
+                            if not candidate.get("requirement_compliance"):
+                                compliance_report = check_all_requirements(candidate, resume_json, filter_reqs_for_rerank)
+                            else:
+                                # Use existing compliance data (already populated earlier)
+                                compliance_report = candidate.get("requirement_compliance", {})
                             
-                            candidate["requirement_compliance"] = compliance_report
+                            # FILTER: Keep only specified fields (only if specified_fields is not empty)
+                            if specified_fields:
+                                compliance_report = {k: v for k, v in compliance_report.items() if k in specified_fields}
                             
-                            # Determine requirements met/missing from compliance
+                            # Extract requirements_met/missing from compliance_report
                             requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
                             requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
-                            candidate["requirements_met"] = requirements_met
-                            candidate["requirements_missing"] = requirements_missing
+                            
+                            # Only update if we have compliance data
+                            if compliance_report:
+                                candidate["requirement_compliance"] = compliance_report
+                                candidate["requirements_met"] = requirements_met
+                                candidate["requirements_missing"] = requirements_missing
                     
                     # Re-sort by Re_Rank_Score (or Final_Score), then by experience (descending) as tie-breaker
                     filtered_ranked.sort(key=lambda x: (x.get("Re_Rank_Score", x["Final_Score"]), x.get("_years_experience", 0)), reverse=True)
@@ -1468,15 +1786,11 @@ def _ranking_core():
                     print(f"✅ Re-ranking complete. Rankings updated based on filter requirements.")
                 else:
                     print("⚠️ No re-ranking results returned. Using original rankings.")
-                    # Still add compliance data even without re-ranking
-                    specified_fields = set()
-                    structured_temp = filter_reqs.get("structured", {})
-                    for field_name, field_spec in structured_temp.items():
-                        if field_has_value(field_spec):
-                            specified_fields.add(field_name)
-                    
-                    for candidate in ranked:
-                        candidate_id = candidate.get("candidate_id")
+                    # IMPORTANT: Compliance data should already be populated in filtered_ranked from lines 1629-1666
+                    # Verify compliance data exists, if not regenerate it
+                    for candidate in filtered_ranked:
+                        if not candidate.get("requirement_compliance"):
+                            candidate_id = candidate.get("candidate_id")
                         resume_json = load_resume_json(candidate_id) if candidate_id else {}
                         compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
                         # FILTER: Keep only specified fields
@@ -1494,79 +1808,72 @@ def _ranking_core():
         print(f"⚠️ Error during re-ranking: {e}. Using original rankings.")
         # Only add compliance data on error if HR requirements were specified
         try:
-            if has_any_requirement and JD_FILE.exists():
-                with JD_FILE.open("r", encoding="utf-8") as f:
-                    jd = json.load(f)
-                filter_reqs = jd.get("filter_requirements")
-                if filter_reqs and filter_reqs.get("structured"):
-                    # Determine specified fields dynamically
-                    structured_temp = filter_reqs.get("structured", {})
-                    specified_fields = set()
-                    for field_name, field_spec in structured_temp.items():
-                        if field_has_value(field_spec):
-                            specified_fields.add(field_name)
-
-                    for candidate in ranked:
+            if has_any_requirement:
+                # IMPORTANT: Use soft_compliances, not JD.json filter_requirements
+                # Create filter_reqs structure for check_all_requirements
+                filter_reqs_for_check = {
+                    "soft_compliances": soft_compliances
+                } if soft_compliances else {}
+                
+                for candidate in filtered_ranked:
+                    # Only regenerate if missing (preserve existing compliance data)
+                    if not candidate.get("requirement_compliance") and filter_reqs_for_check:
                         candidate_id = candidate.get("candidate_id")
                         resume_json = load_resume_json(candidate_id) if candidate_id else {}
-                        compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
-                        # FILTER: Keep only specified fields
-                        compliance_report = {k: v for k, v in compliance_report.items() if k in specified_fields}
-                        candidate["requirement_compliance"] = compliance_report
-                        requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
-                        requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
-                        candidate["requirements_met"] = requirements_met
-                        candidate["requirements_missing"] = requirements_missing
+                        compliance_report = check_all_requirements(candidate, resume_json, filter_reqs_for_check)
+                        if compliance_report:
+                            candidate["requirement_compliance"] = compliance_report
+                            requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
+                            requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
+                            candidate["requirements_met"] = requirements_met
+                            candidate["requirements_missing"] = requirements_missing
         except:
             pass
     
     # CRITICAL: Ensure ALL candidates have compliance data (even if LLM re-ranking failed or skipped some)
-    # ONLY if HR requirements were specified
+    # ONLY if soft compliances were specified (for display)
+    # NOTE: This is for SOFT compliances only - mandatory compliances already filtered in Step 2
     try:
-        if has_any_requirement and JD_FILE.exists():
-            with JD_FILE.open("r", encoding="utf-8") as f:
-                jd = json.load(f)
-            filter_reqs = jd.get("filter_requirements")
-            if filter_reqs and filter_reqs.get("structured"):
+        if has_any_requirement:
+            # IMPORTANT: Use soft_compliances, not filter_reqs (which may be old format)
+            # Soft compliances are for DISPLAY only - don't filter candidates here
+            if soft_compliances and soft_compliances.get("structured"):
+                # Create filter_reqs structure for check_all_requirements
+                filter_reqs_for_check = {
+                    "soft_compliances": soft_compliances
+                }
+                
+                # Ensure compliance data exists for all candidates (for display)
                 for candidate in final_ranked_list:
-                    # Ensure compliance data exists for all candidates
                     candidate_id = candidate.get("candidate_id")
                     resume_json = load_resume_json(candidate_id) if candidate_id else {}
                     
-                    # Only regenerate if missing (preserve LLM-validated data if present)
+                    # Only regenerate if missing (preserve existing compliance data)
                     if not candidate.get("requirement_compliance"):
-                        compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
-                        candidate["requirement_compliance"] = compliance_report
+                        compliance_report = check_all_requirements(candidate, resume_json, filter_reqs_for_check)
+                        if compliance_report:
+                            candidate["requirement_compliance"] = compliance_report
+                            requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
+                            requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
+                            candidate["requirements_met"] = requirements_met
+                            candidate["requirements_missing"] = requirements_missing
                     
                     # Always ensure requirements_met and requirements_missing are set
                     if "requirements_met" not in candidate or "requirements_missing" not in candidate:
                         compliance_report = candidate.get("requirement_compliance", {})
                         if not compliance_report:
-                            compliance_report = check_all_requirements(candidate, resume_json, filter_reqs)
+                            compliance_report = check_all_requirements(candidate, resume_json, filter_reqs_for_check)
                             candidate["requirement_compliance"] = compliance_report
                         
-                        requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
-                        requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
-                        candidate["requirements_met"] = requirements_met
-                        candidate["requirements_missing"] = requirements_missing
-                    
-                    # CRITICAL: Filter out candidates with 0 compliance (0 requirements met when requirements exist)
-                    if filter_reqs and filter_reqs.get("structured"):
-                        requirements_met = candidate.get("requirements_met", [])
-                        requirements_missing = candidate.get("requirements_missing", [])
-                        total_requirements = len(requirements_met) + len(requirements_missing)
-                        
-                        # If there are requirements and candidate meets 0 of them, filter out
-                        if total_requirements > 0 and len(requirements_met) == 0:
-                            # Move to skipped list
-                            candidate["_filtered_reason"] = "0% compliance - no requirements met"
-                            if candidate not in skipped:
-                                skipped.append(candidate)
-                            # Remove from ranked list
-                            if candidate in final_ranked_list:
-                                final_ranked_list.remove(candidate)
-                            print(f"🚫 FILTERED (0% compliance) → {candidate.get('name', 'Unknown')} | 0/{total_requirements} requirements met")
-                            continue
+                        if compliance_report:
+                            requirements_met = [req_type for req_type, comp in compliance_report.items() if comp.get("meets", False)]
+                            requirements_missing = [req_type for req_type, comp in compliance_report.items() if not comp.get("meets", False)]
+                            candidate["requirements_met"] = requirements_met
+                            candidate["requirements_missing"] = requirements_missing
+                
+                # NOTE: Soft compliances are for DISPLAY only - don't filter candidates here
+                # All candidates should be kept (mandatory filtering already done in Step 2)
+                print(f"   ✅ Ensured compliance data for all {len(final_ranked_list)} candidates (soft compliances for display)")
     except Exception as e:
         print(f"⚠️ Error adding compliance data to all candidates: {e}")
         import traceback
@@ -1608,19 +1915,31 @@ def main():
             name = cand.get("name", "Unknown")
             f.write(f"{rank}. {name} | Score: {final_score:.3f}\n")
             
-            # Add compliance indicators - check both requirement_compliance and requirements_met/missing
-            requirements_met = cand.get("requirements_met", [])
-            requirements_missing = cand.get("requirements_missing", [])
+            # DYNAMIC: Show compliance from requirement_compliance dict (handles any field names)
+            # First try to extract from requirement_compliance (most reliable source)
+            compliance = cand.get("requirement_compliance", {})
+            requirements_met = []
+            requirements_missing = []
+            
+            if isinstance(compliance, dict) and compliance:
+                # Extract dynamically from whatever fields exist in compliance dict
+                for req_type, comp in compliance.items():
+                    if isinstance(comp, dict):
+                        meets = comp.get("meets", False)
+                        details = comp.get("details", "")
+                        if meets:
+                            requirements_met.append(req_type)
+                        else:
+                            requirements_missing.append(req_type)
+            
+            # Fallback: If requirement_compliance is empty, try requirements_met/missing arrays
+            if not requirements_met and not requirements_missing:
+                requirements_met = cand.get("requirements_met", [])
+                requirements_missing = cand.get("requirements_missing", [])
+            
             total = len(requirements_met) + len(requirements_missing)
             
-            # If requirements_met/missing are not set, try to extract from requirement_compliance
-            if total == 0 and cand.get("requirement_compliance"):
-                compliance = cand.get("requirement_compliance", {})
-                if isinstance(compliance, dict) and compliance:
-                    requirements_met = [req_type for req_type, comp in compliance.items() if comp.get("meets", False)]
-                    requirements_missing = [req_type for req_type, comp in compliance.items() if not comp.get("meets", False)]
-                    total = len(requirements_met) + len(requirements_missing)
-            
+            # Show compliance details if any exist
             if total > 0:
                 if requirements_met:
                     met_str = ", ".join(requirements_met)
