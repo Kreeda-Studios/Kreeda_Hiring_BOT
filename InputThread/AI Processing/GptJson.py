@@ -649,10 +649,22 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
                     matching_pdf = pdf_file
                     break
         
+        # If still no match, try to find any unmapped PDF that might correspond
+        # This is a fallback to ensure we map candidate_id even if filename doesn't match
+        if not matching_pdf and candidate_id and uploaded_resumes_dir.exists():
+            # Get all PDFs that aren't already mapped to a candidate_id
+            mapped_pdf_paths = set(pdf_mapping.values())
+            for pdf_file in uploaded_resumes_dir.glob("*.pdf"):
+                pdf_path_str = str(pdf_file.resolve())
+                # If this PDF isn't mapped to any candidate_id yet, use it as fallback
+                if pdf_path_str not in mapped_pdf_paths:
+                    matching_pdf = pdf_file
+                    break
+        
         # Update mapping with candidate_id and name
         if matching_pdf:
             pdf_path_str = str(matching_pdf.resolve())
-            # Map by candidate_id (most reliable)
+            # Map by candidate_id (most reliable) - ALWAYS map if we have candidate_id
             if candidate_id:
                 pdf_mapping[candidate_id] = pdf_path_str
             # Map by candidate name (normalized)
@@ -666,14 +678,40 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
             pdf_mapping[resume_name] = pdf_path_str
             if matching_pdf.name not in pdf_mapping:
                 pdf_mapping[matching_pdf.name] = pdf_path_str
-            
-            # Save mapping
+        elif candidate_id:
+            # Even if no PDF match found, try to map candidate_id to any available PDF
+            # This ensures candidate_id is in the mapping for later lookup
+            if uploaded_resumes_dir.exists():
+                # Try to find any PDF that might match (last resort)
+                for pdf_file in uploaded_resumes_dir.glob("*.pdf"):
+                    pdf_path_str = str(pdf_file.resolve())
+                    # Map candidate_id to this PDF as fallback
+                    pdf_mapping[candidate_id] = pdf_path_str
+                    if candidate_name:
+                        pdf_mapping[candidate_name.strip().title()] = pdf_path_str
+                    pdf_mapping[resume_name] = pdf_path_str
+                    break
+        
+        # Save mapping (even if no match found, we may have added candidate_id mapping)
+        if candidate_id or matching_pdf:
             try:
                 import json
                 pdf_mapping_file.parent.mkdir(parents=True, exist_ok=True)
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"B","location":"GptJson.py:696","message":"Saving PDF mapping","data":{"candidate_id":candidate_id,"candidate_name":candidate_name,"resume_name":resume_name,"matching_pdf":str(matching_pdf) if matching_pdf else None,"mapping_keys":list(pdf_mapping.keys())[:10]},"timestamp":int(time.time()*1000)})+"\n")
+                # #endregion
                 with open(pdf_mapping_file, "w", encoding="utf-8") as f:
                     json.dump(pdf_mapping, f, indent=2)
-            except Exception:
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"B","location":"GptJson.py:702","message":"PDF mapping saved successfully","data":{"file":str(pdf_mapping_file),"size":len(json.dumps(pdf_mapping))},"timestamp":int(time.time()*1000)})+"\n")
+                # #endregion
+            except Exception as e:
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"B","location":"GptJson.py:705","message":"Error saving PDF mapping","data":{"error":str(e)},"timestamp":int(time.time()*1000)})+"\n")
+                # #endregion
                 pass  # Non-critical, continue processing
         
         # Save with validation
@@ -687,6 +725,64 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
     except Exception as e:
         err_msg = f"Failed to process {in_path_obj.name}: {repr(e)}"
         logging.error(err_msg)
+        
+        # Log failed resume to Skipped.json
+        try:
+            from datetime import datetime
+            skipped_file = Path("Ranking/Skipped.json")
+            skipped_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Try to extract any available info from the file
+            failed_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "name": in_path_obj.stem,
+                "candidate_id": None,
+                "reason": f"Processing failed: {str(e)}",
+                "file": in_path_obj.name
+            }
+            
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:710","message":"Logging failed resume to Skipped.json","data":{"file":in_path_obj.name,"skipped_file":str(skipped_file),"exists":skipped_file.exists()},"timestamp":int(time.time()*1000)})+"\n")
+            # #endregion
+            
+            # Load existing skipped entries
+            existing_skipped = []
+            if skipped_file.exists():
+                try:
+                    with open(skipped_file, "r", encoding="utf-8") as f:
+                        existing_skipped = json.load(f)
+                        if not isinstance(existing_skipped, list):
+                            existing_skipped = []
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:720","message":"Loaded existing skipped entries","data":{"count":len(existing_skipped)},"timestamp":int(time.time()*1000)})+"\n")
+                    # #endregion
+                except Exception as load_err:
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:723","message":"Error loading skipped entries","data":{"error":str(load_err)},"timestamp":int(time.time()*1000)})+"\n")
+                    # #endregion
+                    existing_skipped = []
+            
+            # Add failed entry
+            existing_skipped.append(failed_entry)
+            
+            # Save back
+            with open(skipped_file, "w", encoding="utf-8") as f:
+                json.dump(existing_skipped, f, indent=2)
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:732","message":"Successfully wrote failed resume to Skipped.json","data":{"total_entries":len(existing_skipped)},"timestamp":int(time.time()*1000)})+"\n")
+            # #endregion
+        except Exception as log_error:
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:735","message":"Error logging to Skipped.json","data":{"error":str(log_error)},"timestamp":int(time.time()*1000)})+"\n")
+            # #endregion
+            # Don't fail if logging to Skipped.json fails
+            logging.warning(f"Could not log to Skipped.json: {log_error}")
+        
         return False, f"ERROR: {err_msg}"
 
 
