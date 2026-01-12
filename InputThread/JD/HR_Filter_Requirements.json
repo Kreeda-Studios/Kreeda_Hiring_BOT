@@ -1,31 +1,17 @@
 {
   "mandatory_compliances": {
-    "raw_prompt": "skills : Machine learning , RAG",
-    "structured": {
-      "hard_skills": {
-        "type": "list",
-        "specified": true,
-        "required": [
-          "Machine learning",
-          "RAG"
-        ]
-      }
-    }
-  },
-  "soft_compliances": {
-    "raw_prompt": "Experience = 1-2  years, Location : Any",
+    "raw_prompt": "Experience: 2 to 3 years",
     "structured": {
       "experience": {
         "type": "numeric",
         "specified": true,
-        "min": 1,
-        "max": 2
-      },
-      "location": {
-        "type": "text",
-        "specified": true,
-        "required": "Any"
+        "min": 2,
+        "max": 3
       }
     }
+  },
+  "soft_compliances": {
+    "raw_prompt": "",
+    "structured": {}
   }
 }
