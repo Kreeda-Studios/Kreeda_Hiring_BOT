@@ -32,10 +32,11 @@ DISPLAY_RANKS = Path("Ranking/DisplayRanks.txt")
 FINAL_RANKING_SCRIPT = Path("ResumeProcessor/Ranker/FinalRanking.py")
 
 # Files to clear between runs
+# NOTE: Skipped.json is NOT cleared - it accumulates rejected candidates across runs
 FILES_TO_CLEAR = [
     "Ranking/Final_Ranking.json",
     "Ranking/Scores.json",
-    "Ranking/Skipped.json",
+    # "Ranking/Skipped.json",  # REMOVED: Keep Skipped.json to preserve rejected candidates
     "ResumeProcessor/.semantic_embed_cache.pkl",
     "Ranking/DisplayRanks.txt",
     "Processed_Resume_Index.txt"  # Clear index to prevent accumulation
@@ -958,25 +959,35 @@ def main():
                     cleared = []
                     # #region agent log
                     with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:956","message":"Starting file clearing","data":{"files_to_clear":FILES_TO_CLEAR},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:956","message":"Starting file clearing","data":{"files_to_clear":FILES_TO_CLEAR,"skipped_file_preserved":True},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                    # #endregion
+                    # Verify Skipped.json is NOT in the clear list
+                    skipped_in_clear = "Ranking/Skipped.json" in FILES_TO_CLEAR
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:961","message":"Skipped.json preservation check","data":{"skipped_in_clear":skipped_in_clear,"skipped_file_exists":SKIPPED_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
                     # #endregion
                     for f in FILES_TO_CLEAR:
                         try:
                             if os.path.exists(f):
                                 # #region agent log
                                 with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                    log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:962","message":"Clearing file","data":{"file":f,"exists":True},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                    log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:967","message":"Clearing file","data":{"file":f,"exists":True},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
                                 # #endregion
                                 os.remove(f)
                                 cleared.append(f)
                         except Exception as e:
                             # #region agent log
                             with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:965","message":"Error clearing file","data":{"file":f,"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:970","message":"Error clearing file","data":{"file":f,"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
                             # #endregion
                             print(f"⚠️ Error deleting {f}: {e}")
                     if cleared:
                         st.success(f"✅ Cleared {len(cleared)} ranking file(s) from previous run")
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:976","message":"File clearing complete","data":{"cleared_count":len(cleared),"skipped_file_still_exists":SKIPPED_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                    # #endregion
 
                     # Enable parallel processing by default - optimized for local processing
                     import multiprocessing
