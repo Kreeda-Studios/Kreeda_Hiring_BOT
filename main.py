@@ -592,13 +592,23 @@ def create_resumes_zip(selected_candidates: List[dict], get_pdf_path_func, inclu
             for candidate in selected_candidates:
                 candidate_id = candidate.get("candidate_id")
                 name = candidate.get("name", "Unknown")
+                rank = candidate.get("Rank", 9999)
                 pdf_path = get_pdf_path_func(candidate_id, name)
                 if pdf_path and pdf_path.exists():
-                    zip_file.write(pdf_path, pdf_path.name)
+                    # Format filename as: RANK_NameOfTheCandidate_resume.pdf
+                    # Normalize name: replace spaces with underscores, remove special chars, capitalize properly
+                    normalized_name = name.replace(" ", "_").replace("-", "_").replace(".", "")
+                    # Remove any special characters and keep only alphanumeric and underscores
+                    normalized_name = "".join(c for c in normalized_name if c.isalnum() or c == "_")
+                    # Format: RANK_NameOfTheCandidate_resume.pdf
+                    sorted_filename = f"{rank:03d}_{normalized_name}_resume.pdf"
+                    zip_file.write(pdf_path, sorted_filename)
                 else:
-                    # Write a small text note into zip for visibility
-                    note_name = f"{name.replace(' ', '_')}_PDF_missing.txt"
-                    note_text = f"PDF not found for {name} (candidate_id: {candidate_id})\n"
+                    # Write a small text note into zip for visibility (also with rank format)
+                    normalized_name = name.replace(" ", "_").replace("-", "_").replace(".", "")
+                    normalized_name = "".join(c for c in normalized_name if c.isalnum() or c == "_")
+                    note_name = f"{rank:03d}_{normalized_name}_resume_missing.txt"
+                    note_text = f"PDF not found for {name} (Rank: {rank}, candidate_id: {candidate_id})\n"
                     zip_file.writestr(note_name, note_text)
                     skipped_count += 1
                     # log skipped record for later inspection
@@ -1364,6 +1374,9 @@ def main():
                             checkbox_key = f"select_{candidate_id}_{rank}"
                             if st.session_state.get(checkbox_key, False):
                                 selected_candidates.append(cand)
+                        
+                        # Sort selected candidates by rank (ascending: 1, 2, 3...)
+                        selected_candidates.sort(key=lambda x: x.get("Rank", 9999))
                         
                         # Form submit button - only triggers rerun when clicked
                         form_submitted = st.form_submit_button(

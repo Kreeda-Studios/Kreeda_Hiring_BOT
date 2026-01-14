@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 from typing import List, Dict, Any
+from datetime import datetime
 
 try:
     from openai import OpenAI
@@ -1904,8 +1905,69 @@ def main():
     with OUTPUT_FILE.open("w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=4)
 
+    # Merge skipped candidates with existing Skipped.json (preserve EarlyFilter entries)
+    SKIPPED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    existing_skipped = []
+    if SKIPPED_FILE.exists():
+        try:
+            with SKIPPED_FILE.open("r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+                if isinstance(existing_data, list):
+                    existing_skipped = existing_data
+                else:
+                    existing_skipped = []
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1916","message":"Loaded existing Skipped.json","data":{"existing_count":len(existing_skipped),"new_skipped_count":len(skipped)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"⚠️ Error reading existing Skipped.json: {e}")
+            existing_skipped = []
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1921","message":"Error loading Skipped.json","data":{"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
+    
+    # Merge: Add new skipped entries, avoiding duplicates by candidate_id
+    existing_candidate_ids = {entry.get("candidate_id") for entry in existing_skipped if entry.get("candidate_id")}
+    merged_skipped = existing_skipped.copy()
+    new_entries_added = 0
+    
+    for skipped_cand in skipped:
+        candidate_id = skipped_cand.get("candidate_id")
+        # Only add if not already in existing entries (avoid duplicates)
+        if candidate_id and candidate_id not in existing_candidate_ids:
+            # Convert candidate dict to skipped entry format
+            skipped_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "candidate_id": candidate_id,
+                "name": skipped_cand.get("name", "Unknown"),
+                "reason": skipped_cand.get("hr_filter_reason") or "Skipped during ranking (invalid score or duplicate)",
+                "file": None
+            }
+            merged_skipped.append(skipped_entry)
+            existing_candidate_ids.add(candidate_id)
+            new_entries_added += 1
+        elif not candidate_id:
+            # Add even without candidate_id (might be a new entry)
+            skipped_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "candidate_id": None,
+                "name": skipped_cand.get("name", "Unknown"),
+                "reason": skipped_cand.get("hr_filter_reason") or "Skipped during ranking (invalid score or duplicate)",
+                "file": None
+            }
+            merged_skipped.append(skipped_entry)
+            new_entries_added += 1
+    
+    # Write merged entries back to Skipped.json
     with SKIPPED_FILE.open("w", encoding="utf-8") as f:
-        json.dump(skipped, f, indent=4)
+        json.dump(merged_skipped, f, indent=2)
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1954","message":"Merged and wrote Skipped.json","data":{"total_entries":len(merged_skipped),"existing_preserved":len(existing_skipped),"new_added":new_entries_added},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+    # #endregion
 
     with DISPLAY_FILE.open("w", encoding="utf-8") as f:
         f.write("=== FINAL RANKING (JD Alignment + HR Requirements) ===\n\n")
