@@ -120,7 +120,6 @@ OUTPUT: Return valid JSON with all identified requirements. Example structure:
 
 Parse ALL requirements mentioned. Be comprehensive and dynamic!"""
 
-
 def compute_final_score(entry: dict) -> float | None:
     raw_scores = {
         "project_aggregate": entry.get("project_aggregate"),
@@ -149,13 +148,11 @@ def compute_final_score(entry: dict) -> float | None:
     final = sum((WEIGHTS[k] / total_weight) * valid_scores[k] for k in valid_scores)
     return round(final, 3)
 
-
 def normalize_name(name: str) -> str:
     """Normalize candidate name consistently."""
     if not name or not isinstance(name, str):
         return ""
     return " ".join(name.strip().title().split())
-
 
 def create_candidate_summary(candidate: dict, resume_json: dict = None) -> dict:
     """
@@ -206,7 +203,6 @@ def create_candidate_summary(candidate: dict, resume_json: dict = None) -> dict:
     
     return summary
 
-
 def load_resume_json(candidate_id: str) -> dict:
     """Load resume JSON by candidate_id."""
     if not candidate_id:
@@ -225,7 +221,6 @@ def load_resume_json(candidate_id: str) -> dict:
         except Exception:
             continue
     return {}
-
 
 def check_experience_compliance(candidate: dict, resume_json: dict, requirement: dict) -> dict:
     """Check if candidate meets experience requirement."""
@@ -276,7 +271,6 @@ def check_experience_compliance(candidate: dict, resume_json: dict, requirement:
         "match_quality": match_quality,
         "details": details
     }
-
 
 def check_skills_compliance(candidate: dict, resume_json: dict, requirement: dict) -> dict:
     """Check if candidate has required skills."""
@@ -338,7 +332,6 @@ def check_skills_compliance(candidate: dict, resume_json: dict, requirement: dic
         "missing_skills": missing_skills
     }
 
-
 def check_location_compliance(candidate: dict, resume_json: dict, requirement: str) -> dict:
     """Check if candidate meets location requirement."""
     if not requirement:
@@ -398,7 +391,6 @@ def check_location_compliance(candidate: dict, resume_json: dict, requirement: s
         "details": details
     }
 
-
     return {
         "meets": meets,
         "requirement": requirement,
@@ -406,7 +398,6 @@ def check_location_compliance(candidate: dict, resume_json: dict, requirement: s
         "match_quality": match_quality,
         "details": details
     }
-
 
 def get_resume_field_value(resume_json: dict, field_name: str):
     """
@@ -483,7 +474,6 @@ def get_resume_field_value(resume_json: dict, field_name: str):
     
     return None
 
-
 def check_numeric_requirement(resume_json: dict, field_name: str, requirement_spec: dict) -> dict:
     """
     Check if numeric requirement is met.
@@ -534,7 +524,6 @@ def check_numeric_requirement(resume_json: dict, field_name: str, requirement_sp
         "requirement": requirement_spec,
         "details": f"{field_name}: {candidate_value}{unit} (required: {min_val or '0'}-{max_val or 'unlimited'}{unit})"
     }
-
 
 def check_list_requirement(resume_json: dict, field_name: str, requirement_spec: dict) -> dict:
     """
@@ -616,7 +605,6 @@ def check_list_requirement(resume_json: dict, field_name: str, requirement_spec:
         "details": details
     }
 
-
 def check_text_requirement(resume_json: dict, field_name: str, requirement_spec: dict) -> dict:
     """
     Check if text/string requirement is met.
@@ -647,7 +635,6 @@ def check_text_requirement(resume_json: dict, field_name: str, requirement_spec:
         "requirement": requirement_spec,
         "details": f"{field_name}: '{candidate_value}' (required: '{requirement_spec.get('required', '')}')"
     }
-
 
 def check_location_requirement(resume_json: dict, field_name: str, requirement_spec: dict) -> dict:
     """Check if location requirement is met."""
@@ -700,7 +687,6 @@ def check_location_requirement(resume_json: dict, field_name: str, requirement_s
         "details": f"Location: {candidate_location} (allowed: {', '.join(allowed_locations)})"
     }
 
-
 def check_education_requirement(resume_json: dict, field_name: str, requirement_spec: dict) -> dict:
     """Check if education requirement is met."""
     education_hierarchy = ["High School", "Bachelor's", "Master's", "PhD"]
@@ -734,7 +720,6 @@ def check_education_requirement(resume_json: dict, field_name: str, requirement_
         "requirement": requirement_spec,
         "details": f"Education: {candidate_edu} (minimum: {minimum})"
     }
-
 
 def check_dynamic_requirement(resume_json: dict, field_name: str, requirement_spec) -> dict:
     """
@@ -793,7 +778,6 @@ def check_dynamic_requirement(resume_json: dict, field_name: str, requirement_sp
             "candidate_value": None,
             "details": f"Error checking requirement: {str(e)}"
         }
-
 
 def llm_parse_requirements(raw_prompt: str, client: OpenAI = None) -> dict:
     """
@@ -855,7 +839,6 @@ def llm_parse_requirements(raw_prompt: str, client: OpenAI = None) -> dict:
         print(f"⚠️ Error parsing requirements with LLM: {e}")
         return {}
 
-
 def load_and_parse_hr_requirements(hr_filter_file: Path = None) -> dict:
     """
     Load HR filter requirements and auto-parse if needed.
@@ -907,7 +890,6 @@ def load_and_parse_hr_requirements(hr_filter_file: Path = None) -> dict:
     
     return hr_reqs
 
-
 def process_hr_requirements(filter_requirements: dict) -> dict:
     """
     Pre-process HR requirements to ensure they're in the correct format.
@@ -932,7 +914,6 @@ def process_hr_requirements(filter_requirements: dict) -> dict:
     # This can be enhanced later when education is properly extracted
     
     return None
-
 
 def check_other_criteria_compliance(candidate: dict, resume_json: dict, other_criteria: List[str]) -> dict:
     """Check compliance with other_criteria requirements."""
@@ -999,7 +980,6 @@ def check_other_criteria_compliance(candidate: dict, resume_json: dict, other_cr
         "match_quality": "exact" if meets else "missing",
         "details": details
     }
-
 
 def check_all_requirements(candidate: dict, resume_json: dict, filter_requirements: dict) -> dict:
     """
@@ -1154,7 +1134,6 @@ def check_all_requirements(candidate: dict, resume_json: dict, filter_requiremen
             }
     
     return compliance
-
 
 def llm_re_rank_batch(candidates_summaries: List[dict], filter_requirements: dict, client: OpenAI, specified_fields: set = None) -> List[dict]:
     """
@@ -1311,7 +1290,6 @@ Return validated requirements_met and requirements_missing for each candidate.""
     
     return []
 
-
 def llm_re_rank_candidates(candidates: List[dict], filter_requirements: dict) -> List[dict]:
     """
     Re-rank candidates using LLM in batches of 30.
@@ -1436,24 +1414,15 @@ def llm_re_rank_candidates(candidates: List[dict], filter_requirements: dict) ->
     
     return all_results
 
-
 def _ranking_core():
     """Runs ranking and returns (ranked_list, skipped_list)."""
     if not INPUT_FILE.exists():
         print(f"❌ Input file not found: {INPUT_FILE}")
-        # #region agent log
-        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-            log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1442","message":"Input file not found","data":{"file":str(INPUT_FILE)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-        # #endregion
+
         return [], []
 
     with INPUT_FILE.open("r", encoding="utf-8") as f:
         candidates = json.load(f)
-    
-    # #region agent log
-    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1447","message":"Starting ranking","data":{"total_candidates":len(candidates)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-    # #endregion
 
     ranked, skipped = [], []
     seen_candidate_ids = set()
@@ -1474,20 +1443,14 @@ def _ranking_core():
         if candidate_id and candidate_id in seen_candidate_ids:
             duplicates_found += 1
             print(f"⚠️ DUPLICATE SKIPPED → {name} (candidate_id: {candidate_id})")
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1463","message":"Duplicate by candidate_id","data":{"name":name,"candidate_id":candidate_id},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-            # #endregion
+
             continue
         if normalized_name and normalized_name in seen_names:
             # Only skip by name if no candidate_id (to avoid false positives)
             if not candidate_id:
                 duplicates_found += 1
                 print(f"⚠️ DUPLICATE SKIPPED → {name} (by name)")
-                # #region agent log
-                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                    log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1471","message":"Duplicate by name","data":{"name":name},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                # #endregion
+
                 continue
         
         # Mark as seen
@@ -1507,10 +1470,7 @@ def _ranking_core():
                 f"🚫 HR FILTERED → {name}"
                 f" | Reason: {hr_filter_reason}"
             )
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1484","message":"HR filtered candidate","data":{"name":name,"candidate_id":candidate_id,"reason":hr_filter_reason},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-            # #endregion
+
             continue
         
         final_score = compute_final_score(cand)
@@ -1524,10 +1484,7 @@ def _ranking_core():
                 f" | Semantic={cand.get('Semantic_Score')}"
                 f" | Keyword={cand.get('Keyword_Score')}"
             )
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1494","message":"Invalid score candidate","data":{"name":cand.get('name'),"candidate_id":candidate_id,"project":cand.get('project_aggregate'),"semantic":cand.get('Semantic_Score'),"keyword":cand.get('Keyword_Score')},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-            # #endregion
+
             continue
 
         cand["Final_Score"] = final_score
@@ -1553,12 +1510,7 @@ def _ranking_core():
     print(f"   - Invalid scores: {invalid_score_count}")
     print(f"   - Successfully ranked: {len(ranked)}")
     print(f"   - Total skipped: {len(skipped)}")
-    
-    # #region agent log
-    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1527","message":"Ranking summary","data":{"total":len(candidates),"duplicates":duplicates_found,"hr_filtered":hr_filtered_count,"invalid_score":invalid_score_count,"ranked":len(ranked),"skipped":len(skipped)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-    # #endregion
-    
+
     # CRITICAL: Filter out 0 compliance candidates BEFORE re-ranking
     # Note: Mandatory compliances already filtered in Step 2, so we only check soft compliances here
     filtered_ranked = []
@@ -1916,7 +1868,6 @@ def _ranking_core():
     # Return single ranking
     return final_ranked_list, skipped
 
-
 def main():
     ranked, skipped = _ranking_core()
 
@@ -1949,18 +1900,11 @@ def main():
                     existing_skipped = existing_data
                 else:
                     existing_skipped = []
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1916","message":"Loaded existing Skipped.json","data":{"existing_count":len(existing_skipped),"new_skipped_count":len(skipped)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-            # #endregion
+
         except (json.JSONDecodeError, Exception) as e:
             print(f"⚠️ Error reading existing Skipped.json: {e}")
             existing_skipped = []
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1921","message":"Error loading Skipped.json","data":{"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-            # #endregion
-    
+
     # Merge: Add new skipped entries, avoiding duplicates by candidate_id
     existing_candidate_ids = {entry.get("candidate_id") for entry in existing_skipped if entry.get("candidate_id")}
     merged_skipped = existing_skipped.copy()
@@ -1996,11 +1940,6 @@ def main():
     # Write merged entries back to Skipped.json
     with SKIPPED_FILE.open("w", encoding="utf-8") as f:
         json.dump(merged_skipped, f, indent=2)
-    
-    # #region agent log
-    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1954","message":"Merged and wrote Skipped.json","data":{"total_entries":len(merged_skipped),"existing_preserved":len(existing_skipped),"new_added":new_entries_added},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-    # #endregion
 
     with DISPLAY_FILE.open("w", encoding="utf-8") as f:
         f.write("=== FINAL RANKING (JD Alignment + HR Requirements) ===\n\n")
@@ -2050,7 +1989,6 @@ def main():
     print(f"⚠️ Skipped entries written → {SKIPPED_FILE} ({len(skipped)} candidates)")
     print(f"📄 HR-friendly display → {DISPLAY_FILE}\n")
 
-
 # 🔥 New Streamlit-safe callable
 def run_ranking():
     """Executes ranking + stores result in RANKING_RAM for Streamlit display."""
@@ -2059,7 +1997,6 @@ def run_ranking():
     # Store ranking for UI display
     RANKING_RAM = ranked
     return RANKING_RAM
-
 
 if __name__ == "__main__":
     main()

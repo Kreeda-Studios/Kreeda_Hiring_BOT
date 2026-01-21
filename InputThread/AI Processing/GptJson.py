@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 # Load from your .env file
 load_dotenv(".env")
 
-
 # ---------------------------
 # PATHS & CONFIG
 # ---------------------------
@@ -31,9 +30,6 @@ if not OPENAI_API_KEY:
 MODEL_NAME = "gpt-4o-mini"   # inexpensive model that supports function calling
 MAX_RESPONSE_TOKENS = 2500
 # ---------------------------
-
-
-
 
 import os
 import json
@@ -80,7 +76,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-
 # Retrieve Domain Tags (with caching)
 def load_domain_tags():
     """Load domain tags from JD.json with caching."""
@@ -102,7 +97,6 @@ def load_domain_tags():
 
 # Load JD domain tags once
 domain_tags = load_domain_tags()
-
 
 # ---------------------------
 # Function-calling JSON schema (detailed)
@@ -279,7 +273,6 @@ PARSE_FUNCTION = {
     }
 }
 
-
 # ---------------------------
 # Helpers
 # ---------------------------
@@ -288,7 +281,6 @@ def normalize_name(name: str) -> str:
     if not name or not isinstance(name, str):
         return ""
     return " ".join(name.strip().title().split())
-
 
 def generate_deterministic_candidate_id(email: str, phone: str, name: str, filename: str) -> str:
     """
@@ -326,15 +318,12 @@ def generate_deterministic_candidate_id(email: str, phone: str, name: str, filen
     
     return f"{prefix}_{hash_id}"
 
-
 def generate_candidate_id(filename: str) -> str:
     """Legacy function - generates temporary ID before parsing. Will be replaced after parsing."""
     base = Path(filename).stem
     return f"{base}_{uuid.uuid4().hex[:8]}"
 
-
 # Canonicalization functions moved to utils.common to avoid duplication
-
 
 # ---------------------------
 # Core processing
@@ -423,7 +412,6 @@ def process_resume_file(path: str) -> Dict[str, Any]:
         )
     }
 
-
     user_msg = {
         "role": "user",
         "content": f"CandidateID: {candidate_id}\n\nRawResumeText:\n```\n{raw_text}\n```"
@@ -504,7 +492,6 @@ def process_resume_file(path: str) -> Dict[str, Any]:
         print(f"⚠️ Validation warning for {path}: {e}")
         return parsed
 
-
 # ---------------------------
 # Data normalization
 # ---------------------------
@@ -555,83 +542,56 @@ def normalize_resume_data(parsed: dict) -> dict:
     
     return parsed
 
-
 # ---------------------------
 # Batch processing
 # ---------------------------
 # Optimized function with caching and parallel processing support
 def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids: set) -> tuple[bool, str]:
     """
-    Process a single resume file with caching.
-    
-    Returns:
-        (success: bool, message: str)
+    Process a single resume file safely and deterministically.
     """
     in_path_obj = Path(in_path)
     out_path = Path(output_dir) / f"{in_path_obj.stem}.json"
-    
-    # Check cache first
+
+    # ---------- Cache / Existing file checks ----------
     cache_key = get_resume_cache_key(in_path_obj)
     cached_result = resume_cache.get(cache_key)
-    if cached_result:
-        # Check if output file exists and is valid
-        if out_path.exists():
-            try:
-                validate_resume_file(out_path)
-                return True, f"Skipped (cached): {in_path_obj.name}"
-            except Exception:
-                pass  # Cache invalid, reprocess
-    
-    # Skip if output file already exists
+
+    if cached_result and out_path.exists():
+        try:
+            validate_resume_file(out_path)
+            return True, f"Skipped (cached): {in_path_obj.name}"
+        except Exception:
+            pass
+
     if out_path.exists():
         try:
             validate_resume_file(out_path)
             return True, f"Skipped (exists): {in_path_obj.name}"
         except Exception:
-            pass  # File invalid, reprocess
-    
+            pass
+
     try:
+        # ---------- Core parsing ----------
         parsed = process_resume_file(in_path)
-        
-        # Handle AttributeError: 'list' object has no attribute 'strip'
-        # This can happen if LLM returns wrong data type
         if not isinstance(parsed, dict):
-            return False, f"ERROR: Invalid data type returned from LLM: {type(parsed)}"
-        
-        candidate_id = parsed.get("candidate_id")
-        
-        # Skip if duplicate candidate (only if candidate_id is not None and not empty)
-        # IMPORTANT: Only skip if we're certain it's a duplicate from the CURRENT batch
-        # If candidate_id is None or empty, process it (might be a new candidate)
-        if candidate_id and candidate_id.strip():
+            return False, f"ERROR: Invalid parsed output type {type(parsed)}"
+
+        candidate_id = parsed.get("candidate_id", "").strip()
+
+        # ---------- Duplicate handling ----------
+        if candidate_id:
             if candidate_id in existing_candidate_ids:
-                # #region agent log
-                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                    log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson","hypothesisId":"I3","location":"GptJson.py:608","message":"Duplicate candidate detected","data":{"candidate_id":candidate_id,"file":in_path_obj.name,"existing_count":len(existing_candidate_ids)},"timestamp":int(time.time()*1000)})+"\n")
-                # #endregion
                 return True, f"Skipped (duplicate): {in_path_obj.name} -> {candidate_id}"
             existing_candidate_ids.add(candidate_id)
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson","hypothesisId":"I3","location":"GptJson.py:614","message":"New candidate_id added","data":{"candidate_id":candidate_id,"file":in_path_obj.name},"timestamp":int(time.time()*1000)})+"\n")
-            # #endregion
-        else:
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson","hypothesisId":"I3","location":"GptJson.py:617","message":"Processing resume without candidate_id","data":{"file":in_path_obj.name,"candidate_id":candidate_id},"timestamp":int(time.time()*1000)})+"\n")
-            # #endregion
-        # Note: If candidate_id is None, we still process it (might be a new candidate without ID)
-        
-        # Auto-fix validation issues: normalize data types
+
+        # ---------- Normalize parsed data ----------
         parsed = normalize_resume_data(parsed)
-        
-        # Map PDF path to candidate_id for download feature
-        # Look for corresponding PDF in Uploaded_Resumes directory
-        from pathlib import Path as PathLib
-        uploaded_resumes_dir = PathLib("Uploaded_Resumes")
+
+        # ---------- PDF Mapping ----------
+        uploaded_resumes_dir = Path("Uploaded_Resumes")
         pdf_mapping_file = uploaded_resumes_dir / "pdf_mapping.json"
-        
-        # Load existing mapping
+
         pdf_mapping = {}
         if pdf_mapping_file.exists():
             try:
@@ -639,300 +599,95 @@ def process_single_resume(in_path: str, output_dir: str, existing_candidate_ids:
                     pdf_mapping = json.load(f)
             except Exception:
                 pdf_mapping = {}
-        
-        # Try to find matching PDF
-        # CRITICAL: Prioritize candidate name (from content) over filename matching
-        # Filenames can be wrong (e.g., "Ankit_Chaware.pdf" but content is "Aditya Kulkarni")
+
         resume_name = in_path_obj.stem
         candidate_name = parsed.get("name", "")
-        
-        # Normalize names for better matching
-        def normalize_for_matching(text):
-            """Normalize text for fuzzy matching"""
-            if not text:
-                return ""
+
+        def normalize_for_matching(text: str) -> str:
             return "".join(c.lower() for c in text if c.isalnum() or c in (" ", "_", "-"))
-        
-        normalized_resume_name = normalize_for_matching(resume_name)
-        normalized_candidate_name = normalize_for_matching(candidate_name)
-        
+
         matching_pdf = None
+
         if uploaded_resumes_dir.exists():
             pdf_files = list(uploaded_resumes_dir.glob("*.pdf"))
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:636","message":"Starting PDF matching","data":{"resume_name":resume_name,"candidate_name":candidate_name,"candidate_id":candidate_id,"total_pdfs":len(pdf_files)},"timestamp":int(time.time()*1000)})+"\n")
-            # #endregion
-            
-            # Strategy 1: Match by candidate name FIRST (most reliable - from actual resume content)
-            # This handles cases where filename is wrong but content has correct name
-            if candidate_name and len(normalized_candidate_name) > 3:
-                candidate_words = [w for w in normalized_candidate_name.split() if len(w) > 2]
-                if candidate_words:
-                    for pdf_file in pdf_files:
-                        pdf_stem = pdf_file.stem
-                        pdf_normalized = normalize_for_matching(pdf_stem)
-                        # Check if candidate name words appear in PDF filename
-                        matches = sum(1 for word in candidate_words if word in pdf_normalized)
-                        if matches >= min(2, len(candidate_words)):  # At least 2 words or all words if less than 2
-                            matching_pdf = pdf_file
-                            # #region agent log
-                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:650","message":"PDF matched by candidate name (PRIORITY)","data":{"pdf":pdf_file.name,"candidate_name":candidate_name,"matches":matches},"timestamp":int(time.time()*1000)})+"\n")
-                            # #endregion
-                            break
-            
-            # Strategy 2: Exact stem match (filename matching - less reliable)
-            if not matching_pdf:
-                for pdf_file in pdf_files:
-                    pdf_stem = pdf_file.stem
-                    if pdf_stem == resume_name:
-                        matching_pdf = pdf_file
-                        # #region agent log
-                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:660","message":"PDF matched by exact stem (filename)","data":{"pdf":pdf_file.name,"resume_name":resume_name},"timestamp":int(time.time()*1000)})+"\n")
-                        # #endregion
+            norm_candidate = normalize_for_matching(candidate_name)
+            norm_resume = normalize_for_matching(resume_name)
+
+            # Strategy 1: Candidate name match (best)
+            if norm_candidate:
+                words = [w for w in norm_candidate.split() if len(w) > 2]
+                for pdf in pdf_files:
+                    pdf_norm = normalize_for_matching(pdf.stem)
+                    if sum(w in pdf_norm for w in words) >= min(2, len(words)):
+                        matching_pdf = pdf
                         break
-            
-            # Strategy 3: Fuzzy stem match (filename matching - less reliable)
+
+            # Strategy 2: Exact filename
             if not matching_pdf:
-                for pdf_file in pdf_files:
-                    pdf_stem = pdf_file.stem
-                    pdf_normalized = normalize_for_matching(pdf_stem)
-                    if (normalized_resume_name in pdf_normalized or pdf_normalized in normalized_resume_name) and len(normalized_resume_name) > 3:
-                        matching_pdf = pdf_file
-                        # #region agent log
-                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:671","message":"PDF matched by fuzzy stem (filename)","data":{"pdf":pdf_file.name,"resume_name":resume_name},"timestamp":int(time.time()*1000)})+"\n")
-                        # #endregion
+                for pdf in pdf_files:
+                    if pdf.stem == resume_name:
+                        matching_pdf = pdf
                         break
-        
-        # Strategy 4: Find unmapped PDFs (last resort - only if we have candidate_id)
-        # This ensures we map candidate_id even if filename/name matching fails
-        if not matching_pdf and candidate_id and uploaded_resumes_dir.exists():
-            mapped_pdf_paths = set(pdf_mapping.values())
-            pdf_files = list(uploaded_resumes_dir.glob("*.pdf"))
-            unmapped_pdfs = [pdf for pdf in pdf_files if str(pdf.resolve()) not in mapped_pdf_paths]
-            if unmapped_pdfs:
-                # Use the first unmapped PDF as fallback
-                matching_pdf = unmapped_pdfs[0]
-                # #region agent log
-                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:688","message":"PDF matched by fallback (unmapped)","data":{"pdf":matching_pdf.name,"candidate_id":candidate_id},"timestamp":int(time.time()*1000)})+"\n")
-                # #endregion
-        
-        # Update mapping with candidate_id and name
-        # CRITICAL: Always prioritize candidate_id and actual candidate name (from content) over filename
+
+            # Strategy 3: Fuzzy filename
+            if not matching_pdf:
+                for pdf in pdf_files:
+                    pdf_norm = normalize_for_matching(pdf.stem)
+                    if norm_resume and (norm_resume in pdf_norm or pdf_norm in norm_resume):
+                        matching_pdf = pdf
+                        break
+
+        # ---------- Save PDF mapping ----------
         if matching_pdf:
-            pdf_path_str = str(matching_pdf.resolve())
-            
-            # Map by candidate_id (MOST RELIABLE - generated from actual resume content, not filename)
-            # This is the primary mapping key that should always be used
+            pdf_path = str(matching_pdf.resolve())
             if candidate_id:
-                pdf_mapping[candidate_id] = pdf_path_str
-                # #region agent log
-                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:695","message":"Mapping PDF by candidate_id","data":{"candidate_id":candidate_id,"pdf":matching_pdf.name,"candidate_name":candidate_name},"timestamp":int(time.time()*1000)})+"\n")
-                # #endregion
-            
-            # Map by candidate name using the SAME normalization as main.py
-            # This MUST match main.py's normalize_name function exactly
-            def normalize_name_for_mapping(name: str) -> str:
-                """Normalize name to match main.py's normalize_name function EXACTLY"""
-                if not name:
-                    return ""
-                import unicodedata
-                name = unicodedata.normalize("NFKD", name)
-                name = "".join(c for c in name if not unicodedata.combining(c))
-                # Match main.py's normalize_name: lowercase, replace spaces/hyphens with underscores, remove dots, strip underscores
-                return (
-                    name.lower()
-                    .replace(" ", "_")
-                    .replace("-", "_")
-                    .replace(".", "")
-                    .strip("_")
-                )
-            
-            # Map by actual candidate name (from content) - SECOND PRIORITY
+                pdf_mapping[candidate_id] = pdf_path
             if candidate_name:
-                # Use normalized name (matches main.py's normalize_name)
-                norm_name = normalize_name_for_mapping(candidate_name)
-                if norm_name:
-                    pdf_mapping[norm_name] = pdf_path_str
-                # Also map by various name formats for backward compatibility
-                pdf_mapping[candidate_name.strip().title()] = pdf_path_str
-                pdf_mapping[candidate_name] = pdf_path_str
-                pdf_mapping[candidate_name.replace(" ", "_")] = pdf_path_str
-                pdf_mapping[candidate_name.replace(" ", "-")] = pdf_path_str
-                # Map by lowercase version too
-                pdf_mapping[candidate_name.lower()] = pdf_path_str
-            
-            # Map by filename as fallback only (THIRD PRIORITY - least reliable)
-            # Keep filename mapping for backward compatibility, but it's not the primary method
-            pdf_mapping[resume_name] = pdf_path_str
-            if matching_pdf.name not in pdf_mapping:
-                pdf_mapping[matching_pdf.name] = pdf_path_str
-            # Also map by PDF stem (normalized) as fallback
-            pdf_stem_norm = normalize_name_for_mapping(matching_pdf.stem)
-            if pdf_stem_norm:
-                pdf_mapping[pdf_stem_norm] = pdf_path_str
-        elif candidate_id:
-            # Even if no PDF match found, try to map candidate_id to any available PDF
-            # This ensures candidate_id is in the mapping for later lookup
-            if uploaded_resumes_dir.exists():
-                pdf_files = list(uploaded_resumes_dir.glob("*.pdf"))
-                mapped_pdf_paths = set(pdf_mapping.values())
-                
-                # Normalize name function (same as above - MUST match main.py exactly)
-                def normalize_name_for_mapping(name: str) -> str:
-                    """Normalize name to match main.py's normalize_name function EXACTLY"""
-                    if not name:
-                        return ""
-                    import unicodedata
-                    name = unicodedata.normalize("NFKD", name)
-                    name = "".join(c for c in name if not unicodedata.combining(c))
-                    # Match main.py's normalize_name: lowercase, replace spaces/hyphens with underscores, remove dots, strip underscores
-                    return (
-                        name.lower()
-                        .replace(" ", "_")
-                        .replace("-", "_")
-                        .replace(".", "")
-                        .strip("_")
-                    )
-                
-                # Find any unmapped PDF
-                unmapped_found = False
-                for pdf_file in pdf_files:
-                    pdf_path_str = str(pdf_file.resolve())
-                    if pdf_path_str not in mapped_pdf_paths:
-                        # Map candidate_id to this PDF as fallback
-                        pdf_mapping[candidate_id] = pdf_path_str
-                        if candidate_name:
-                            norm_name = normalize_name_for_mapping(candidate_name)
-                            if norm_name:
-                                pdf_mapping[norm_name] = pdf_path_str
-                            pdf_mapping[candidate_name.strip().title()] = pdf_path_str
-                            pdf_mapping[candidate_name] = pdf_path_str
-                        pdf_mapping[resume_name] = pdf_path_str
-                        unmapped_found = True
-                        # #region agent log
-                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:720","message":"PDF mapped by fallback (unmapped PDF)","data":{"pdf":pdf_file.name,"candidate_id":candidate_id},"timestamp":int(time.time()*1000)})+"\n")
-                        # #endregion
-                        break
-                
-                if not unmapped_found and pdf_files:
-                    # No unmapped PDFs found - try to use any PDF (last resort)
-                    pdf_file = pdf_files[0]
-                    pdf_path_str = str(pdf_file.resolve())
-                    pdf_mapping[candidate_id] = pdf_path_str
-                    if candidate_name:
-                        norm_name = normalize_name_for_mapping(candidate_name)
-                        if norm_name:
-                            pdf_mapping[norm_name] = pdf_path_str
-                        pdf_mapping[candidate_name.strip().title()] = pdf_path_str
-                        pdf_mapping[candidate_name] = pdf_path_str
-                    pdf_mapping[resume_name] = pdf_path_str
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:735","message":"PDF mapped by last resort (any PDF)","data":{"pdf":pdf_file.name,"candidate_id":candidate_id},"timestamp":int(time.time()*1000)})+"\n")
-                    # #endregion
-                elif not pdf_files:
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"I2","location":"GptJson.py:740","message":"No PDFs available for mapping","data":{"candidate_id":candidate_id,"uploaded_dir":str(uploaded_resumes_dir)},"timestamp":int(time.time()*1000)})+"\n")
-                    # #endregion
-        
-        # Save mapping (even if no match found, we may have added candidate_id mapping)
-        if candidate_id or matching_pdf:
+                pdf_mapping[candidate_name] = pdf_path
+                pdf_mapping[candidate_name.lower()] = pdf_path
+            pdf_mapping[resume_name] = pdf_path
+
             try:
                 pdf_mapping_file.parent.mkdir(parents=True, exist_ok=True)
-                # #region agent log
-                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"B","location":"GptJson.py:696","message":"Saving PDF mapping","data":{"candidate_id":candidate_id,"candidate_name":candidate_name,"resume_name":resume_name,"matching_pdf":str(matching_pdf) if matching_pdf else None,"mapping_keys":list(pdf_mapping.keys())[:10]},"timestamp":int(time.time()*1000)})+"\n")
-                # #endregion
                 with open(pdf_mapping_file, "w", encoding="utf-8") as f:
                     json.dump(pdf_mapping, f, indent=2)
-                # #region agent log
-                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"B","location":"GptJson.py:702","message":"PDF mapping saved successfully","data":{"file":str(pdf_mapping_file),"size":len(json.dumps(pdf_mapping))},"timestamp":int(time.time()*1000)})+"\n")
-                # #endregion
-            except Exception as e:
-                # #region agent log
-                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-mapping","hypothesisId":"B","location":"GptJson.py:705","message":"Error saving PDF mapping","data":{"error":str(e)},"timestamp":int(time.time()*1000)})+"\n")
-                # #endregion
-                pass  # Non-critical, continue processing
-        
-        # Save with validation
+            except Exception:
+                pass
+
+        # ---------- Save output ----------
         safe_json_save(parsed, out_path)
-        
-        # Cache the result
         resume_cache.set(cache_key, parsed)
-        
-        return True, f"OK: {out_path.name} (candidate_id: {candidate_id})"
-        
+
+        return True, f"OK: {out_path.name} (candidate_id: {candidate_id or 'N/A'})"
+
     except Exception as e:
         err_msg = f"Failed to process {in_path_obj.name}: {repr(e)}"
         logging.error(err_msg)
-        
-        # Log failed resume to Skipped.json
+
+        # Log to Skipped.json
         try:
-            from datetime import datetime
             skipped_file = Path("Ranking/Skipped.json")
             skipped_file.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Try to extract any available info from the file
-            failed_entry = {
-                "timestamp": datetime.utcnow().isoformat(),
+
+            skipped = []
+            if skipped_file.exists():
+                with open(skipped_file, "r", encoding="utf-8") as f:
+                    skipped = json.load(f) if isinstance(json.load(f), list) else []
+
+            skipped.append({
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "name": in_path_obj.stem,
                 "candidate_id": None,
-                "reason": f"Processing failed: {str(e)}",
+                "reason": str(e),
                 "file": in_path_obj.name
-            }
-            
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:710","message":"Logging failed resume to Skipped.json","data":{"file":in_path_obj.name,"skipped_file":str(skipped_file),"exists":skipped_file.exists()},"timestamp":int(time.time()*1000)})+"\n")
-            # #endregion
-            
-            # Load existing skipped entries
-            existing_skipped = []
-            if skipped_file.exists():
-                try:
-                    with open(skipped_file, "r", encoding="utf-8") as f:
-                        existing_skipped = json.load(f)
-                        if not isinstance(existing_skipped, list):
-                            existing_skipped = []
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:720","message":"Loaded existing skipped entries","data":{"count":len(existing_skipped)},"timestamp":int(time.time()*1000)})+"\n")
-                    # #endregion
-                except Exception as load_err:
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:723","message":"Error loading skipped entries","data":{"error":str(load_err)},"timestamp":int(time.time()*1000)})+"\n")
-                    # #endregion
-                    existing_skipped = []
-            
-            # Add failed entry
-            existing_skipped.append(failed_entry)
-            
-            # Save back
+            })
+
             with open(skipped_file, "w", encoding="utf-8") as f:
-                json.dump(existing_skipped, f, indent=2)
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:732","message":"Successfully wrote failed resume to Skipped.json","data":{"total_entries":len(existing_skipped)},"timestamp":int(time.time()*1000)})+"\n")
-            # #endregion
-        except Exception as log_error:
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson-error","hypothesisId":"F","location":"GptJson.py:735","message":"Error logging to Skipped.json","data":{"error":str(log_error)},"timestamp":int(time.time()*1000)})+"\n")
-            # #endregion
-            # Don't fail if logging to Skipped.json fails
-            logging.warning(f"Could not log to Skipped.json: {log_error}")
-        
+                json.dump(skipped, f, indent=2)
+
+        except Exception:
+            pass
+
         return False, f"ERROR: {err_msg}"
 
 
@@ -970,29 +725,19 @@ def process_all(input_dir: str, output_dir: str, parallel: bool = True, max_work
     output_path = Path(output_dir)
     if output_path.exists():
         existing_files = list(output_path.glob("*.json"))
-        # #region agent log
-        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-            log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson","hypothesisId":"I1","location":"GptJson.py:819","message":"Checking existing ProcessedJson files","data":{"existing_count":len(existing_files),"output_dir":output_dir},"timestamp":int(time.time()*1000)})+"\n")
-        # #endregion
+
         for existing_json in existing_files:
             try:
                 existing_data = safe_json_load(existing_json, {})
                 if isinstance(existing_data, dict) and "candidate_id" in existing_data:
                     candidate_id = existing_data["candidate_id"]
                     existing_candidate_ids.add(candidate_id)
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson","hypothesisId":"I1","location":"GptJson.py:825","message":"Found existing candidate_id","data":{"candidate_id":candidate_id,"file":existing_json.name},"timestamp":int(time.time()*1000)})+"\n")
-                    # #endregion
+
             except Exception:
                 continue
         
         if existing_candidate_ids:
             print(f"[WARNING] Found {len(existing_candidate_ids)} existing candidate_id(s) in ProcessedJson. These will be skipped if duplicates are found.")
-            # #region agent log
-            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                log.write(json.dumps({"sessionId":"debug-session","runId":"gptjson","hypothesisId":"I1","location":"GptJson.py:832","message":"Existing candidate_ids found","data":{"count":len(existing_candidate_ids)},"timestamp":int(time.time()*1000)})+"\n")
-            # #endregion
 
     print(f"[INFO] Processing {len(files)} files from {input_dir} -> {output_dir}")
     if parallel:
@@ -1138,7 +883,6 @@ def process_all(input_dir: str, output_dir: str, parallel: bool = True, max_work
         import traceback
         traceback.print_exc()
 
-
 # ---------------------------
 # Example JSON writer
 # ---------------------------
@@ -1167,7 +911,6 @@ def write_example(output_dir: str):
     # with open(out_path, "w", encoding="utf-8") as fx:
     #     json.dump(example, fx, indent=2, ensure_ascii=False)
     print(f"[INFO] Example JSON written to {out_path}")
-
 
 # ---------------------------
 # Entrypoint
@@ -1203,4 +946,3 @@ if __name__ == "__main__":
     
     process_all(INPUT_DIR, OUTPUT_DIR, parallel=args.parallel, max_workers=args.workers, only_files=args.only_files)
     print("[DONE] Processing finished.")
-

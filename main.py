@@ -75,7 +75,6 @@ def normalize_name(name: str) -> str:
         .strip("_")
     )
 
-
 def log_skipped_candidate(candidate, reason):
     skipped_file = Path("Ranking/Skipped.json")
     skipped_file.parent.mkdir(parents=True, exist_ok=True)
@@ -154,7 +153,6 @@ def clear_before_processing():
                     except Exception as e:
                         print(f"⚠️ Error deleting {file}: {e}")
     return cleared
-
 
 def normalize_parsed_requirements(parsed: dict) -> dict:
     """
@@ -318,7 +316,6 @@ def normalize_parsed_requirements(parsed: dict) -> dict:
                 }
     
     return normalized
-
 
 # Parse HR filter requirements from text (Dynamic - optimized for cost/latency)
 def parse_hr_filter_requirements(hr_text: str) -> dict:
@@ -499,7 +496,6 @@ def parse_hr_filter_requirements(hr_text: str) -> dict:
             "structured": {}
         }
 
-
 def parse_hr_requirements_fallback(hr_text: str) -> dict:
     """
     Fallback parsing for HR requirements if LLM is not available.
@@ -577,7 +573,6 @@ def parse_hr_requirements_fallback(hr_text: str) -> dict:
         "structured": structured
     }
 
-
 # ZIP download helper function
 def create_resumes_zip(selected_candidates: List[dict], get_pdf_path_func, include_profiles: bool = True) -> Optional[bytes]:
     import io
@@ -638,7 +633,6 @@ def create_resumes_zip(selected_candidates: List[dict], get_pdf_path_func, inclu
         import traceback
         traceback.print_exc()
         return None
-
 
 # ---------------- UI Layout ----------------
 def main():
@@ -967,37 +961,21 @@ def main():
                     # Clear ranking files before processing (ProcessedJson already cleared when resumes were uploaded)
                     st.info("🧹 Clearing previous ranking results...")
                     cleared = []
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:956","message":"Starting file clearing","data":{"files_to_clear":FILES_TO_CLEAR,"skipped_file_preserved":True},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                    # #endregion
+
                     # Verify Skipped.json is NOT in the clear list
                     skipped_in_clear = "Ranking/Skipped.json" in FILES_TO_CLEAR
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:961","message":"Skipped.json preservation check","data":{"skipped_in_clear":skipped_in_clear,"skipped_file_exists":SKIPPED_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                    # #endregion
+
                     for f in FILES_TO_CLEAR:
                         try:
                             if os.path.exists(f):
-                                # #region agent log
-                                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                    log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:967","message":"Clearing file","data":{"file":f,"exists":True},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                                # #endregion
+
                                 os.remove(f)
                                 cleared.append(f)
                         except Exception as e:
-                            # #region agent log
-                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:970","message":"Error clearing file","data":{"file":f,"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                            # #endregion
+
                             print(f"⚠️ Error deleting {f}: {e}")
                     if cleared:
                         st.success(f"✅ Cleared {len(cleared)} ranking file(s) from previous run")
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:976","message":"File clearing complete","data":{"cleared_count":len(cleared),"skipped_file_still_exists":SKIPPED_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                    # #endregion
 
                     # Enable parallel processing by default - optimized for local processing
                     import multiprocessing
@@ -1139,35 +1117,20 @@ def main():
                     st.success(f"Showing {len(ranking)} ranked candidates (pre-filtered for HR requirements)")
                     if skipped_candidates > 0:
                         st.info(f"ℹ️ {skipped_candidates} candidate(s) were skipped during ranking (duplicates, invalid scores, or HR filtered)")
-                    
-                    # #region agent log
-                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                        log.write(json.dumps({"sessionId":"debug-session","runId":"ranking-display","hypothesisId":"I7","location":"main.py:1118","message":"Ranking loaded for display","data":{"ranked_count":len(ranking),"total_candidates":total_candidates,"skipped":skipped_candidates},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                    # #endregion
-                    
+
                     # Helper function to get PDF path for candidate (defined before use)
                     def get_resume_pdf_path(candidate_id: str, candidate_name: str) -> Path | None:
                         try:
-                            # #region agent log
-                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1091","message":"PDF lookup started","data":{"candidate_id":candidate_id,"candidate_name":candidate_name,"mapping_file":str(PDF_MAPPING_FILE),"mapping_exists":PDF_MAPPING_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                            # #endregion
+
                             pdf_mapping = {}
                             if PDF_MAPPING_FILE.exists():
                                 pdf_mapping = json.load(open(PDF_MAPPING_FILE, "r", encoding="utf-8"))
-                                # #region agent log
-                                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1096","message":"PDF mapping loaded","data":{"mapping_keys":list(pdf_mapping.keys())[:20],"total_keys":len(pdf_mapping)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                                # #endregion
 
                             # 1️⃣ candidate_id (best)
                             if candidate_id and candidate_id in pdf_mapping:
                                 p = Path(pdf_mapping[candidate_id])
                                 if p.exists():
-                                    # #region agent log
-                                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1100","message":"PDF found by candidate_id","data":{"candidate_id":candidate_id,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                                    # #endregion
+
                                     return p
 
                             # 2️⃣ normalized name lookup (try multiple variations)
@@ -1177,10 +1140,7 @@ def main():
                             if norm_name and norm_name in pdf_mapping:
                                 p = Path(pdf_mapping[norm_name])
                                 if p.exists():
-                                    # #region agent log
-                                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1108","message":"PDF found by normalized name (direct)","data":{"norm_name":norm_name,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                                    # #endregion
+
                                     return p
                             
                             # Try normalized comparison with all keys
@@ -1188,10 +1148,7 @@ def main():
                                 if normalize_name(key) == norm_name:
                                     p = Path(path)
                                     if p.exists():
-                                        # #region agent log
-                                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1115","message":"PDF found by normalized name (comparison)","data":{"key":key,"norm_name":norm_name,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                                        # #endregion
+
                                         return p
                             
                             # Try various name formats
@@ -1206,32 +1163,18 @@ def main():
                                 if name_var and name_var in pdf_mapping:
                                     p = Path(pdf_mapping[name_var])
                                     if p.exists():
-                                        # #region agent log
-                                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1128","message":"PDF found by name variation","data":{"name_var":name_var,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                                        # #endregion
+
                                         return p
 
                             # 3️⃣ fallback: scan Uploaded_Resumes directory
                             for pdf in UPLOADED_RESUMES_DIR.glob("*.pdf"):
                                 pdf_stem_norm = normalize_name(pdf.stem)
                                 if pdf_stem_norm == norm_name:
-                                    # #region agent log
-                                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1137","message":"PDF found by directory scan","data":{"pdf_stem":pdf.stem,"norm_name":norm_name,"path":str(pdf)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                                    # #endregion
+
                                     return pdf
 
-                            # #region agent log
-                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1116","message":"PDF not found","data":{"candidate_id":candidate_id,"candidate_name":candidate_name,"norm_name":norm_name},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                            # #endregion
-
                         except Exception as e:
-                            # #region agent log
-                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1117","message":"PDF lookup error","data":{"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-                            # #endregion
+
                             print(f"⚠️ PDF lookup error: {e}")
 
                         return None
@@ -1516,8 +1459,6 @@ def main():
             "**Files that are NOT cleared:**\n"
             "- JD files (JD/JD.txt, JD/JD.json) - kept for reuse"
         )
-
-
 
 if __name__ == "__main__":
     main()
