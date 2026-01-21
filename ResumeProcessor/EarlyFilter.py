@@ -15,6 +15,7 @@ FILTERING LOGIC:
 import json
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -544,10 +545,10 @@ def check_all_requirements(resume: dict, filter_requirements: dict) -> Dict[str,
     should_filter = False
     filter_reason = None
     
-    # Filter out if 0% compliance (no mandatory requirements met)
-    if specified_count > 0 and compliance_score == 0.0:
+    # Filter out if ANY mandatory requirement is not met (100% strict)
+    if specified_count > 0 and len(requirements_missing) > 0:
         should_filter = True
-        filter_reason = "; ".join(filter_reasons[:3]) if filter_reasons else "0% mandatory compliance - no requirements met"
+        filter_reason = "; ".join(filter_reasons[:3]) if filter_reasons else f"Missing mandatory requirements: {', '.join(requirements_missing)}"
     
     return {
         "should_filter": should_filter,
@@ -635,7 +636,16 @@ def main():
     ]
     if not resume_files:
         print("⚠️ No resumes found in ProcessedJson/")
+        # #region agent log
+        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+            log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"I5","location":"EarlyFilter.py:637","message":"No resumes found in ProcessedJson","data":{"processed_json_dir":str(PROCESSED_JSON_DIR)},"timestamp":int(time.time()*1000)})+"\n")
+        # #endregion
         return
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"I5","location":"EarlyFilter.py:640","message":"Starting early filtering","data":{"total_resumes":len(resume_files)},"timestamp":int(time.time()*1000)})+"\n")
+    # #endregion
     
     filtered_resumes = []
     compliant_resumes = []
@@ -670,9 +680,14 @@ def main():
                     "filter_reason": result["filter_reason"],
                     "requirements_missing": result["requirements_missing"],
                     "compliance": result["compliance"],
-                    "compliance_score": compliance_score
+                    "compliance_score": compliance_score,
+                    "resume_file": str(resume_file)  # Store file path for later reference
                 }
                 filtered_resumes.append(filtered_resume)
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"E","location":"EarlyFilter.py:666","message":"Resume filtered","data":{"name":name,"candidate_id":candidate_id,"should_filter":result["should_filter"],"compliance_score":compliance_score,"missing":result["requirements_missing"]},"timestamp":int(time.time()*1000)})+"\n")
+                # #endregion
                 print(f"🚫 FILTERED → {name} | Mandatory Compliance: {int(compliance_score*100)}% ({len(result['requirements_met'])}/{specified_count}) | Reason: {result['filter_reason']}")
             else:
                 # Keep resume for processing
@@ -693,6 +708,10 @@ def main():
     duration = time.time() - start_time
     
     # Save filtered resumes to Skipped.json
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"D","location":"EarlyFilter.py:696","message":"Checking filtered resumes","data":{"filtered_count":len(filtered_resumes),"skipped_file":str(SKIPPED_FILE)},"timestamp":int(time.time()*1000)})+"\n")
+    # #endregion
     if filtered_resumes:
         SKIPPED_FILE.parent.mkdir(parents=True, exist_ok=True)
         # Load existing skipped if any
@@ -701,13 +720,36 @@ def main():
             try:
                 with SKIPPED_FILE.open("r", encoding="utf-8") as f:
                     existing_skipped = json.load(f)
-            except json.JSONDecodeError:
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"D","location":"EarlyFilter.py:704","message":"Loaded existing skipped entries","data":{"existing_count":len(existing_skipped)},"timestamp":int(time.time()*1000)})+"\n")
+                    # #endregion
+            except json.JSONDecodeError as e:
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"D","location":"EarlyFilter.py:706","message":"JSON decode error loading skipped","data":{"error":str(e)},"timestamp":int(time.time()*1000)})+"\n")
+                # #endregion
                 existing_skipped = []
         
         # Merge with existing
         existing_skipped.extend(filtered_resumes)
-        with SKIPPED_FILE.open("w", encoding="utf-8") as f:
-            json.dump(existing_skipped, f, indent=2)
+        # #region agent log
+        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+            log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"D","location":"EarlyFilter.py:709","message":"Writing to Skipped.json","data":{"total_entries":len(existing_skipped),"new_entries":len(filtered_resumes)},"timestamp":int(time.time()*1000)})+"\n")
+        # #endregion
+        try:
+            with SKIPPED_FILE.open("w", encoding="utf-8") as f:
+                json.dump(existing_skipped, f, indent=2)
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"D","location":"EarlyFilter.py:712","message":"Successfully wrote to Skipped.json","data":{"file":str(SKIPPED_FILE),"entries":len(existing_skipped)},"timestamp":int(time.time()*1000)})+"\n")
+            # #endregion
+        except Exception as e:
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"D","location":"EarlyFilter.py:715","message":"Error writing to Skipped.json","data":{"error":str(e)},"timestamp":int(time.time()*1000)})+"\n")
+            # #endregion
+            print(f"⚠️ Error writing to Skipped.json: {e}")
         
         print(f"\n📝 Saved {len(filtered_resumes)} filtered resumes to {SKIPPED_FILE}")
     
@@ -715,9 +757,13 @@ def main():
     FILTERED_DIR = PROCESSED_JSON_DIR / "FilteredResumes"
     FILTERED_DIR.mkdir(exist_ok=True)
     
+    # Create a set of compliant resume file paths for quick lookup
+    compliant_file_paths = {str(f.resolve()) for f in compliant_resumes}
+    
     for resume_file in resume_files:
-        if resume_file not in compliant_resumes:
-            # Move to filtered directory
+        resume_file_path = str(resume_file.resolve())
+        if resume_file_path not in compliant_file_paths:
+            # This resume was filtered, move it to FilteredResumes directory
             try:
                 if resume_file.exists():  # Check if file still exists
                     resume_file.rename(FILTERED_DIR / resume_file.name)

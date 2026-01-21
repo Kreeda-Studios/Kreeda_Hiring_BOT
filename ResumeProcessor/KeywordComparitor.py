@@ -362,6 +362,14 @@ def main():
             return {"name": name, "Keyword_Score": 0.0}
 
     results = []
+    processed_count = 0
+    error_count = 0
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"keyword-comparitor","hypothesisId":"I9","location":"KeywordComparitor.py:364","message":"Starting keyword processing","data":{"total_files":len(resume_files)},"timestamp":int(__import__("time").time()*1000)})+"\n")
+    # #endregion
+    
     if parallel and len(resume_files) > 1:
         # Parallel processing
         print(f"[INFO] Processing {len(resume_files)} resumes in parallel with {max_workers} workers...")
@@ -374,14 +382,39 @@ def main():
                     result = future.result()
                     if result:
                         results.append(result)
+                        processed_count += 1
+                    else:
+                        error_count += 1
                 except Exception as e:
+                    error_count += 1
                     print(f"⚠️ Error processing {rfile.name}: {e}")
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"keyword-comparitor","hypothesisId":"I9","location":"KeywordComparitor.py:378","message":"Error processing resume","data":{"file":rfile.name,"error":str(e)},"timestamp":int(__import__("time").time()*1000)})+"\n")
+                    # #endregion
     else:
         # Sequential processing
         for rfile in resume_files:
-            result = process_single_resume(rfile)
-            if result:
-                results.append(result)
+            try:
+                result = process_single_resume(rfile)
+                if result:
+                    results.append(result)
+                    processed_count += 1
+                else:
+                    error_count += 1
+            except Exception as e:
+                error_count += 1
+                print(f"⚠️ Error processing {rfile.name}: {e}")
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"keyword-comparitor","hypothesisId":"I9","location":"KeywordComparitor.py:392","message":"Error processing resume","data":{"file":rfile.name,"error":str(e)},"timestamp":int(__import__("time").time()*1000)})+"\n")
+                # #endregion
+    
+    print(f"[SUMMARY] KeywordComparitor: {processed_count} processed, {error_count} errors out of {len(resume_files)} total")
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"keyword-comparitor","hypothesisId":"I9","location":"KeywordComparitor.py:397","message":"Keyword processing summary","data":{"total":len(resume_files),"processed":processed_count,"errors":error_count},"timestamp":int(__import__("time").time()*1000)})+"\n")
+    # #endregion
 
     # Start fresh - merge with existing scores from ProjectProcess (if any)
     # But only include candidates that exist in current ProcessedJson directory

@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 from typing import List, Dict, Any
+from datetime import datetime
 
 try:
     from openai import OpenAI
@@ -1440,15 +1441,26 @@ def _ranking_core():
     """Runs ranking and returns (ranked_list, skipped_list)."""
     if not INPUT_FILE.exists():
         print(f"❌ Input file not found: {INPUT_FILE}")
+        # #region agent log
+        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+            log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1442","message":"Input file not found","data":{"file":str(INPUT_FILE)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+        # #endregion
         return [], []
 
     with INPUT_FILE.open("r", encoding="utf-8") as f:
         candidates = json.load(f)
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1447","message":"Starting ranking","data":{"total_candidates":len(candidates)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+    # #endregion
 
     ranked, skipped = [], []
     seen_candidate_ids = set()
     seen_names = set()
     duplicates_found = 0
+    hr_filtered_count = 0
+    invalid_score_count = 0
 
     print("\n🔍 Deduplication check (Step 6):\n")
 
@@ -1462,12 +1474,20 @@ def _ranking_core():
         if candidate_id and candidate_id in seen_candidate_ids:
             duplicates_found += 1
             print(f"⚠️ DUPLICATE SKIPPED → {name} (candidate_id: {candidate_id})")
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1463","message":"Duplicate by candidate_id","data":{"name":name,"candidate_id":candidate_id},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
             continue
         if normalized_name and normalized_name in seen_names:
             # Only skip by name if no candidate_id (to avoid false positives)
             if not candidate_id:
                 duplicates_found += 1
                 print(f"⚠️ DUPLICATE SKIPPED → {name} (by name)")
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1471","message":"Duplicate by name","data":{"name":name},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                # #endregion
                 continue
         
         # Mark as seen
@@ -1481,16 +1501,22 @@ def _ranking_core():
         hr_filter_reason = cand.get("hr_filter_reason")
         
         if hr_should_filter:
+            hr_filtered_count += 1
             skipped.append(cand)
             print(
                 f"🚫 HR FILTERED → {name}"
                 f" | Reason: {hr_filter_reason}"
             )
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1484","message":"HR filtered candidate","data":{"name":name,"candidate_id":candidate_id,"reason":hr_filter_reason},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
             continue
         
         final_score = compute_final_score(cand)
 
         if final_score is None:
+            invalid_score_count += 1
             skipped.append(cand)
             print(
                 f"⛔ SKIPPED → {cand.get('name')}"
@@ -1498,6 +1524,10 @@ def _ranking_core():
                 f" | Semantic={cand.get('Semantic_Score')}"
                 f" | Keyword={cand.get('Keyword_Score')}"
             )
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1494","message":"Invalid score candidate","data":{"name":cand.get('name'),"candidate_id":candidate_id,"project":cand.get('project_aggregate'),"semantic":cand.get('Semantic_Score'),"keyword":cand.get('Keyword_Score')},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
             continue
 
         cand["Final_Score"] = final_score
@@ -1516,14 +1546,18 @@ def _ranking_core():
     ranked.sort(key=lambda x: (x["Final_Score"], x.get("_years_experience", 0)), reverse=True)
     
     # Deduplication summary
-    if duplicates_found > 0:
-        print(f"\n📊 Deduplication Summary:")
-        print(f"   - Total entries in Scores.json: {len(candidates)}")
-        print(f"   - Duplicates found: {duplicates_found}")
-        print(f"   - Unique candidates: {len(ranked)}")
-    else:
-        print(f"\n✅ Deduplication: No duplicates found")
-        print(f"   - Processed {len(candidates)} entries → {len(ranked)} unique candidates")
+    print(f"\n📊 Ranking Summary:")
+    print(f"   - Total entries in Scores.json: {len(candidates)}")
+    print(f"   - Duplicates found: {duplicates_found}")
+    print(f"   - HR filtered: {hr_filtered_count}")
+    print(f"   - Invalid scores: {invalid_score_count}")
+    print(f"   - Successfully ranked: {len(ranked)}")
+    print(f"   - Total skipped: {len(skipped)}")
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1527","message":"Ranking summary","data":{"total":len(candidates),"duplicates":duplicates_found,"hr_filtered":hr_filtered_count,"invalid_score":invalid_score_count,"ranked":len(ranked),"skipped":len(skipped)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+    # #endregion
     
     # CRITICAL: Filter out 0 compliance candidates BEFORE re-ranking
     # Note: Mandatory compliances already filtered in Step 2, so we only check soft compliances here
@@ -1904,8 +1938,69 @@ def main():
     with OUTPUT_FILE.open("w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=4)
 
+    # Merge skipped candidates with existing Skipped.json (preserve EarlyFilter entries)
+    SKIPPED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    existing_skipped = []
+    if SKIPPED_FILE.exists():
+        try:
+            with SKIPPED_FILE.open("r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+                if isinstance(existing_data, list):
+                    existing_skipped = existing_data
+                else:
+                    existing_skipped = []
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1916","message":"Loaded existing Skipped.json","data":{"existing_count":len(existing_skipped),"new_skipped_count":len(skipped)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"⚠️ Error reading existing Skipped.json: {e}")
+            existing_skipped = []
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1921","message":"Error loading Skipped.json","data":{"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
+    
+    # Merge: Add new skipped entries, avoiding duplicates by candidate_id
+    existing_candidate_ids = {entry.get("candidate_id") for entry in existing_skipped if entry.get("candidate_id")}
+    merged_skipped = existing_skipped.copy()
+    new_entries_added = 0
+    
+    for skipped_cand in skipped:
+        candidate_id = skipped_cand.get("candidate_id")
+        # Only add if not already in existing entries (avoid duplicates)
+        if candidate_id and candidate_id not in existing_candidate_ids:
+            # Convert candidate dict to skipped entry format
+            skipped_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "candidate_id": candidate_id,
+                "name": skipped_cand.get("name", "Unknown"),
+                "reason": skipped_cand.get("hr_filter_reason") or "Skipped during ranking (invalid score or duplicate)",
+                "file": None
+            }
+            merged_skipped.append(skipped_entry)
+            existing_candidate_ids.add(candidate_id)
+            new_entries_added += 1
+        elif not candidate_id:
+            # Add even without candidate_id (might be a new entry)
+            skipped_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "candidate_id": None,
+                "name": skipped_cand.get("name", "Unknown"),
+                "reason": skipped_cand.get("hr_filter_reason") or "Skipped during ranking (invalid score or duplicate)",
+                "file": None
+            }
+            merged_skipped.append(skipped_entry)
+            new_entries_added += 1
+    
+    # Write merged entries back to Skipped.json
     with SKIPPED_FILE.open("w", encoding="utf-8") as f:
-        json.dump(skipped, f, indent=4)
+        json.dump(merged_skipped, f, indent=2)
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"H","location":"FinalRanking.py:1954","message":"Merged and wrote Skipped.json","data":{"total_entries":len(merged_skipped),"existing_preserved":len(existing_skipped),"new_added":new_entries_added},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+    # #endregion
 
     with DISPLAY_FILE.open("w", encoding="utf-8") as f:
         f.write("=== FINAL RANKING (JD Alignment + HR Requirements) ===\n\n")

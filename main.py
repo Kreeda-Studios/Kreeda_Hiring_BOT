@@ -15,23 +15,28 @@ from typing import List, Dict, Optional
 
 from InputThread.file_router import route_pdf  # updated function name
 from PyPDF2 import PdfReader  # for PDF extraction
+import unicodedata
+from datetime import datetime
+import difflib
 
 # Constants
 PROCESSED_TXT_DIR = Path("Processed-TXT")
 PROCESSED_JSON_DIR = Path("ProcessedJson")
 JD_FILE = Path("InputThread/JD/JD.txt")
-UPLOADED_RESUMES_DIR = Path("Uploaded_Resumes")  # Store original PDFs
-PDF_MAPPING_FILE = Path("Uploaded_Resumes/pdf_mapping.json")  # Map candidate_id to PDF path
+UPLOADED_RESUMES_DIR = Path("Uploaded_Resumes")
+PDF_MAPPING_FILE = UPLOADED_RESUMES_DIR / "pdf_mapping.json"
+SKIPPED_FILE = Path("Ranking/Skipped.json") 
 
 # Ranking files
 DISPLAY_RANKS = Path("Ranking/DisplayRanks.txt")
 FINAL_RANKING_SCRIPT = Path("ResumeProcessor/Ranker/FinalRanking.py")
 
 # Files to clear between runs
+# NOTE: Skipped.json is NOT cleared - it accumulates rejected candidates across runs
 FILES_TO_CLEAR = [
     "Ranking/Final_Ranking.json",
     "Ranking/Scores.json",
-    "Ranking/Skipped.json",
+    # "Ranking/Skipped.json",  # REMOVED: Keep Skipped.json to preserve rejected candidates
     "ResumeProcessor/.semantic_embed_cache.pkl",
     "Ranking/DisplayRanks.txt",
     "Processed_Resume_Index.txt"  # Clear index to prevent accumulation
@@ -56,6 +61,44 @@ UPLOADED_RESUMES_DIR.mkdir(parents=True, exist_ok=True)
 
 # ZIP download configuration
 DISPLAY_RANKS_FILE = Path("Ranking/DisplayRanks.txt")
+
+def normalize_name(name: str) -> str:
+    if not name:
+        return ""
+    name = unicodedata.normalize("NFKD", name)
+    name = "".join(c for c in name if not unicodedata.combining(c))
+    return (
+        name.lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace(".", "")
+        .strip("_")
+    )
+
+
+def log_skipped_candidate(candidate, reason):
+    skipped_file = Path("Ranking/Skipped.json")
+    skipped_file.parent.mkdir(parents=True, exist_ok=True)
+
+    entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "candidate_id": candidate.get("candidate_id"),
+        "name": candidate.get("name"),
+        "reason": reason,
+    }
+
+    if skipped_file.exists():
+        try:
+            data = json.load(open(skipped_file, "r", encoding="utf-8"))
+        except Exception:
+            data = []
+    else:
+        data = []
+
+    data.append(entry)
+
+    with open(skipped_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 # PDF extraction helper
 def extract_pdf_text(pdf_file) -> str:
@@ -395,14 +438,14 @@ def parse_hr_filter_requirements(hr_text: str) -> dict:
                     {
                         "role": "system",
                         "content": """Parse HR requirements into structured JSON format.
-CRITICAL RULES:
-1. Use standard field names: hard_skills (for any skills), experience (for years), location, education
-2. For skills: Use field name "hard_skills" with type "list", put skills in "required" array
-3. For experience: Use field name "experience" with type "numeric", use "min" and "max" for range
-4. For location: Use field name "location" with type "location" or "text"
-5. Each field MUST have "type" and "specified": true
-6. Return flat structure (no nested "requirements" arrays)
-7. Map common terms: "skills" -> hard_skills, "years" -> experience, "location" -> location"""
+                        CRITICAL RULES:
+                        1. Use standard field names: hard_skills (for any skills), experience (for years), location, education
+                        2. For skills: Use field name "hard_skills" with type "list", put skills in "required" array
+                        3. For experience: Use field name "experience" with type "numeric", use "min" and "max" for range
+                        4. For location: Use field name "location" with type "location" or "text"
+                        5. Each field MUST have "type" and "specified": true
+                        6. Return flat structure (no nested "requirements" arrays)
+                        7. Map common terms: "skills" -> hard_skills, "years" -> experience, "location" -> location"""
                     },
                     {
                         "role": "user",
@@ -536,45 +579,59 @@ def parse_hr_requirements_fallback(hr_text: str) -> dict:
 
 
 # ZIP download helper function
-def create_resumes_zip(selected_candidates: List[Dict], get_pdf_path_func) -> Optional[bytes]:
-    """
-    Create a ZIP file containing selected resume PDFs and DisplayRanks.txt.
-    
-    Args:
-        selected_candidates: List of candidate dictionaries
-        get_pdf_path_func: Function to get PDF path for a candidate
-    
-    Returns:
-        ZIP file bytes or None if error
-    """
+def create_resumes_zip(selected_candidates: List[dict], get_pdf_path_func, include_profiles: bool = True) -> Optional[bytes]:
+    import io
+    zip_buffer = io.BytesIO()
+    skipped_count = 0
     try:
-        import io
-        
-        # Create ZIP in memory
-        zip_buffer = io.BytesIO()
-        
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            # Add DisplayRanks.txt if it exists
-            if DISPLAY_RANKS_FILE.exists():
-                zip_file.write(DISPLAY_RANKS_FILE, DISPLAY_RANKS_FILE.name)
-            
-            # Add all selected PDFs
+            # add DisplayRanks if present
+            if DISPLAY_RANKS.exists():
+                zip_file.write(DISPLAY_RANKS, DISPLAY_RANKS.name)
+
             for candidate in selected_candidates:
                 candidate_id = candidate.get("candidate_id")
                 name = candidate.get("name", "Unknown")
-                
-                # Get PDF path using the provided function
+                rank = candidate.get("Rank", 9999)
                 pdf_path = get_pdf_path_func(candidate_id, name)
-                
                 if pdf_path and pdf_path.exists():
-                    # Add PDF to ZIP with original filename
-                    zip_file.write(pdf_path, pdf_path.name)
+                    # Format filename as: RANK_NameOfTheCandidate_resume.pdf
+                    # Normalize name: replace spaces with underscores, remove special chars, capitalize properly
+                    normalized_name = name.replace(" ", "_").replace("-", "_").replace(".", "")
+                    # Remove any special characters and keep only alphanumeric and underscores
+                    normalized_name = "".join(c for c in normalized_name if c.isalnum() or c == "_")
+                    # Format: RANK_NameOfTheCandidate_resume.pdf
+                    sorted_filename = f"{rank:03d}_{normalized_name}_resume.pdf"
+                    zip_file.write(pdf_path, sorted_filename)
                 else:
-                    # Skip if PDF not found (shouldn't happen, but handle gracefully)
-                    print(f"⚠️ Warning: PDF not found for {name}, skipping...")
-        
+                    # Write a small text note into zip for visibility (also with rank format)
+                    normalized_name = name.replace(" ", "_").replace("-", "_").replace(".", "")
+                    normalized_name = "".join(c for c in normalized_name if c.isalnum() or c == "_")
+                    note_name = f"{rank:03d}_{normalized_name}_resume_missing.txt"
+                    note_text = f"PDF not found for {name} (Rank: {rank}, candidate_id: {candidate_id})\n"
+                    zip_file.writestr(note_name, note_text)
+                    skipped_count += 1
+                    # log skipped record for later inspection
+                    attempted = []
+                    # If mapping file exists try to include mapping attempts
+                    if PDF_MAPPING_FILE.exists():
+                        try:
+                            mapping = json.load(open(PDF_MAPPING_FILE, "r", encoding="utf-8"))
+                            attempted.append(mapping.get(str(candidate_id)))
+                            attempted.append(mapping.get(name))
+                        except Exception:
+                            pass
+                    else:
+                        print(f"⚠️ Warning: PDF not found for {name}, skipping...")
+                        log_skipped_candidate(candidate, "PDF not found during ZIP creation")
+
         zip_buffer.seek(0)
+        if skipped_count > 0:
+            print(f"⚠️ {skipped_count} candidate PDFs missing; entries appended to {SKIPPED_FILE}")
         return zip_buffer.read()
+    except Exception as e:
+        print(f"❌ Error creating ZIP file: {e}")
+        return None
         
     except Exception as e:
         print(f"❌ Error creating ZIP file: {e}")
@@ -910,15 +967,37 @@ def main():
                     # Clear ranking files before processing (ProcessedJson already cleared when resumes were uploaded)
                     st.info("🧹 Clearing previous ranking results...")
                     cleared = []
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:956","message":"Starting file clearing","data":{"files_to_clear":FILES_TO_CLEAR,"skipped_file_preserved":True},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                    # #endregion
+                    # Verify Skipped.json is NOT in the clear list
+                    skipped_in_clear = "Ranking/Skipped.json" in FILES_TO_CLEAR
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:961","message":"Skipped.json preservation check","data":{"skipped_in_clear":skipped_in_clear,"skipped_file_exists":SKIPPED_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                    # #endregion
                     for f in FILES_TO_CLEAR:
                         try:
                             if os.path.exists(f):
+                                # #region agent log
+                                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                    log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:967","message":"Clearing file","data":{"file":f,"exists":True},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                # #endregion
                                 os.remove(f)
                                 cleared.append(f)
                         except Exception as e:
+                            # #region agent log
+                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:970","message":"Error clearing file","data":{"file":f,"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                            # #endregion
                             print(f"⚠️ Error deleting {f}: {e}")
                     if cleared:
                         st.success(f"✅ Cleared {len(cleared)} ranking file(s) from previous run")
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"pre-processing","hypothesisId":"A","location":"main.py:976","message":"File clearing complete","data":{"cleared_count":len(cleared),"skipped_file_still_exists":SKIPPED_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                    # #endregion
 
                     # Enable parallel processing by default - optimized for local processing
                     import multiprocessing
@@ -929,6 +1008,21 @@ def main():
                     
                     # Step 1: AI processing (must run first)
                     try:
+                        # CRITICAL: Ensure ProcessedJson is completely cleared before processing
+                        # This prevents duplicate detection from using stale candidate_ids
+                        st.info("🧹 Ensuring ProcessedJson is cleared before processing...")
+                        if PROCESSED_JSON_DIR.exists():
+                            cleared_before_processing = 0
+                            for json_file in PROCESSED_JSON_DIR.glob("*.json"):
+                                if json_file.name != "example_output.json":
+                                    try:
+                                        json_file.unlink()
+                                        cleared_before_processing += 1
+                                    except Exception as e:
+                                        print(f"⚠️ Could not delete {json_file.name}: {e}")
+                            if cleared_before_processing > 0:
+                                print(f"[INFO] Cleared {cleared_before_processing} old JSON file(s) from ProcessedJson before processing")
+                        
                         st.info("🔄 Step 1/6: Running AI processing (TXT → JSON) [PARALLEL]...")
                         print(f"\n{'='*60}")
                         print("STEP 1/6: Running AI processing (TXT → JSON) [PARALLEL]...")
@@ -1037,68 +1131,111 @@ def main():
                     ranking_data = json.load(f)
                 
                 ranking = ranking_data.get("ranking", {}).get("candidates", [])
+                metadata = ranking_data.get("metadata", {})
+                total_candidates = metadata.get("total_candidates", len(ranking))
+                skipped_candidates = metadata.get("skipped_candidates", 0)
                 
                 if ranking:
                     st.success(f"Showing {len(ranking)} ranked candidates (pre-filtered for HR requirements)")
+                    if skipped_candidates > 0:
+                        st.info(f"ℹ️ {skipped_candidates} candidate(s) were skipped during ranking (duplicates, invalid scores, or HR filtered)")
+                    
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"ranking-display","hypothesisId":"I7","location":"main.py:1118","message":"Ranking loaded for display","data":{"ranked_count":len(ranking),"total_candidates":total_candidates,"skipped":skipped_candidates},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                    # #endregion
                     
                     # Helper function to get PDF path for candidate (defined before use)
                     def get_resume_pdf_path(candidate_id: str, candidate_name: str) -> Path | None:
-                        """Get PDF path for a candidate by candidate_id or name."""
-                        # Try to load mapping file
-                        if PDF_MAPPING_FILE.exists():
-                            try:
-                                with open(PDF_MAPPING_FILE, "r", encoding="utf-8") as f:
-                                    pdf_mapping = json.load(f)
-                                    
-                                    # Try candidate_id first (most reliable)
-                                    if candidate_id and candidate_id in pdf_mapping:
-                                        pdf_path = Path(pdf_mapping[candidate_id])
-                                        if pdf_path.exists():
-                                            return pdf_path
-                                    
-                                    # Try normalized candidate name
-                                    if candidate_name:
-                                        normalized_name = candidate_name.strip().title()
-                                        if normalized_name in pdf_mapping:
-                                            pdf_path = Path(pdf_mapping[normalized_name])
-                                            if pdf_path.exists():
-                                                return pdf_path
-                                        
-                                        # Try various name formats
-                                        name_variants = [
-                                            candidate_name,
-                                            candidate_name.replace(" ", "_"),
-                                            candidate_name.replace(" ", "-"),
-                                            candidate_name.lower(),
-                                            candidate_name.upper(),
-                                        ]
-                                        for variant in name_variants:
-                                            if variant in pdf_mapping:
-                                                pdf_path = Path(pdf_mapping[variant])
-                                                if pdf_path.exists():
-                                                    return pdf_path
-                            except Exception as e:
-                                print(f"⚠️ Error reading PDF mapping: {e}")
-                        
-                        # Fallback: search in Uploaded_Resumes directory by name
-                        if candidate_name and UPLOADED_RESUMES_DIR.exists():
-                            # Normalize candidate name for matching
-                            normalized_candidate = candidate_name.lower().replace(" ", "_").replace("-", "_")
+                        try:
+                            # #region agent log
+                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1091","message":"PDF lookup started","data":{"candidate_id":candidate_id,"candidate_name":candidate_name,"mapping_file":str(PDF_MAPPING_FILE),"mapping_exists":PDF_MAPPING_FILE.exists()},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                            # #endregion
+                            pdf_mapping = {}
+                            if PDF_MAPPING_FILE.exists():
+                                pdf_mapping = json.load(open(PDF_MAPPING_FILE, "r", encoding="utf-8"))
+                                # #region agent log
+                                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                    log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1096","message":"PDF mapping loaded","data":{"mapping_keys":list(pdf_mapping.keys())[:20],"total_keys":len(pdf_mapping)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                # #endregion
+
+                            # 1️⃣ candidate_id (best)
+                            if candidate_id and candidate_id in pdf_mapping:
+                                p = Path(pdf_mapping[candidate_id])
+                                if p.exists():
+                                    # #region agent log
+                                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1100","message":"PDF found by candidate_id","data":{"candidate_id":candidate_id,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                    # #endregion
+                                    return p
+
+                            # 2️⃣ normalized name lookup (try multiple variations)
+                            norm_name = normalize_name(candidate_name)
                             
-                            # Try to find PDF with similar name
-                            for pdf_file in UPLOADED_RESUMES_DIR.glob("*.pdf"):
-                                pdf_stem = pdf_file.stem.lower().replace(" ", "_").replace("-", "_")
-                                # Check if names match (either direction)
-                                if normalized_candidate in pdf_stem or pdf_stem in normalized_candidate:
-                                    return pdf_file
-                                
-                                # Also try exact match with original name
-                                if candidate_name.lower() in pdf_file.stem.lower() or \
-                                   pdf_file.stem.lower() in candidate_name.lower():
-                                    return pdf_file
-                        
+                            # Try direct normalized name match first
+                            if norm_name and norm_name in pdf_mapping:
+                                p = Path(pdf_mapping[norm_name])
+                                if p.exists():
+                                    # #region agent log
+                                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1108","message":"PDF found by normalized name (direct)","data":{"norm_name":norm_name,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                    # #endregion
+                                    return p
+                            
+                            # Try normalized comparison with all keys
+                            for key, path in pdf_mapping.items():
+                                if normalize_name(key) == norm_name:
+                                    p = Path(path)
+                                    if p.exists():
+                                        # #region agent log
+                                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1115","message":"PDF found by normalized name (comparison)","data":{"key":key,"norm_name":norm_name,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                        # #endregion
+                                        return p
+                            
+                            # Try various name formats
+                            name_variations = [
+                                candidate_name,
+                                candidate_name.strip().title(),
+                                candidate_name.replace(" ", "_"),
+                                candidate_name.replace(" ", "-"),
+                                candidate_name.lower(),
+                            ]
+                            for name_var in name_variations:
+                                if name_var and name_var in pdf_mapping:
+                                    p = Path(pdf_mapping[name_var])
+                                    if p.exists():
+                                        # #region agent log
+                                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1128","message":"PDF found by name variation","data":{"name_var":name_var,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                        # #endregion
+                                        return p
+
+                            # 3️⃣ fallback: scan Uploaded_Resumes directory
+                            for pdf in UPLOADED_RESUMES_DIR.glob("*.pdf"):
+                                pdf_stem_norm = normalize_name(pdf.stem)
+                                if pdf_stem_norm == norm_name:
+                                    # #region agent log
+                                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1137","message":"PDF found by directory scan","data":{"pdf_stem":pdf.stem,"norm_name":norm_name,"path":str(pdf)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                    # #endregion
+                                    return pdf
+
+                            # #region agent log
+                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1116","message":"PDF not found","data":{"candidate_id":candidate_id,"candidate_name":candidate_name,"norm_name":norm_name},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                            # #endregion
+
+                        except Exception as e:
+                            # #region agent log
+                            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1117","message":"PDF lookup error","data":{"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                            # #endregion
+                            print(f"⚠️ PDF lookup error: {e}")
+
                         return None
-                    
+
                     # Download selected resumes as ZIP - wrapped in form to prevent reruns on checkbox clicks
                     st.markdown("### 📥 Download Selected Resumes")
                     st.info("Select candidates using checkboxes below, then click the download button to get all selected resumes in a ZIP file.")
@@ -1293,6 +1430,9 @@ def main():
                             checkbox_key = f"select_{candidate_id}_{rank}"
                             if st.session_state.get(checkbox_key, False):
                                 selected_candidates.append(cand)
+                        
+                        # Sort selected candidates by rank (ascending: 1, 2, 3...)
+                        selected_candidates.sort(key=lambda x: x.get("Rank", 9999))
                         
                         # Form submit button - only triggers rerun when clicked
                         form_submitted = st.form_submit_button(
