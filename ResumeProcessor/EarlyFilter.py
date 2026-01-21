@@ -636,7 +636,16 @@ def main():
     ]
     if not resume_files:
         print("⚠️ No resumes found in ProcessedJson/")
+        # #region agent log
+        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+            log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"I5","location":"EarlyFilter.py:637","message":"No resumes found in ProcessedJson","data":{"processed_json_dir":str(PROCESSED_JSON_DIR)},"timestamp":int(time.time()*1000)})+"\n")
+        # #endregion
         return
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"early-filter","hypothesisId":"I5","location":"EarlyFilter.py:640","message":"Starting early filtering","data":{"total_resumes":len(resume_files)},"timestamp":int(time.time()*1000)})+"\n")
+    # #endregion
     
     filtered_resumes = []
     compliant_resumes = []

@@ -1441,15 +1441,26 @@ def _ranking_core():
     """Runs ranking and returns (ranked_list, skipped_list)."""
     if not INPUT_FILE.exists():
         print(f"❌ Input file not found: {INPUT_FILE}")
+        # #region agent log
+        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+            log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1442","message":"Input file not found","data":{"file":str(INPUT_FILE)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+        # #endregion
         return [], []
 
     with INPUT_FILE.open("r", encoding="utf-8") as f:
         candidates = json.load(f)
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1447","message":"Starting ranking","data":{"total_candidates":len(candidates)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+    # #endregion
 
     ranked, skipped = [], []
     seen_candidate_ids = set()
     seen_names = set()
     duplicates_found = 0
+    hr_filtered_count = 0
+    invalid_score_count = 0
 
     print("\n🔍 Deduplication check (Step 6):\n")
 
@@ -1463,12 +1474,20 @@ def _ranking_core():
         if candidate_id and candidate_id in seen_candidate_ids:
             duplicates_found += 1
             print(f"⚠️ DUPLICATE SKIPPED → {name} (candidate_id: {candidate_id})")
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1463","message":"Duplicate by candidate_id","data":{"name":name,"candidate_id":candidate_id},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
             continue
         if normalized_name and normalized_name in seen_names:
             # Only skip by name if no candidate_id (to avoid false positives)
             if not candidate_id:
                 duplicates_found += 1
                 print(f"⚠️ DUPLICATE SKIPPED → {name} (by name)")
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1471","message":"Duplicate by name","data":{"name":name},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                # #endregion
                 continue
         
         # Mark as seen
@@ -1482,16 +1501,22 @@ def _ranking_core():
         hr_filter_reason = cand.get("hr_filter_reason")
         
         if hr_should_filter:
+            hr_filtered_count += 1
             skipped.append(cand)
             print(
                 f"🚫 HR FILTERED → {name}"
                 f" | Reason: {hr_filter_reason}"
             )
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1484","message":"HR filtered candidate","data":{"name":name,"candidate_id":candidate_id,"reason":hr_filter_reason},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
             continue
         
         final_score = compute_final_score(cand)
 
         if final_score is None:
+            invalid_score_count += 1
             skipped.append(cand)
             print(
                 f"⛔ SKIPPED → {cand.get('name')}"
@@ -1499,6 +1524,10 @@ def _ranking_core():
                 f" | Semantic={cand.get('Semantic_Score')}"
                 f" | Keyword={cand.get('Keyword_Score')}"
             )
+            # #region agent log
+            with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1494","message":"Invalid score candidate","data":{"name":cand.get('name'),"candidate_id":candidate_id,"project":cand.get('project_aggregate'),"semantic":cand.get('Semantic_Score'),"keyword":cand.get('Keyword_Score')},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+            # #endregion
             continue
 
         cand["Final_Score"] = final_score
@@ -1517,14 +1546,18 @@ def _ranking_core():
     ranked.sort(key=lambda x: (x["Final_Score"], x.get("_years_experience", 0)), reverse=True)
     
     # Deduplication summary
-    if duplicates_found > 0:
-        print(f"\n📊 Deduplication Summary:")
-        print(f"   - Total entries in Scores.json: {len(candidates)}")
-        print(f"   - Duplicates found: {duplicates_found}")
-        print(f"   - Unique candidates: {len(ranked)}")
-    else:
-        print(f"\n✅ Deduplication: No duplicates found")
-        print(f"   - Processed {len(candidates)} entries → {len(ranked)} unique candidates")
+    print(f"\n📊 Ranking Summary:")
+    print(f"   - Total entries in Scores.json: {len(candidates)}")
+    print(f"   - Duplicates found: {duplicates_found}")
+    print(f"   - HR filtered: {hr_filtered_count}")
+    print(f"   - Invalid scores: {invalid_score_count}")
+    print(f"   - Successfully ranked: {len(ranked)}")
+    print(f"   - Total skipped: {len(skipped)}")
+    
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"final-ranking","hypothesisId":"I6","location":"FinalRanking.py:1527","message":"Ranking summary","data":{"total":len(candidates),"duplicates":duplicates_found,"hr_filtered":hr_filtered_count,"invalid_score":invalid_score_count,"ranked":len(ranked),"skipped":len(skipped)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+    # #endregion
     
     # CRITICAL: Filter out 0 compliance candidates BEFORE re-ranking
     # Note: Mandatory compliances already filtered in Step 2, so we only check soft compliances here

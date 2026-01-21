@@ -1008,6 +1008,21 @@ def main():
                     
                     # Step 1: AI processing (must run first)
                     try:
+                        # CRITICAL: Ensure ProcessedJson is completely cleared before processing
+                        # This prevents duplicate detection from using stale candidate_ids
+                        st.info("🧹 Ensuring ProcessedJson is cleared before processing...")
+                        if PROCESSED_JSON_DIR.exists():
+                            cleared_before_processing = 0
+                            for json_file in PROCESSED_JSON_DIR.glob("*.json"):
+                                if json_file.name != "example_output.json":
+                                    try:
+                                        json_file.unlink()
+                                        cleared_before_processing += 1
+                                    except Exception as e:
+                                        print(f"⚠️ Could not delete {json_file.name}: {e}")
+                            if cleared_before_processing > 0:
+                                print(f"[INFO] Cleared {cleared_before_processing} old JSON file(s) from ProcessedJson before processing")
+                        
                         st.info("🔄 Step 1/6: Running AI processing (TXT → JSON) [PARALLEL]...")
                         print(f"\n{'='*60}")
                         print("STEP 1/6: Running AI processing (TXT → JSON) [PARALLEL]...")
@@ -1116,9 +1131,19 @@ def main():
                     ranking_data = json.load(f)
                 
                 ranking = ranking_data.get("ranking", {}).get("candidates", [])
+                metadata = ranking_data.get("metadata", {})
+                total_candidates = metadata.get("total_candidates", len(ranking))
+                skipped_candidates = metadata.get("skipped_candidates", 0)
                 
                 if ranking:
                     st.success(f"Showing {len(ranking)} ranked candidates (pre-filtered for HR requirements)")
+                    if skipped_candidates > 0:
+                        st.info(f"ℹ️ {skipped_candidates} candidate(s) were skipped during ranking (duplicates, invalid scores, or HR filtered)")
+                    
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"ranking-display","hypothesisId":"I7","location":"main.py:1118","message":"Ranking loaded for display","data":{"ranked_count":len(ranking),"total_candidates":total_candidates,"skipped":skipped_candidates},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                    # #endregion
                     
                     # Helper function to get PDF path for candidate (defined before use)
                     def get_resume_pdf_path(candidate_id: str, candidate_name: str) -> Path | None:
@@ -1145,24 +1170,55 @@ def main():
                                     # #endregion
                                     return p
 
-                            # 2️⃣ normalized name lookup
+                            # 2️⃣ normalized name lookup (try multiple variations)
                             norm_name = normalize_name(candidate_name)
+                            
+                            # Try direct normalized name match first
+                            if norm_name and norm_name in pdf_mapping:
+                                p = Path(pdf_mapping[norm_name])
+                                if p.exists():
+                                    # #region agent log
+                                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1108","message":"PDF found by normalized name (direct)","data":{"norm_name":norm_name,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                    # #endregion
+                                    return p
+                            
+                            # Try normalized comparison with all keys
                             for key, path in pdf_mapping.items():
                                 if normalize_name(key) == norm_name:
                                     p = Path(path)
                                     if p.exists():
                                         # #region agent log
                                         with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1108","message":"PDF found by normalized name","data":{"key":key,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1115","message":"PDF found by normalized name (comparison)","data":{"key":key,"norm_name":norm_name,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                        # #endregion
+                                        return p
+                            
+                            # Try various name formats
+                            name_variations = [
+                                candidate_name,
+                                candidate_name.strip().title(),
+                                candidate_name.replace(" ", "_"),
+                                candidate_name.replace(" ", "-"),
+                                candidate_name.lower(),
+                            ]
+                            for name_var in name_variations:
+                                if name_var and name_var in pdf_mapping:
+                                    p = Path(pdf_mapping[name_var])
+                                    if p.exists():
+                                        # #region agent log
+                                        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                                            log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1128","message":"PDF found by name variation","data":{"name_var":name_var,"path":str(p)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
                                         # #endregion
                                         return p
 
-                            # 3️⃣ fallback: scan Uploaded_Resumes
+                            # 3️⃣ fallback: scan Uploaded_Resumes directory
                             for pdf in UPLOADED_RESUMES_DIR.glob("*.pdf"):
-                                if normalize_name(pdf.stem) == norm_name:
+                                pdf_stem_norm = normalize_name(pdf.stem)
+                                if pdf_stem_norm == norm_name:
                                     # #region agent log
                                     with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1113","message":"PDF found by directory scan","data":{"path":str(pdf)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
+                                        log.write(json.dumps({"sessionId":"debug-session","runId":"pdf-lookup","hypothesisId":"C","location":"main.py:1137","message":"PDF found by directory scan","data":{"pdf_stem":pdf.stem,"norm_name":norm_name,"path":str(pdf)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
                                     # #endregion
                                     return pdf
 

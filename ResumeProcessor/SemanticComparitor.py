@@ -23,6 +23,25 @@
 # from openai import OpenAI   # NEW API
 # client = None               # created in main()
 
+# # Load .env file if available
+# try:
+#     from dotenv import load_dotenv
+#     env_path = Path(__file__).resolve().parent.parent / ".env"
+#     if env_path.exists():
+#         load_dotenv(env_path)
+# except ImportError:
+#     env_path = Path(__file__).resolve().parent.parent / ".env"
+#     if env_path.exists():
+#         with open(env_path, 'r', encoding='utf-8') as f:
+#             for line in f:
+#                 line = line.strip()
+#                 if line and not line.startswith('#') and '=' in line:
+#                     key, value = line.split('=', 1)
+#                     key = key.strip()
+#                     value = value.strip().strip('"').strip("'")
+#                     if key:
+#                         os.environ[key] = value
+
 # # -----------------------
 # # Config / Paths (unchanged)
 # # -----------------------
@@ -269,13 +288,17 @@
 #     jd = json.load(open(jd_files[0],"r",encoding="utf-8"))
 #     jd_secs = extract_sections_from_jd(jd)
 
-#     # Only process files in root ProcessedJson directory (exclude FilteredResumes subdirectory)
-#     resumes = sorted([
-#         p for p in PROCESSED_JSON_DIR.glob("*.json")
-#         if p.parent == PROCESSED_JSON_DIR
-#     ])
+#     # Look for resumes in ProcessedJson and FilteredResumes subdirectory
+#     resumes = sorted([p for p in PROCESSED_JSON_DIR.glob("*.json")])
+#     
+#     # If no resumes in root, check FilteredResumes subdirectory
 #     if not resumes:
-#         print("⚠️ No resumes found"); sys.exit(0)
+#         filtered_dir = PROCESSED_JSON_DIR / "FilteredResumes"
+#         if filtered_dir.exists():
+#             resumes = sorted([p for p in filtered_dir.glob("*.json")])
+#     
+#     if not resumes:
+#         print("⚠️ No resumes found in ProcessedJson/ or ProcessedJson/FilteredResumes/"); sys.exit(0)
 
 #     cache = EmbedCache(EMBED_CACHE_PATH)
 
@@ -327,7 +350,8 @@
 
 #     # Check for parallel processing
 #     parallel = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"
-#     max_workers = int(os.getenv("MAX_WORKERS", "5"))
+#     import multiprocessing
+#     max_workers = int(os.getenv("MAX_WORKERS", str(min(multiprocessing.cpu_count(), 8))))
     
 #     def process_single_resume(r):
 #         """Process a single resume and return result."""
@@ -369,17 +393,28 @@
     
 #     out = []
 #     if parallel and len(resumes) > 1:
-#         # Parallel processing for resume scoring (embeddings are already batched)
+#         # Parallel processing using ProcessPoolExecutor (better for Windows)
 #         print(f"[INFO] Processing {len(resumes)} resumes in parallel with {max_workers} workers...")
-#         from concurrent.futures import ThreadPoolExecutor, as_completed
+#         print(f"[INFO] CPU cores available: {multiprocessing.cpu_count()}")
+#         from concurrent.futures import ProcessPoolExecutor, as_completed
         
-#         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-#             futures = {executor.submit(process_single_resume, r): r for r in resumes}
-            
-#             for future in tqdm(as_completed(futures), total=len(resumes), desc="Resumes"):
-#                 r = futures[future]
+#         try:
+#             with ProcessPoolExecutor(max_workers=max_workers) as executor:
+#                 futures = {executor.submit(process_single_resume, r): r for r in resumes}
+#                 
+#                 for future in tqdm(as_completed(futures), total=len(resumes), desc="Resumes"):
+#                     r = futures[future]
+#                     try:
+#                         result = future.result()
+#                         if result:
+#                             out.append(result)
+#                     except Exception as e:
+#                         print(f"⚠️ Error processing {r.name}: {e}")
+#         except Exception as e:
+#             print(f"⚠️ Parallel processing failed ({e}). Falling back to sequential...")
+#             for r in tqdm(resumes, desc="Resumes"):
 #                 try:
-#                     result = future.result()
+#                     result = process_single_resume(r)
 #                     if result:
 #                         out.append(result)
 #                 except Exception as e:

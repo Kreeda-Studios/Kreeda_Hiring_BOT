@@ -68,11 +68,18 @@ def main():
         if f.name != "example_output.json" and f.parent == PROCESSED_JSON_DIR
     ])
     
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"project-process","hypothesisId":"I8","location":"ProjectProcess.py:66","message":"Starting project processing","data":{"total_files":len(json_files)},"timestamp":int(__import__("time").time()*1000)})+"\n")
+    # #endregion
+    
     # Check for parallel processing flag
     parallel = os.getenv("ENABLE_PARALLEL", "false").lower() == "true"
     max_workers = int(os.getenv("MAX_WORKERS", "5"))
     
     results = []
+    processed_count = 0
+    error_count = 0
     
     if parallel and len(json_files) > 1:
         # Parallel processing
@@ -86,14 +93,39 @@ def main():
                     result = future.result()
                     if result:
                         results.append(result)
+                        processed_count += 1
+                    else:
+                        error_count += 1
                 except Exception as e:
+                    error_count += 1
                     print(f"⚠️ Error processing {json_file.name}: {e}")
+                    # #region agent log
+                    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                        log.write(json.dumps({"sessionId":"debug-session","runId":"project-process","hypothesisId":"I8","location":"ProjectProcess.py:90","message":"Error processing resume","data":{"file":json_file.name,"error":str(e)},"timestamp":int(__import__("time").time()*1000)})+"\n")
+                    # #endregion
     else:
         # Sequential processing
         for json_file in json_files:
-            result = process_resume(json_file)
-            if result:
-                results.append(result)
+            try:
+                result = process_resume(json_file)
+                if result:
+                    results.append(result)
+                    processed_count += 1
+                else:
+                    error_count += 1
+            except Exception as e:
+                error_count += 1
+                print(f"⚠️ Error processing {json_file.name}: {e}")
+                # #region agent log
+                with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+                    log.write(json.dumps({"sessionId":"debug-session","runId":"project-process","hypothesisId":"I8","location":"ProjectProcess.py:107","message":"Error processing resume","data":{"file":json_file.name,"error":str(e)},"timestamp":int(__import__("time").time()*1000)})+"\n")
+                # #endregion
+    
+    print(f"[SUMMARY] ProjectProcess: {processed_count} processed, {error_count} errors out of {len(json_files)} total")
+    # #region agent log
+    with open(".cursor/debug.log", "a", encoding="utf-8") as log:
+        log.write(json.dumps({"sessionId":"debug-session","runId":"project-process","hypothesisId":"I8","location":"ProjectProcess.py:112","message":"Project processing summary","data":{"total":len(json_files),"processed":processed_count,"errors":error_count},"timestamp":int(__import__("time").time()*1000)})+"\n")
+    # #endregion
 
     # Start fresh - clear existing scores for new batch
     # (Scores.json will be rebuilt from scratch with only current batch)
