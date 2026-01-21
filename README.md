@@ -14,9 +14,48 @@ An AI-powered resume screening system that automates candidate evaluation agains
 
 ---
 
-## Quick Start
+## � Quick Start with Docker (Recommended)
+
+### Prerequisites
+
+- Docker and Docker Compose installed ([Get Docker](https://docs.docker.com/get-docker/))
+- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+
+### Setup & Run
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd Kreeda_Hiring_BOT
+
+# 2. Create .env file
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+
+# 3. Start application
+docker-compose up -d
+```
+
+Access at **http://localhost:8501**
+
+### Docker Commands
+
+```bash
+docker-compose up -d          # Start in background
+docker-compose logs -f        # View logs
+docker-compose down           # Stop application
+docker-compose restart        # Restart
+docker-compose ps             # Check status
+docker-compose up --build -d  # Rebuild and start
+```
+
+---
+
+## 🐍 Manual Installation (Alternative)
 
 > **📖 For detailed setup instructions, see [SETUP.md](SETUP.md)**
+
+If you prefer running without Docker:
 
 ### Prerequisites
 
@@ -24,7 +63,7 @@ An AI-powered resume screening system that automates candidate evaluation agains
 - pip (Python package manager)
 - OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
 
-### Quick Installation
+### Installation Steps
 
 1. **Clone the repository:**
    ```bash
@@ -218,7 +257,19 @@ Kreeda_Hiring_BOT/
 
 ## Troubleshooting
 
-### Common Issues
+### Docker Issues
+
+**Port 8501 already in use:**
+- Change port in docker-compose.yml: `ports: - "8502:8501"`
+
+**OPENAI_API_KEY not set:**
+- Ensure `.env` exists with valid API key
+- Restart: `docker-compose restart`
+
+**View logs:**
+- `docker-compose logs -f`
+
+### Common Issues (Manual Installation)
 
 **Issue: "Module not found" errors**
 - **Solution**: Ensure virtual environment is activated and dependencies installed:

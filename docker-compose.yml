@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  hiring-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kreeda_hiring_bot
+    ports:
+      - "8501:8501"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENABLE_PARALLEL=${ENABLE_PARALLEL:-true}
+      - MAX_WORKERS=${MAX_WORKERS:-8}
+    env_file:
+      - .env
+    volumes:
+      # Persist uploaded resumes and processed data
+      - ./Uploaded_Resumes:/app/Uploaded_Resumes
+      - ./Processed-TXT:/app/Processed-TXT
+      - ./ProcessedJson:/app/ProcessedJson
+      - ./Ranking:/app/Ranking
+      - ./InputThread/JD:/app/InputThread/JD
+      # Cache directory for faster processing
+      - cache_data:/app/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+    
+volumes:
+  cache_data:
+    driver: local
