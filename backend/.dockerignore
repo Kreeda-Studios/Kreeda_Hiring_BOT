@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.env.local
+*.log
+coverage
+.nyc_output
+dist
+uploads/*
+!uploads/.gitkeep

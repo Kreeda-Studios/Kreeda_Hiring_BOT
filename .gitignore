@@ -1,3 +1,6 @@
 # Ignore all files in storage except .gitkeep
-/storage/*
-!/storage/.gitkeep
+/uploads/*
+!/uploads/.gitkeep
+
+# AI analysis and working files
+/.ai/
