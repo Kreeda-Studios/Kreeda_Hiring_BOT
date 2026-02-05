@@ -21,7 +21,8 @@ try:
     if api_key:
         client = OpenAI(api_key=api_key)
 except Exception as e:
-    print(f"⚠️ Failed to initialize OpenAI client: {e}")
+    #print(f"⚠️ Failed to initialize OpenAI client: {e}")
+    pass
 
 
 def parse_compliance_text(compliance_text: str, compliance_type: str = "mandatory") -> Dict[str, Any]:
@@ -45,7 +46,7 @@ def parse_compliance_text(compliance_text: str, compliance_type: str = "mandator
         }
     
     if not client:
-        print(f"⚠️ OpenAI client not initialized. Returning empty structure for {compliance_type} compliance.")
+        #print(f"⚠️ OpenAI client not initialized. Returning empty structure for {compliance_type} compliance.")
         return {
             "raw_prompt": compliance_text,
             "structured": {}
@@ -118,7 +119,7 @@ def parse_compliance_text(compliance_text: str, compliance_type: str = "mandator
     }
     
     llm_call_id = f"LLM_COMPLIANCE_{int(time.time() * 1000)}"
-    print(f"[{llm_call_id}] 🔄 Parsing {compliance_type} compliance with LLM")
+    #print(f"[{llm_call_id}] 🔄 Parsing {compliance_type} compliance with LLM")
     start_time = time.time()
     
     try:
@@ -163,7 +164,7 @@ def parse_compliance_text(compliance_text: str, compliance_type: str = "mandator
             structured = {}
         
         duration = time.time() - start_time
-        print(f"[{llm_call_id}] ✅ Parsed {compliance_type} compliance in {duration:.2f}s - {len(structured)} field(s)")
+        #print(f"[{llm_call_id}] ✅ Parsed {compliance_type} compliance in {duration:.2f}s - {len(structured)} field(s)")
         
         # Normalize the parsed structure
         normalized = normalize_parsed_requirements(structured)
@@ -175,7 +176,7 @@ def parse_compliance_text(compliance_text: str, compliance_type: str = "mandator
     
     except Exception as e:
         duration = time.time() - start_time
-        print(f"[{llm_call_id}] ❌ Error parsing {compliance_type} compliance ({duration:.2f}s): {e}")
+        #print(f"[{llm_call_id}] ❌ Error parsing {compliance_type} compliance ({duration:.2f}s): {e}")
         return {
             "raw_prompt": compliance_text,
             "structured": {}
@@ -257,6 +258,69 @@ def normalize_parsed_requirements(parsed: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
+def validate_and_format_compliances(job_data: dict) -> Dict:
+    """
+    Parse, validate and format compliance requirements in standardized format
+    
+    Args:
+        job_data: Job data dict with filter_requirements field
+        
+    Returns: {
+        'success': bool,
+        'filter_requirements': {
+            'mandatory_compliances': {raw_prompt, structured},
+            'soft_compliances': {raw_prompt, structured}
+        },
+        'stats': {
+            'mandatory_count': int,
+            'soft_count': int,
+            'total_count': int
+        },
+        'error': str or None
+    }
+    """
+    default_compliances = {
+        'mandatory_compliances': {'raw_prompt': '', 'structured': {}},
+        'soft_compliances': {'raw_prompt': '', 'structured': {}}
+    }
+    
+    try:
+        parsed_compliances = process_job_compliances(job_data)
+        
+        filter_requirements = {
+            'mandatory_compliances': parsed_compliances.get('mandatory_compliances', default_compliances['mandatory_compliances']),
+            'soft_compliances': parsed_compliances.get('soft_compliances', default_compliances['soft_compliances'])
+        }
+        
+        mandatory_count = len(filter_requirements['mandatory_compliances'].get('structured', {}))
+        soft_count = len(filter_requirements['soft_compliances'].get('structured', {}))
+        
+        return {
+            'success': True,
+            'filter_requirements': filter_requirements,
+            'stats': {
+                'mandatory_count': mandatory_count,
+                'soft_count': soft_count,
+                'total_count': mandatory_count + soft_count
+            },
+            'error': None
+        }
+        
+    except Exception as e:
+        existing = job_data.get('filter_requirements', default_compliances)
+        
+        return {
+            'success': False,
+            'filter_requirements': existing,
+            'stats': {
+                'mandatory_count': 0,
+                'soft_count': 0,
+                'total_count': 0
+            },
+            'error': str(e)
+        }
+
+
 def process_job_compliances(job_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process both mandatory and soft compliances from job data.
@@ -286,9 +350,9 @@ def process_job_compliances(job_data: Dict[str, Any]) -> Dict[str, Any]:
         if soft_compliance:
             soft_text = soft_compliance.get('raw_prompt', '')
     
-    print(f"\n📋 Compliance Parsing:")
-    print(f"   Mandatory: {len(mandatory_text)} chars")
-    print(f"   Soft: {len(soft_text)} chars")
+    #print(f"\n📋 Compliance Parsing:")
+    #print(f"   Mandatory: {len(mandatory_text)} chars")
+    #print(f"   Soft: {len(soft_text)} chars")
     
     # Parse both compliances
     result = {
@@ -298,51 +362,24 @@ def process_job_compliances(job_data: Dict[str, Any]) -> Dict[str, Any]:
     
     # Parse mandatory compliances if present
     if mandatory_text and mandatory_text.strip():
-        print(f"\n🔴 Parsing MANDATORY compliances...")
+        #print(f"\n🔴 Parsing MANDATORY compliances...")
         result["mandatory_compliances"] = parse_compliance_text(mandatory_text, "mandatory")
         structured_count = len(result["mandatory_compliances"].get("structured", {}))
-        print(f"   ✅ Extracted {structured_count} mandatory requirement field(s)")
+        #print(f"   ✅ Extracted {structured_count} mandatory requirement field(s)")
     else:
-        print(f"   ℹ️ No mandatory compliances specified")
+        #print(f"   ℹ️ No mandatory compliances specified")
+        pass
     
     # Parse soft compliances if present
     if soft_text and soft_text.strip():
-        print(f"\n🟢 Parsing SOFT compliances...")
+        #print(f"\n🟢 Parsing SOFT compliances...")
         result["soft_compliances"] = parse_compliance_text(soft_text, "soft")
         structured_count = len(result["soft_compliances"].get("structured", {}))
-        print(f"   ✅ Extracted {structured_count} soft requirement field(s)")
+        #print(f"   ✅ Extracted {structured_count} soft requirement field(s)")
     else:
-        print(f"   ℹ️ No soft compliances specified")
+        #print(f"   ℹ️ No soft compliances specified")
+        pass
     
     return result
 
 
-if __name__ == "__main__":
-    # Test the parser
-    test_mandatory = """
-    MANDATORY REQUIREMENTS (Must have ALL):
-    - Minimum 5 years ML/AI experience
-    - Required Skills: Python, TensorFlow, PyTorch
-    - Master's degree in CS/ML/AI or related field
-    - Production ML system deployment experience
-    """
-    
-    test_soft = """
-    PREFERRED QUALIFICATIONS (Nice to have):
-    - PhD in Computer Science or Machine Learning
-    - Experience with MLOps tools and practices
-    - Knowledge of Docker and Kubernetes
-    """
-    
-    print("Testing Compliance Parser\n")
-    print("=" * 60)
-    
-    mandatory_result = parse_compliance_text(test_mandatory, "mandatory")
-    print(f"\nMandatory Result:")
-    print(json.dumps(mandatory_result, indent=2))
-    
-    print("\n" + "=" * 60)
-    
-    soft_result = parse_compliance_text(test_soft, "soft")
-    print(f"\nSoft Result:")
-    print(json.dumps(soft_result, indent=2))

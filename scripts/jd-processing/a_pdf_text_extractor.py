@@ -142,6 +142,71 @@ def extract_with_ocr(file_path: str) -> Dict[str, Any]:
             'error': f"OCR extraction failed: {str(e)}"
         }
 
+def get_jd_pdf_path(jd_pdf_filename: str, base_path: str = '/app') -> str:
+    """Get full path to JD PDF file"""
+    return os.path.join(base_path, 'uploads', 'jds', jd_pdf_filename)
+
+
+def extract_combined_text(job_data: dict, base_path: str = '/app') -> Dict[str, Any]:
+    """
+    Extract and combine text from PDF and JD text fields
+    
+    Args:
+        job_data: Job data dict with jd_pdf_filename and jd_text fields
+        base_path: Base uploads directory
+        
+    Returns: {
+        'success': bool,
+        'text': str,
+        'sources': list,  # ['pdf', 'jd_text']
+        'char_count': int,
+        'error': str or None
+    }
+    """
+    combined_text = ""
+    sources = []
+    
+    # Extract from PDF if filename exists
+    jd_pdf_filename = job_data.get('jd_pdf_filename', '')
+    if jd_pdf_filename:
+        file_path = get_jd_pdf_path(jd_pdf_filename, base_path)
+        
+        if os.path.exists(file_path):
+            text_result = process_jd_file(file_path)
+            
+            if text_result.get('success'):
+                pdf_text = text_result.get('text', '')
+                if pdf_text:
+                    combined_text += pdf_text
+                    sources.append('pdf')
+    
+    # Add jd_text if exists
+    jd_text = job_data.get('jd_text', '')
+    if jd_text:
+        if combined_text:
+            combined_text += "\n\n" + jd_text
+        else:
+            combined_text = jd_text
+        sources.append('jd_text')
+    
+    if not combined_text:
+        return {
+            'success': False,
+            'text': '',
+            'sources': [],
+            'char_count': 0,
+            'error': 'No JD text or PDF content found'
+        }
+    
+    return {
+        'success': True,
+        'text': combined_text,
+        'sources': sources,
+        'char_count': len(combined_text),
+        'error': None
+    }
+
+
 def process_jd_file(file_path: str) -> Dict[str, Any]:
     """
     Main function to extract text from JD file
@@ -168,7 +233,7 @@ def process_jd_file(file_path: str) -> Dict[str, Any]:
         
         # Only try OCR if PyMuPDF completely fails (not just poor quality)
         if not result['success']:
-            print(f"⚠️ PyMuPDF extraction failed, trying OCR...")
+            #print(f"⚠️ PyMuPDF extraction failed, trying OCR...")
             ocr_result = extract_with_ocr(file_path)
             if ocr_result['success']:
                 return ocr_result
@@ -177,7 +242,7 @@ def process_jd_file(file_path: str) -> Dict[str, Any]:
                 return result
         
         # If we got some text from PyMuPDF, use it even if it seems short
-        print(f"✅ PyMuPDF extracted {len(result.get('text', ''))} characters")
+        #print(f"✅ PyMuPDF extracted {len(result.get('text', ''))} characters")
         return result
         
     elif file_ext in ['.docx', '.doc']:

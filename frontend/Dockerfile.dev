@@ -1,0 +1,24 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies for Next.js
+RUN apk add --no-cache libc6-compat curl
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install
+
+
+# Expose port
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3000 || exit 1
+
+# Run in development mode with hot reload
+CMD ["npm", "run", "dev"]

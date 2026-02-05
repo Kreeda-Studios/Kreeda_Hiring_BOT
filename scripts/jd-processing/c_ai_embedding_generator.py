@@ -25,7 +25,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 try:
     from openai_client import create_embedding
 except ImportError:
-    print("❌ Failed to import OpenAI client")
+    #print("❌ Failed to import OpenAI client")
     sys.exit(1)
 
 
@@ -159,6 +159,79 @@ def build_section_texts(parsed_jd: Dict[str, Any]) -> Dict[str, str]:
     return sections
 
 
+def generate_and_format_embeddings(parsed_jd: dict) -> Dict:
+    """
+    Generate embeddings and format for database (API-ready payload)
+    
+    Args:
+        parsed_jd: Parsed JD data from AI
+        
+    Returns: {
+        'success': bool,
+        'embeddings_payload': {  # Ready for API PATCH
+            'embeddings': {
+                'embedding_model': str,
+                'embedding_dimension': int,
+                'profile_embedding': list,
+                'skills_embedding': list,
+                'projects_embedding': list,
+                'responsibilities_embedding': list,
+                'education_embedding': list,
+                'overall_embedding': list
+            }
+        },
+        'stats': {
+            'sections_generated': int,
+            'total_sections': int,
+            'model': str,
+            'dimension': int
+        },
+        'error': str or None
+    }
+    """
+    result = process_jd_embeddings(parsed_jd)
+    
+    if not result.get('success'):
+        return {
+            'success': False,
+            'embeddings_payload': None,
+            'stats': {
+                'sections_generated': 0,
+                'total_sections': 6,
+                'model': None,
+                'dimension': None
+            },
+            'error': result.get('error', 'Embedding generation failed')
+        }
+    
+    embeddings_payload = {
+        'embeddings': {
+            'embedding_model': result.get('embedding_model', 'text-embedding-3-small'),
+            'embedding_dimension': result.get('embedding_dimension', 1536),
+            'profile_embedding': result.get('profile_embedding'),
+            'skills_embedding': result.get('skills_embedding'),
+            'projects_embedding': result.get('projects_embedding'),
+            'responsibilities_embedding': result.get('responsibilities_embedding'),
+            'education_embedding': result.get('education_embedding'),
+            'overall_embedding': result.get('overall_embedding')
+        }
+    }
+    
+    sections_count = result.get('sections_generated', 6)
+    
+    return {
+        'success': True,
+        'embeddings_payload': embeddings_payload,
+        'stats': {
+            'sections_generated': sections_count,
+            'total_sections': 6,
+            'model': result.get('embedding_model', 'text-embedding-3-small'),
+            'dimension': result.get('embedding_dimension', 1536)
+        },
+        'error': None
+    }
+
+
 def process_jd_embeddings(parsed_jd: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate all 6 section embeddings for JD (matches old system)
@@ -190,7 +263,7 @@ def process_jd_embeddings(parsed_jd: Dict[str, Any]) -> Dict[str, Any]:
             result = generate_section_embedding(sections[section], section)
             
             if not result['success']:
-                print(f"⚠️ Warning: {section} embedding failed: {result.get('error')}")
+                #print(f"⚠️ Warning: {section} embedding failed: {result.get('error')}")
                 # Use empty embedding as fallback
                 results[f'{section}_embedding'] = None
             else:

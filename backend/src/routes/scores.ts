@@ -55,9 +55,16 @@ router.get('/job/:jobId', async (req: Request, res: Response) => {
     const { jobId } = req.params;
     
     const scores = await ScoreResult.find({ job_id: jobId })
-      .populate({
+        .populate({
         path: 'resume_id',
-        select: 'filename candidate_name',
+        select: 'filename parsed_content',
+        transform: (doc: any) => {
+          if (!doc) return doc;
+          return {
+            ...doc.toObject(),
+            candidate_name: doc.parsed_content?.name || null
+          };
+        }
       })
       .sort({ final_score: -1 });
     

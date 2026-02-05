@@ -24,7 +24,7 @@ sys.path.append(str(base_path / 'resume-processing'))
 sys.path.append(str(base_path / 'final-ranking'))
 
 try:
-    from bullmq import Worker
+    from bullmq import Worker, Queue
 except ImportError:
     print("❌ BullMQ library not found. Install with: pip install bullmq")
     sys.exit(1)
@@ -69,29 +69,11 @@ class KreedaJobProcessor:
         
         try:
             logger.info(f"📋 Job data: jobId={job_id}")
-            
-            # Get event loop for thread-safe coroutine execution
-            loop = asyncio.get_event_loop()
-            
-            # Progress callback to update BullMQ job progress
-            def progress_callback(progress_data):
-                try:
-                    # Update BullMQ job progress (thread-safe)
-                    percent = progress_data.get('percent', 0)
-                    asyncio.run_coroutine_threadsafe(job.updateProgress(progress_data), loop)
-                    logger.info(f"📊 Progress update: {percent}% - {progress_data.get('message')}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to update progress: {e}")
-            
             logger.info(f"🚀 Calling process_jd_complete for job {job_id}")
             
-            # Run in thread pool to allow parallel processing
-            result = await loop.run_in_executor(
-                None,
-                process_jd_complete,
-                job_id,
-                progress_callback
-            )
+            # Call with job object (ProgressTracker handles BullMQ updates)
+            result = await process_jd_complete(job)
+            
             logger.info(f"📊 Result from process_jd_complete: success={result.get('success')}, error={result.get('error')}")
             
             if result.get('success'):
@@ -110,12 +92,7 @@ class KreedaJobProcessor:
             raise e
     
     async def process_resume_job(self, job, job_token):
-        """Process resume processing job (includes scoring)
-        
-        Handles both:
-        - Parent Flow jobs (process-resume-group): Lightweight, just tracks progress
-        - Child jobs (process-resume): Actual resume processing
-        """
+        """Process resume processing job"""
         job_name = job.name
         logger.info(f"📄 Processing resume job {job.id} (name: {job_name})")
         
@@ -127,7 +104,6 @@ class KreedaJobProcessor:
             total_resumes = job_data.get('totalResumes', 0)
             
             # Parent job just waits for children to complete
-            # BullMQ handles this automatically, so we just return success
             return {
                 'success': True,
                 'message': f'Parent job tracking {total_resumes} resume processing jobs',
@@ -135,87 +111,33 @@ class KreedaJobProcessor:
             }
         
         # Handle child job (process-resume) - actual processing
-        resume_id = job_data.get('resumeId')
-        job_id = job_data.get('jobId')
-        file_path = job_data.get('filePath')
-        resume_index = job_data.get('resumeIndex', 0)
-        total_resumes = job_data.get('totalResumes', 0)
+        resume_id = job_data.get('resumeId') or job_data.get('resume_id')
+        job_id = job_data.get('jobId') or job.data.get('job_id')
+        resume_index = job.data.get('resumeIndex', 0) or job.data.get('index', 0)
+        total_resumes = job.data.get('totalResumes', 0) or job.data.get('total', 0)
         
-        # Create resume identifier for logging
+        # Normalize job data for processor
+        normalized_data = {
+            'resume_id': resume_id,
+            'job_id': job_id,
+            'index': resume_index,
+            'total': total_resumes
+        }
+        job.data = normalized_data
+        
         resume_label = f"[{resume_index}/{total_resumes}]" if resume_index else ""
-        
-        logger.info(f"📄 {resume_label} Processing resume ID: {resume_id}, Job ID: {job_id}, File: {file_path}")
+        logger.info(f"📄 {resume_label} Processing resume ID: {resume_id}, Job ID: {job_id}")
         
         try:
-            # Get event loop for thread-safe coroutine execution
-            loop = asyncio.get_event_loop()
+            logger.info(f"🚀 {resume_label} Calling process_resume_pipeline for resume {resume_id}")
             
-            # Progress callback to update BullMQ job progress
-            def progress_callback(progress_data):
-                try:
-                    percent = progress_data.get('percent', 0)
-                    message = progress_data.get('message', '')
-                    stage = progress_data.get('stage', '')
-                    
-                    # Update BullMQ job progress (thread-safe)
-                    # Use run_coroutine_threadsafe since callback is called from thread pool
-                    asyncio.run_coroutine_threadsafe(job.updateProgress(progress_data), loop)
-                    
-                    # Log progress with emojis for better visibility
-                    stage_emoji = {
-                        'starting': '🚀',
-                        'extraction_complete': '📄',
-                        'parsing_start': '🤖',
-                        'parsing_complete': '✅',
-                        'embedding_start': '🧠',
-                        'embedding_complete': '💾',
-                        'scoring_start': '🎯',
-                        'hard_req_complete': '✔️',
-                        'project_complete': '📊',
-                        'keyword_complete': '🔤',
-                        'semantic_complete': '🔗',
-                        'composite_start': '🧮',
-                        'composite_complete': '🏆',
-                        'saving': '💾',
-                        'complete': '✅'
-                    }.get(stage, '📊')
-                    
-                    logger.info(f"{stage_emoji} {resume_label} [{resume_id}] {percent}% - {message}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to update progress: {e}")
+            # Call with job object (ProgressTracker handles BullMQ updates)
+            result = await process_resume_pipeline(job)
             
-            # Fetch JD requirements via API
-            try:
-                import requests
-                backend_api_url = os.getenv('BACKEND_API_URL', 'http://localhost:3001/api')
-                response = requests.get(
-                    f"{backend_api_url}/jobs/{job_id}",
-                    timeout=30
-                )
-                response.raise_for_status()
-                job_data_response = response.json()
-                job_requirements = job_data_response.get('data', {})  # Get full job data, not just jd_analysis
-                logger.info(f"✅ Fetched job requirements for {job_id} via API")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to fetch job requirements for {job_id}: {e}. Using empty requirements.")
-                job_requirements = {}
-            
-            logger.info(f"🚀 {resume_label} Starting resume pipeline for {resume_id}")
-            
-            # Run synchronous pipeline in thread pool to allow parallel processing
-            # This prevents blocking the async event loop
-            result = await loop.run_in_executor(
-                None,  # Use default ThreadPoolExecutor
-                process_resume_pipeline,
-                file_path,
-                job_requirements,
-                resume_id,
-                job_id,
-                progress_callback
-            )
+            logger.info(f"📊 Result: success={result.get('success')}, score={result.get('final_score')}")
             
             if result.get('success'):
-                logger.info(f"✅ {resume_label} Resume job {job.id} completed successfully")
+                logger.info(f"✅ {resume_label} Resume job {job.id} completed with score {result.get('final_score')}")
                 return result
             else:
                 error_msg = result.get('error', 'Unknown error')
@@ -241,9 +163,9 @@ class KreedaJobProcessor:
             # Extract job parameters for new batch structure
             score_result_ids = job_data.get('scoreResults', [])
             batch_index = job_data.get('batchIndex', 1)
-            total_batches = job_data.get('totalBatches', 1)
-            ranking_criteria = job_data.get('rankingCriteria', {})
-            resume_group_id = job_data.get('resumeGroupId', 'all-groups')
+            total_batches = job.data.get('totalBatches', 1)
+            ranking_criteria = job.data.get('rankingCriteria', {})
+            resume_group_id = job.data.get('resumeGroupId', 'all-groups')
             
             logger.info(f"📊 Batch {batch_index}/{total_batches}, {len(score_result_ids)} scores")
             
@@ -339,20 +261,42 @@ class KreedaJobProcessor:
         
         logger.info("✅ All workers shut down successfully")
     
+    async def log_queue_counts(self):
+        """Log the number of jobs in each queue at startup"""
+        try:
+            from bullmq import Queue
+        except ImportError:
+            logger.error("❌ BullMQ library not found. Install with: pip install bullmq")
+            return
+        
+        queue_names = ["jd-processing", "resume-processing", "ranking"]
+        for name in queue_names:
+            try:
+                q = Queue(name, {"connection": self.redis_config})
+                # Use getJobCounts() instead of count()
+                counts = await q.getJobCounts()
+                total = sum(counts.values()) if counts else 0
+                logger.info(f"📦 Queue '{name}' has  {total} jobs (waiting: {counts.get('waiting', 0)}, active: {counts.get('active', 0)})")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not get count for queue '{name}': {e}")
+
     async def run(self):
         """Main run method with proper lifecycle management"""
         try:
             # Setup signal handlers
             self.setup_signal_handlers()
-            
+
+            # Log job counts in each queue at startup
+            await self.log_queue_counts()
+
             # Start all workers
             await self.start_workers()
-            
+
             logger.info("🎯 Kreeda Job Processor is running. Press Ctrl+C to stop.")
-            
+
             # Wait for shutdown signal
             await self.shutdown_event.wait()
-            
+
         except Exception as e:
             logger.error(f"❌ Fatal error in processor: {e}")
             raise

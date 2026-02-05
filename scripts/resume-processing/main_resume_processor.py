@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
 
+import sys
 import os
 import json
-import requests
+from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-# Backend API configuration
-API_BASE_URL = os.getenv('BACKEND_API_URL', os.getenv('API_BASE_URL', 'http://localhost:3001/api'))
-BACKEND_API_KEY = os.getenv('BACKEND_API_KEY', '')
+# Add paths BEFORE imports
+script_dir = Path(__file__).parent
+parent_dir = script_dir.parent
 
-# Direct function imports
+if str(script_dir) not in sys.path:
+    sys.path.insert(0, str(script_dir))
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
+from common.api_client import api, APIError
+from common.job_logger import JobLogger
+from common.bullmq_progress import ProgressTracker
+
 from a_pdf_extractor import process_resume_file
 from b_ai_parser import parse_resume_with_ai
 from c_embedding_generator import generate_resume_embeddings
@@ -23,132 +32,8 @@ from h_composite_scorer import calculate_composite_score
 class ResumeProcessingError(Exception):
     pass
 
-def update_resume_via_api(resume_id: str, update_data: Dict[str, Any]) -> bool:
-    """Update resume data via backend API"""
-    try:
-        headers = {'Content-Type': 'application/json'}
-        if BACKEND_API_KEY:
-            headers['Authorization'] = f'Bearer {BACKEND_API_KEY}'
-        
-        response = requests.put(
-            f'{API_BASE_URL}/updates/resume/{resume_id}',
-            json=update_data,
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
-        print(f"✅ Updated resume {resume_id} via API")
-        return True
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ API call failed for resume {resume_id}: {e}")
-        return False
-    except Exception as e:
-        print(f"❌ Error updating resume {resume_id}: {e}")
-        return False
-
-def get_job_via_api(job_id: str) -> Optional[Dict[str, Any]]:
-    """Get job details via backend API"""
-    try:
-        headers = {}
-        if BACKEND_API_KEY:
-            headers['Authorization'] = f'Bearer {BACKEND_API_KEY}'
-        
-        response = requests.get(
-            f'{API_BASE_URL}/jobs/{job_id}',
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
-        result = response.json()
-        return result.get('data')
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ API call failed for job {job_id}: {e}")
-        return None
-    except Exception as e:
-        print(f"❌ Error getting job {job_id}: {e}")
-        return None
-
-def get_resume_via_api(resume_id: str) -> Optional[Dict[str, Any]]:
-    """Get resume details via backend API"""
-    try:
-        headers = {}
-        if BACKEND_API_KEY:
-            headers['Authorization'] = f'Bearer {BACKEND_API_KEY}'
-        
-        response = requests.get(
-            f'{API_BASE_URL}/updates/resume/{resume_id}',
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
-        result = response.json()
-        return result.get('data')
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ API call failed for resume {resume_id}: {e}")
-        return None
-    except Exception as e:
-        print(f"❌ Error getting resume {resume_id}: {e}")
-        return None
-
-def save_score_via_api(job_id: str, resume_id: str, scores: Dict) -> bool:
-    """Save or update score result via backend API"""
-    try:
-        headers = {'Content-Type': 'application/json'}
-        if BACKEND_API_KEY:
-            headers['Authorization'] = f'Bearer {BACKEND_API_KEY}'
-        
-        response = requests.post(
-            f'{API_BASE_URL}/updates/score',
-            json={
-                'job_id': job_id,
-                'resume_id': resume_id,
-                'keyword_score': scores.get('keyword_score', 0),
-                'semantic_score': scores.get('semantic_score', 0),
-                'project_score': scores.get('project_score', 0),
-                'final_score': scores.get('final_score', 0),
-                'hard_requirements_met': scores.get('hard_requirements_passed', True),
-                'score_breakdown': scores.get('breakdown', {})
-            },
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
-        print(f"✅ Saved score for resume {resume_id} via API")
-        return True
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ API call failed for score save (resume {resume_id}): {e}")
-        return False
-    except Exception as e:
-        print(f"❌ Error saving score for resume {resume_id}: {e}")
-        return False
-
-def update_resume_status(resume_id: str, status: str, parsed_content: Dict = None) -> bool:
-    """Update resume processing status via backend API"""
-    update_data = {}
-    
-    if status in ('extraction_complete', 'extraction_success'):
-        update_data['extraction_status'] = 'success'
-    elif status == 'extraction_failed':
-        update_data['extraction_status'] = 'failed'
-    elif status in ('parsing_complete', 'parsing_success'):
-        update_data['parsing_status'] = 'success'
-        if parsed_content:
-            update_data['parsed_content'] = parsed_content
-    elif status == 'parsing_failed':
-        update_data['parsing_status'] = 'failed'
-    elif status in ('embedding_complete', 'embedding_success'):
-        update_data['embedding_status'] = 'success'
-    elif status == 'embedding_failed':
-        update_data['embedding_status'] = 'failed'
-    
-    return update_resume_via_api(resume_id, update_data)
-
-def update_resume_embeddings(resume_id: str, section_embeddings: Dict[str, Any]) -> bool:
-    """Update resume embeddings (6 sections) via backend API"""
+def update_resume_embeddings(resume_id: str, section_embeddings: Dict[str, Any]) -> Dict:
+    """Format resume embeddings for database update"""
     try:
         import numpy as np
         
@@ -168,111 +53,145 @@ def update_resume_embeddings(resume_id: str, section_embeddings: Dict[str, Any])
                 else:
                     resume_embedding[section] = []
         
-        update_data = {
+        return {
             'resume_embedding': resume_embedding,
             'embedding_status': 'success'
         }
         
-        return update_resume_via_api(resume_id, update_data)
-        
     except Exception as e:
-        print(f"❌ Error updating embeddings for resume {resume_id}: {e}")
-        return False
+        raise ResumeProcessingError(f"Error formatting embeddings: {e}")
 
-def process_resume_pipeline(resume_file_path: str, jd_data: Dict[str, Any], 
-                          resume_id: str, job_id: str,
-                          progress_callback: Optional[callable] = None) -> Dict[str, Any]:
-    """Process resume through complete pipeline with progress updates"""
+async def process_resume_pipeline(job) -> Dict[str, Any]:
+    """Process resume through complete pipeline with BullMQ progress tracking"""
     
-    def report_progress(percent: int, message: str, stage: str = None):
-        """Helper to report progress"""
-        if progress_callback:
-            progress_callback({
-                'percent': percent,
-                'message': message,
-                'stage': stage,
-                'resume_id': resume_id,
-                'job_id': job_id
-            })
-        print(f"📊 [{percent}%] {message}")
+    job_data = job.data
+    resume_id = job_data.get('resume_id')
+    job_id = job_data.get('job_id')
+    index = job_data.get('index', 1)
+    total = job_data.get('total', 1)
+    
+    logger = JobLogger.for_resume(resume_id, index, total)
+    tracker = ProgressTracker(job)
     
     try:
-        report_progress(0, f"Starting resume processing: {resume_file_path}", "starting")
+        # Fetch resume data
+        await tracker.update(5, "fetching_resume", "Fetching resume data")
+        logger.progress("Fetching resume data")
+        
+        resume_data = api.get(f"/updates/resume/{resume_id}")
+        
+        # Construct file path from group_id and filename
+        group_id = resume_data.get('group_id')
+        filename = resume_data.get('filename')
+        
+        if not filename:
+            error_msg = f"Resume has no filename: {resume_id}"
+            logger.fail(error_msg)
+            await tracker.failed(error_msg, "InvalidDataError", "fetching_resume")
+            return {'success': False, 'error': error_msg}
+        
+        # Path structure: /app/uploads/{group_id}/resumes/{filename}
+        if group_id:
+            resume_file_path = f"/app/uploads/{group_id}/resumes/{filename}"
+        else:
+            # Fallback to direct path if no group_id
+            resume_file_path = f"/app/uploads/resumes/{filename}"
+        
+        if not os.path.exists(resume_file_path):
+            error_msg = f"Resume file not found: {resume_file_path}"
+            logger.fail(error_msg)
+            await tracker.failed(error_msg, "FileNotFoundError", "fetching_resume")
+            return {'success': False, 'error': error_msg}
+        
+        logger.progress(f"File located: {os.path.basename(resume_file_path)}")
+        await tracker.update(8, "fetching_resume", "Resume file located")
+        
+        # Fetch job data
+        await tracker.update(10, "fetching_job", "Fetching job data")
+        jd_data = api.get(f"/jobs/{job_id}")
+        
+        logger.progress(f"Processing: {os.path.basename(resume_file_path)}")
+        await tracker.update(12, "starting", f"Starting resume processing")
         
         # Extract text from PDF
+        await tracker.update(15, "extracting_text", "Extracting text from PDF")
+        logger.progress("Extracting text from PDF")
+        
         text_result = process_resume_file(resume_file_path)
         if not text_result.get('success'):
-            update_resume_status(resume_id, 'extraction_failed')
-            raise ResumeProcessingError(f"Text extraction failed: {text_result.get('error')}")
+            error_msg = f"Text extraction failed: {text_result.get('error')}"
+            logger.fail(error_msg)
+            api.put(f"/updates/resume/{resume_id}", data={'extraction_status': 'failed'})
+            await tracker.failed(error_msg, "ExtractionError", "extracting_text")
+            return {'success': False, 'error': error_msg}
         
-        update_resume_status(resume_id, 'extraction_success')
+        api.put(f"/updates/resume/{resume_id}", data={'extraction_status': 'success'})
         
         char_count = text_result.get('metadata', {}).get('characters', len(text_result.get('text', '')))
-        report_progress(15, f"Text extracted: {char_count} chars", "extraction_complete")
+        logger.progress(f"Extracted {char_count} characters")
+        await tracker.update(20, "extracting_text", f"Text extracted: {char_count} chars")
         
         # Parse with AI
-        report_progress(20, "Starting AI parsing...", "parsing_start")
+        await tracker.update(25, "parsing", "Parsing resume with AI")
+        logger.progress("Parsing resume with AI (1-2 minutes)")
+        
         parse_result = parse_resume_with_ai(text_result['text'], jd_data)
         if not parse_result.get('success'):
-            update_resume_status(resume_id, 'parsing_failed')
-            raise ResumeProcessingError(f"AI parsing failed: {parse_result.get('error')}")
+            error_msg = f"AI parsing failed: {parse_result.get('error')}"
+            logger.fail(error_msg)
+            api.put(f"/updates/resume/{resume_id}", data={'parsing_status': 'failed'})
+            await tracker.failed(error_msg, "AIParsingError", "parsing")
+            return {'success': False, 'error': error_msg}
         
         parsed_resume = parse_result['parsed_data']
-        update_resume_status(resume_id, 'parsing_success', parsed_resume)
-        report_progress(35, f"Resume parsed: {parsed_resume.get('name', 'Unknown')}", "parsing_complete")
+        api.put(f"/updates/resume/{resume_id}", data={
+            'parsing_status': 'success',
+            'parsed_content': parsed_resume
+        })
+        logger.progress(f"Parsed: {parsed_resume.get('name', 'Unknown')}")
+        await tracker.update(40, "parsing", f"Resume parsed successfully")
         
         # Generate embeddings
-        report_progress(40, "Generating embeddings...", "embedding_start")
+        await tracker.update(45, "generating_embeddings", "Generating embeddings")
+        logger.progress("Generating embeddings")
+        
         embed_result = generate_resume_embeddings(parsed_resume)
         if not embed_result.get('success'):
-            update_resume_status(resume_id, 'embedding_failed')
-            raise ResumeProcessingError(f"Embedding failed: {embed_result.get('error')}")
-        
-        # Save embeddings to database
-        section_embeddings = embed_result.get('section_embeddings', {})
-        embedding_saved = update_resume_embeddings(resume_id, section_embeddings)
-        
-        report_progress(55, f"Embeddings generated for {len(section_embeddings)} sections", "embedding_complete")
+            error_msg = f"Embedding failed: {embed_result.get('error')}"
+            logger.progress(f"Warning: {error_msg}")
+            api.put(f"/updates/resume/{resume_id}", data={'embedding_status': 'failed'})
+            await tracker.update(55, "generating_embeddings", f"Warning: {error_msg}")
+        else:
+            section_embeddings = embed_result.get('section_embeddings', {})
+            embedding_data = update_resume_embeddings(resume_id, section_embeddings)
+            api.put(f"/updates/resume/{resume_id}", data=embedding_data)
+            logger.progress(f"Embeddings generated: {len(section_embeddings)} sections")
+            await tracker.update(55, "generating_embeddings", "Embeddings generated")
         
         # Calculate scores
-        report_progress(60, "Calculating scores...", "scoring_start")
-        
-        # Log actual data for debugging
-        try:
-            with open('/tmp/debug_resume_data.json', 'w') as f:
-                json.dump({
-                    'resume_id': resume_id,
-                    'job_id': job_id,
-                    'parsed_resume': parsed_resume,
-                    'timestamp': datetime.now().isoformat()
-                }, f, indent=2, default=str)
-            with open('/tmp/debug_jd_data.json', 'w') as f:
-                json.dump({
-                    'job_id': job_id,
-                    'jd_data': jd_data,
-                    'timestamp': datetime.now().isoformat()
-                }, f, indent=2, default=str)
-            print(f"📝 Debug data logged to /tmp/debug_resume_data.json and /tmp/debug_jd_data.json")
-        except Exception as e:
-            print(f"⚠️ Failed to log debug data: {e}")
+        await tracker.update(60, "scoring", "Calculating scores")
+        logger.progress("Calculating scores")
         
         # Hard requirements check
         hard_req_result = check_hard_requirements(parsed_resume, jd_data)
         if not hard_req_result.get('success'):
             hard_req_result = {'all_requirements_met': True, 'overall_compliance_score': 1.0}
-        report_progress(65, f"Hard requirements: {'✅ Met' if hard_req_result.get('all_requirements_met') else '❌ Not met'}", "hard_req_complete")
+        logger.progress(f"Hard req: {'✅ Met' if hard_req_result.get('all_requirements_met') else '❌ Not met'}")
+        await tracker.update(65, "scoring", "Hard requirements checked")
         
         # Project scoring
         project_result = calculate_project_scores(parsed_resume, jd_data)
         if not project_result.get('success'):
             project_result = {'overall_score': 0.0}
-        report_progress(70, f"Project score: {project_result.get('overall_score', 0):.2f}", "project_complete")
+        logger.progress(f"Project score: {project_result.get('overall_score', 0):.2f}")
+        await tracker.update(70, "scoring", "Project scoring complete")
         
         # Keyword scoring
         keyword_result = calculate_keyword_scores(parsed_resume, jd_data)
         if not keyword_result.get('success'):
             keyword_result = {'overall_score': 0.0}
-        report_progress(75, f"Keyword score: {keyword_result.get('overall_score', 0):.2f}", "keyword_complete")
+        logger.progress(f"Keyword score: {keyword_result.get('overall_score', 0):.2f}")
+        await tracker.update(75, "scoring", "Keyword scoring complete")
         
         # Semantic scoring
         semantic_result = calculate_semantic_scores(
@@ -280,10 +199,13 @@ def process_resume_pipeline(resume_file_path: str, jd_data: Dict[str, Any],
         )
         if not semantic_result.get('success'):
             semantic_result = {'overall_semantic_score': 0.0}
-        report_progress(80, f"Semantic score: {semantic_result.get('overall_semantic_score', 0):.2f}", "semantic_complete")
+        logger.progress(f"Semantic score: {semantic_result.get('overall_semantic_score', 0):.2f}")
+        await tracker.update(80, "scoring", "Semantic scoring complete")
         
         # Calculate final composite score
-        report_progress(85, "Calculating final composite score...", "composite_start")
+        await tracker.update(85, " composite_scoring", "Calculating final composite score")
+        logger.progress("Calculating final composite score")
+        
         composite_result = calculate_composite_score(
             hard_req_result, project_result, keyword_result, semantic_result,
             parsed_resume, jd_data.get('jd_analysis', {})
@@ -292,20 +214,32 @@ def process_resume_pipeline(resume_file_path: str, jd_data: Dict[str, Any],
             composite_result = {'final_score': 0.0, 'ranking_tier': 'Poor'}
         
         final_score = composite_result.get('final_score', 0.0)
-        report_progress(90, f"Final score: {final_score:.2f} ({composite_result.get('ranking_tier', 'Unknown')})", "composite_complete")
+        logger.progress(f"Final score: {final_score:.2f} ({composite_result.get('ranking_tier', 'Unknown')})")
+        await tracker.update(90, "composite_scoring", f"Final score: {final_score:.2f}")
         
         # Save scores to database
-        report_progress(95, "Saving scores to database...", "saving")
-        scores = {
+        await tracker.update(95, "saving_scores", "Saving scores to database")
+        logger.progress("Saving scores to database")
+        
+        api.post("/updates/score", data={
+            'job_id': job_id,
+            'resume_id': resume_id,
             'keyword_score': keyword_result.get('overall_score', 0.0),
             'semantic_score': semantic_result.get('overall_semantic_score', 0.0),
             'project_score': project_result.get('overall_score', 0.0),
             'final_score': composite_result.get('final_score', 0.0),
-            'hard_requirements_passed': hard_req_result.get('all_requirements_met', True)
-        }
-        save_score_via_api(job_id, resume_id, scores)
+            'hard_requirements_met': hard_req_result.get('all_requirements_met', True),
+            'score_breakdown': {}
+        })
         
-        report_progress(100, "Resume processing completed successfully", "complete")
+        logger.complete(f"Completed: Score {final_score:.2f}")
+        await tracker.complete(summary={
+            'resumeId': resume_id,
+            'jobId': job_id,
+            'finalScore': final_score,
+            'rankingTier': composite_result.get('ranking_tier', 'Poor')
+        })
+        
         return {
             'success': True,
             'final_score': composite_result.get('final_score', 0.0),
@@ -314,49 +248,14 @@ def process_resume_pipeline(resume_file_path: str, jd_data: Dict[str, Any],
             'resume_data': parsed_resume
         }
         
+    except APIError as e:
+        logger.fail(f"API error: {e.message}")
+        await tracker.failed(f"API error: {e.message}", "APIError", "processing")
+        return {'success': False, 'error': f"API error: {e.message}", 'final_score': 0.0}
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.fail(f"{type(e).__name__}: {str(e)}")
+        print(f"📋 Full error traceback:\n{error_traceback}")
+        await tracker.failed(str(e), type(e).__name__, "processing")
         return {'success': False, 'error': str(e), 'final_score': 0.0}
-
-def process_resume(resume_file_path: str, jd_data: Dict[str, Any], 
-                  resume_id: str, job_id: str) -> Dict[str, Any]:
-    """Main entry point for resume processing"""
-    # Validate all required inputs upfront
-    if not resume_id:
-        return {'success': False, 'error': 'Resume ID is required'}
-    if not job_id:
-        return {'success': False, 'error': 'Job ID is required'}
-    if not resume_file_path or not os.path.exists(resume_file_path):
-        return {'success': False, 'error': 'Invalid resume file path'}
-    if not jd_data or not isinstance(jd_data, dict):
-        return {'success': False, 'error': 'Invalid JD data'}
-    
-    return process_resume_pipeline(resume_file_path, jd_data, resume_id, job_id)
-
-def process_resume_job(job_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Process resume job for BullMQ integration - production ready"""
-    resume_id = job_data.get('resume_id')
-    job_id = job_data.get('job_id')
-    
-    # Validate required inputs
-    if not resume_id:
-        return {'success': False, 'error': 'Resume ID is required'}
-    if not job_id:
-        return {'success': False, 'error': 'Job ID is required'}
-    
-    # Get resume data from API
-    resume_data = get_resume_via_api(resume_id)
-    if not resume_data:
-        return {'success': False, 'error': f'Failed to get resume data for ID: {resume_id}'}
-    
-    # Get resume file path
-    resume_file_path = resume_data.get('file_path')
-    if not resume_file_path or not os.path.exists(resume_file_path):
-        return {'success': False, 'error': f'Resume file not found: {resume_file_path}'}
-    
-    # Get job data from API
-    jd_data = get_job_via_api(job_id)
-    if not jd_data:
-        return {'success': False, 'error': f'Failed to get job data for ID: {job_id}'}
-    
-    # Process the resume
-    return process_resume(resume_file_path, jd_data, resume_id, job_id)

@@ -1,4 +1,4 @@
-FROM python:3.11-slim as python-base
+FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -6,32 +6,18 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-FROM python-base as deps
-
 WORKDIR /app
 
-# Install Python dependencies with cache mount for faster rebuilds
+# Install Python dependencies
 COPY requirements.txt ./
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
-
-# Production stage
-FROM python-base as production
-
-WORKDIR /app
-
-# Copy installed packages from deps stage
-COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=deps /usr/local/bin /usr/local/bin
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy processing scripts
+COPY common/ ./common/
 COPY jd-processing/ ./jd-processing/
 COPY resume-processing/ ./resume-processing/
 COPY final-ranking/ ./final-ranking/
 COPY *.py ./
-
-# Create directories
-RUN mkdir -p /app/uploads /app/InputThread/JD
 
 # Run as non-root
 RUN useradd -m appuser

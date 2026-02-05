@@ -1,0 +1,149 @@
+# Development Mode - Complete Setup
+services:
+    mongodb-dev:
+      image: mongo:7.0
+      container_name: kreeda-mongo-dev
+      restart: unless-stopped
+      environment:
+        MONGO_INITDB_ROOT_USERNAME: admin
+        MONGO_INITDB_ROOT_PASSWORD: password123
+        MONGO_INITDB_DATABASE: kreeda_hiring_bot_dev
+      ports:
+        - "27018:27017"  
+      volumes:
+        - mongodb_data_dev:/data/db
+      networks:
+        - kreeda-network-dev
+      healthcheck:
+        test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+        interval: 10s
+        timeout: 10s
+        retries: 5
+        start_period: 40s
+
+    redis-dev:
+      image: redis:7-alpine
+      container_name: kreeda-redis-dev
+      restart: unless-stopped
+      command: redis-server --appendonly yes --requirepass password123
+      ports:
+        - "6380:6379"
+      volumes:
+        - redis_data_dev:/data
+      networks:
+        - kreeda-network-dev
+      healthcheck:
+        test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+        interval: 10s
+        timeout: 3s
+        retries: 5
+
+    redis-commander-dev:
+      image: rediscommander/redis-commander:latest
+      container_name: kreeda-redis-commander-dev
+      restart: unless-stopped
+      ports:
+        - "8084:8081"
+      environment:
+        REDIS_HOSTS: local:redis-dev:6379:0:password123
+        HTTP_USER: admin
+        HTTP_PASSWORD: admin123
+      depends_on:
+        redis-dev:
+          condition: service_healthy
+      networks:
+        - kreeda-network-dev
+
+    backend-dev:
+      build:
+        context: ./backend
+        dockerfile: Dockerfile
+      container_name: kreeda-backend-dev
+      restart: unless-stopped
+      ports:
+        - "3002:3001"  
+      environment:
+        NODE_ENV: development
+        PORT: 3001
+        MONGODB_URI: mongodb://admin:password123@mongodb-dev:27017/kreeda_hiring_bot_dev?authSource=admin
+        REDIS_HOST: redis-dev
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: password123
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        DISABLE_WORKERS: "true"
+      volumes:
+        - ./backend:/app
+        - ./uploads:/app/uploads
+
+      depends_on:
+        mongodb-dev:
+          condition: service_healthy
+        redis-dev:
+          condition: service_healthy
+      networks:
+        - kreeda-network-dev
+
+    frontend-dev:
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+        args:
+          - NEXT_PUBLIC_API_URL=http://localhost:3002/api
+      container_name: kreeda-frontend-dev
+      restart: unless-stopped
+      ports:
+        - "3003:3000"
+      environment:
+        NODE_ENV: development
+        NEXT_PUBLIC_API_URL: http://localhost:3002/api
+      volumes:
+        - ./frontend:/app
+      depends_on:
+        backend-dev:
+          condition: service_healthy
+      networks:
+        - kreeda-network-dev
+      healthcheck:
+        test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+        start_period: 40s
+
+    python-processor-dev:
+      build:
+        context: ./scripts
+        dockerfile: Dockerfile.dev
+      container_name: kreeda-python-processor-dev
+      restart: unless-stopped
+      environment:
+        MONGODB_URI: mongodb://admin:password123@mongodb-dev:27017/kreeda_hiring_bot_dev?authSource=admin
+        REDIS_HOST: redis-dev
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: password123
+        BACKEND_API_URL: http://backend-dev:3001/api
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+      volumes:
+        # HOT RELOAD: Mount all script files
+        - ./scripts:/app
+        - ./uploads:/app/uploads
+
+      depends_on:
+        mongodb-dev:
+          condition: service_healthy
+        redis-dev:
+          condition: service_healthy
+        backend-dev:
+          condition: service_started
+      networks:
+        - kreeda-network-dev
+
+networks:
+  kreeda-network-dev:
+    driver: bridge
+
+volumes:
+  mongodb_data_dev:
+    driver: local
+  redis_data_dev:
+    driver: local

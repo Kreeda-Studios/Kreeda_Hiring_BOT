@@ -130,9 +130,7 @@ router.put('/jd/:jobId/meta', async (req: Request, res: Response): Promise<void>
 // GET /api/updates/resume/:resumeId - Get resume details (for workers)
 router.get('/resume/:resumeId', async (req: Request, res: Response): Promise<void> => {
   try {
-    const resume = await Resume.findById(req.params.resumeId)
-      .populate('group_id');
-
+    const resume = await Resume.findById(req.params.resumeId);
     if (!resume) {
       res.status(404).json({
         success: false,

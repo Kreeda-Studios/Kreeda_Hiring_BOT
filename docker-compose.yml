@@ -11,7 +11,6 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     networks:
       - kreeda-network
     healthcheck:
@@ -38,40 +37,6 @@ services:
       timeout: 3s
       retries: 5
 
-  mongo-express:
-    image: mongo-express:1.0.2
-    container_name: kreeda-mongo-express
-    restart: unless-stopped
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
-      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
-      ME_CONFIG_BASICAUTH_USERNAME: admin
-      ME_CONFIG_BASICAUTH_PASSWORD: admin123
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    networks:
-      - kreeda-network
-
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: kreeda-redis-commander
-    restart: unless-stopped
-    ports:
-      - "8082:8081"
-    environment:
-      REDIS_HOSTS: local:redis:6379:0:password123
-      HTTP_USER: admin
-      HTTP_PASSWORD: admin123
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - kreeda-network
-
   backend:
     build:
       context: ./backend
@@ -88,10 +53,9 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: password123
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      # Disable built-in workers - using standalone Python processor
-      DISABLE_WORKERS: "true"
     volumes:
       - ./uploads:/app/uploads
+
     depends_on:
       mongodb:
         condition: service_healthy
@@ -111,14 +75,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=http://localhost:3001/api
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     container_name: kreeda-frontend
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     depends_on:
       backend:
         condition: service_healthy
@@ -131,8 +95,6 @@ services:
       retries: 3
       start_period: 40s
 
-  # Python processor - Standalone BullMQ consumer for processing jobs
-  # This service polls Redis queues and processes JD/Resume/Ranking jobs
   python-processor:
     build:
       context: ./scripts
@@ -140,22 +102,21 @@ services:
     container_name: kreeda-python-processor
     restart: unless-stopped
     environment:
-      MONGODB_URI: mongodb://admin:password123@mongodb:27017/kreeda_hiring_bot?authSource=admin
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: password123
-      BACKEND_API_URL: http://host.docker.internal:3001/api
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      BACKEND_API_URL: ${BACKEND_API_URL}
     volumes:
       - ./uploads:/app/uploads
-      - ./InputThread:/app/InputThread
+
     depends_on:
       mongodb:
         condition: service_healthy
       redis:
         condition: service_healthy
+      backend:
+        condition: service_started
     networks:
       - kreeda-network
 

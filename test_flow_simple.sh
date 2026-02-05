@@ -5,7 +5,7 @@
 
 set -e  # Exit on error
 
-API_URL="http://localhost:3001/api"
+API_URL="http://localhost:3002/api"
 DUMMY_FOLDER="./dummy"
 TIMEOUT=300  # 5 minutes timeout
 

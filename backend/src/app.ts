@@ -8,7 +8,6 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import Database from './config/database';
 import config from './config';
-import { WebSocketService } from './services/websocketService';
 
 // Import routes
 import jobRoutes from './routes/jobs';
@@ -132,16 +131,12 @@ class App {
       // Connect to database
       await this.database.connect();
 
-      // Initialize WebSocket service
-      WebSocketService.initialize(this.server);
-
       // Start server
       this.server.listen(config.port, () => {
         console.log(`🚀 Server running on port ${config.port}`);
         console.log(`📱 Environment: ${config.nodeEnv}`);
         console.log(`🌐 CORS Origins: ${config.corsOrigins.join(', ')}`);
         console.log(`💾 Database: ${this.database.getConnectionStatus() ? 'Connected' : 'Disconnected'}`);
-        console.log(`🔌 WebSocket: Enabled`);
       });
 
     } catch (error) {

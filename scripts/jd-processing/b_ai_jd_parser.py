@@ -456,9 +456,77 @@ def process_jd_with_ai(jd_text: str) -> Dict[str, Any]:
 
     except Exception as _err:
         # don't fail the whole pipeline on tagging; just log
-        print(f"Warning: Failed to enrich domain_tags: {_err}")
+        #print(f"Warning: Failed to enrich domain_tags: {_err}")
         # Ensure hr_points exists even if enrichment failed
         if "hr_points" not in parsed:
             parsed["hr_points"] = len(parsed.get("hr_notes", []))
 
     return {'success': True, 'parsed_data': parsed}
+
+
+def format_jd_analysis_payload(parsed_jd: dict, filter_requirements: dict) -> dict:
+    """
+    Format parsed JD data into database payload (API-ready)
+    
+    Args:
+        parsed_jd: Parsed JD data from AI
+        filter_requirements: Validated compliance requirements
+        
+    Returns:
+        dict: Payload ready for API PATCH to /jobs/:id
+    """
+    return {
+        'jd_analysis': {
+            'meta': parsed_jd.get('meta', {}),
+            'hr_points': parsed_jd.get('hr_points', 0),
+            'hr_notes': parsed_jd.get('hr_notes', []),
+            'explainability': parsed_jd.get('explainability'),
+            'provenance_spans': parsed_jd.get('provenance_spans', []),
+            'mandatory_compliances': filter_requirements.get('mandatory_compliances', {}),
+            'soft_compliances': filter_requirements.get('soft_compliances', {}),
+            'role_title': parsed_jd.get('role_title'),
+            'alt_titles': parsed_jd.get('alt_titles', []),
+            'seniority_level': parsed_jd.get('seniority_level'),
+            'department': parsed_jd.get('department'),
+            'industry': parsed_jd.get('industry'),
+            'domain_tags': parsed_jd.get('domain_tags', []),
+            'location': parsed_jd.get('location'),
+            'work_model': parsed_jd.get('work_model'),
+            'employment_type': parsed_jd.get('employment_type'),
+            'contract': parsed_jd.get('contract'),
+            'start_date_preference': parsed_jd.get('start_date_preference'),
+            'travel_requirement_percent': parsed_jd.get('travel_requirement_percent'),
+            'work_hours': parsed_jd.get('work_hours'),
+            'shift_details': parsed_jd.get('shift_details'),
+            'visa_sponsorship': parsed_jd.get('visa_sponsorship'),
+            'clearances_required': parsed_jd.get('clearances_required', []),
+            'years_experience_required': parsed_jd.get('years_experience_required'),
+            'education_requirements': parsed_jd.get('education_requirements', []),
+            'min_degree_level': parsed_jd.get('min_degree_level'),
+            'fields_of_study': parsed_jd.get('fields_of_study', []),
+            'certifications_required': parsed_jd.get('certifications_required', []),
+            'certifications_preferred': parsed_jd.get('certifications_preferred', []),
+            'required_skills': parsed_jd.get('required_skills', []),
+            'preferred_skills': parsed_jd.get('preferred_skills', []),
+            'tools_tech': parsed_jd.get('tools_tech', []),
+            'soft_skills': parsed_jd.get('soft_skills', []),
+            'languages': parsed_jd.get('languages', []),
+            'canonical_skills': parsed_jd.get('canonical_skills', {}),
+            'skill_requirements': parsed_jd.get('skill_requirements', []),
+            'responsibilities': parsed_jd.get('responsibilities', []),
+            'deliverables': parsed_jd.get('deliverables', []),
+            'kpis_okrs': parsed_jd.get('kpis_okrs', []),
+            'team_context': parsed_jd.get('team_context'),
+            'exclusions': parsed_jd.get('exclusions', []),
+            'compliance': parsed_jd.get('compliance', []),
+            'screening_questions': parsed_jd.get('screening_questions', []),
+            'interview_process': parsed_jd.get('interview_process'),
+            'compensation': parsed_jd.get('compensation'),
+            'benefits': parsed_jd.get('benefits', []),
+            'keywords_flat': parsed_jd.get('keywords_flat', []),
+            'keywords_weighted': parsed_jd.get('keywords_weighted', {}),
+            'weighting': parsed_jd.get('weighting', {}),
+            'embedding_hints': parsed_jd.get('embedding_hints', {}),
+        },
+        'filter_requirements': filter_requirements,
+    }
