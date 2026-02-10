@@ -49,7 +49,7 @@ export class QueueService {
         opts: {
           // Parent job options
           removeOnComplete: 100,
-          removeOnFail: 50,
+          removeOnFail: 100,  // Keep last 100 failed jobs
         },
         children: resumes.map((resumeData, index) => ({
           name: 'process-resume',
@@ -60,13 +60,9 @@ export class QueueService {
             totalResumes: totalResumes  // Total count
           },
           opts: {
-            attempts: 3,
-            backoff: {
-              type: 'exponential' as const,
-              delay: 2000,
-            },
+            attempts: 1,  // No retries
             removeOnComplete: 100,
-            removeOnFail: 50,
+            removeOnFail: 100,  // Keep last 100 failed jobs
           },
         })),
       });
@@ -101,7 +97,7 @@ export class QueueService {
         opts: {
           // Parent job options
           removeOnComplete: 100,
-          removeOnFail: 50,
+          removeOnFail: 100,  // Keep last 100 failed jobs
         },
         children: rankingBatches.map((batchData, index) => ({
           name: 'calculate-ranking',
@@ -112,13 +108,9 @@ export class QueueService {
             totalBatches: totalBatches  // Total count
           },
           opts: {
-            attempts: 3,
-            backoff: {
-              type: 'exponential' as const,
-              delay: 2000,
-            },
+            attempts: 1,  // No retries
             removeOnComplete: 100,
-            removeOnFail: 50,
+            removeOnFail: 100,  // Keep last 100 failed jobs
           },
         })),
       });

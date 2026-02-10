@@ -1,249 +1,180 @@
 #!/usr/bin/env python3
-
 """
 Semantic Scorer for Resume Analysis
 
-Calculates semantic similarity scores using OpenAI embeddings.
-Exact match with old archive SemanticComparitor.py scoring logic.
+Calculates semantic similarity scores using embeddings and cosine similarity.
+Matches old SemanticComparitor.py 6-section scoring logic exactly.
 """
 
 import numpy as np
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, Tuple, List
 
-# Constants from old archive - exact match
-TAU_COV = 0.65
-TAU_RESUME = 0.55
-SECTION_COMB = (0.5, 0.4, 0.1)
+# Constants from old system - exact values
+TAU_COV = 0.65        # Coverage threshold (original from SemanticComparitor.py)
+TAU_RESUME = 0.55     # Resume density threshold (original from SemanticComparitor.py)
+SECTION_COMB = (0.5, 0.4, 0.1)  # (coverage, depth, density) weights
+
+# Section weights for overall score
 SECTION_WEIGHTS = {
-    "skills": 0.30, 
-    "projects": 0.25, 
+    "skills": 0.30,
+    "projects": 0.25,
     "responsibilities": 0.20,
-    "profile": 0.10, 
-    "education": 0.05, 
+    "profile": 0.10,
+    "education": 0.05,
     "overall": 0.10
 }
 
+
+# ============================================================================
+# CORE SCORING FUNCTIONS
+# ============================================================================
+
 def cosine_sim(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Cosine similarity - exact match with old archive"""
+    """Calculate cosine similarity matrix between two sets of embeddings"""
     return np.matmul(a, b.T)
 
+
 def compute_section_score(jd_embeddings: np.ndarray, resume_embeddings: np.ndarray) -> Tuple[float, float, float, List]:
-    """Compute section score - exact match with old archive"""
-    if jd_embeddings.size == 0: 
-        return 0.5, 0, 0, []
-    if resume_embeddings.size == 0: 
-        return 0, 0, 0, []
-    
-    C = cosine_sim(jd_embeddings, resume_embeddings)
-    max_j = C.max(axis=1)
-    cov = float((max_j >= TAU_COV).sum()) / len(max_j)
-    depth = float(max_j.mean())
-    max_r = C.max(axis=0)
-    dens = float((max_r >= TAU_RESUME).sum()) / max(1, len(max_r))
-    sec = SECTION_COMB[0] * cov + SECTION_COMB[1] * depth + SECTION_COMB[2] * dens
-    matches = [(j, int(C[j].argmax()), float(C[j].max())) for j in range(C.shape[0])]
-    return sec, cov, depth, matches
-
-def calculate_experience_similarity(resume_embeddings: Dict[str, Any], jd_embeddings: Dict[str, Any]) -> Dict[str, Any]:
-    """Calculate experience-based semantic similarity"""
-    try:
-        resume_experiences = resume_embeddings.get('experience_embeddings', [])
-        jd_responsibilities = jd_embeddings.get('responsibility_embeddings', {})
-        
-        if not resume_experiences or not jd_responsibilities:
-            return {
-                'average_similarity': 0.0,
-                'best_match_score': 0.0,
-                'experience_matches': []
-            }
-        
-        # Get JD responsibility embedding (combine all responsibilities)
-        jd_resp_embedding = jd_responsibilities.get('combined_embedding', [])
-        if not jd_resp_embedding:
-            return {
-                'average_similarity': 0.0,
-                'best_match_score': 0.0,
-                'experience_matches': []
-            }
-        
-        experience_similarities = []
-        experience_matches = []
-        
-        # Compare each resume experience with JD responsibilities
-        for exp in resume_experiences:
-            exp_embedding = exp.get('embedding', [])
-            if not exp_embedding:
-                continue
-            
-            similarity = calculate_cosine_similarity(exp_embedding, jd_resp_embedding)
-            
-            experience_similarities.append(similarity)
-            experience_matches.append({
-                'company': exp.get('company', ''),
-                'title': exp.get('title', ''),
-                'similarity': similarity,
-                'index': exp.get('index', 0)
-            })
-        
-        # Calculate metrics
-        avg_similarity = sum(experience_similarities) / len(experience_similarities) if experience_similarities else 0.0
-        best_match = max(experience_similarities) if experience_similarities else 0.0
-        
-        # Sort matches by similarity
-        experience_matches.sort(key=lambda x: x['similarity'], reverse=True)
-        
-        return {
-            'average_similarity': avg_similarity,
-            'best_match_score': best_match,
-            'experience_matches': experience_matches,
-            'experiences_analyzed': len(experience_similarities)
-        }
-        
-    except Exception as e:
-        return {
-            'average_similarity': 0.0,
-            'error': f"Experience similarity calculation failed: {str(e)}"
-        }
-
-def calculate_project_similarity(resume_embeddings: Dict[str, Any], jd_embeddings: Dict[str, Any]) -> Dict[str, Any]:
-    """Calculate project-based semantic similarity"""
-    try:
-        resume_projects = resume_embeddings.get('project_embeddings', [])
-        jd_embedding = jd_embeddings.get('jd_embedding', [])
-        
-        if not resume_projects or not jd_embedding:
-            return {
-                'average_similarity': 0.0,
-                'best_project_score': 0.0,
-                'project_matches': []
-            }
-        
-        project_similarities = []
-        project_matches = []
-        
-        # Compare each project with overall JD
-        for proj in resume_projects:
-            proj_embedding = proj.get('embedding', [])
-            if not proj_embedding:
-                continue
-            
-            similarity = calculate_cosine_similarity(proj_embedding, jd_embedding)
-            
-            project_similarities.append(similarity)
-            project_matches.append({
-                'name': proj.get('name', ''),
-                'similarity': similarity,
-                'technologies': proj.get('technologies', []),
-                'index': proj.get('index', 0)
-            })
-        
-        # Calculate metrics
-        avg_similarity = sum(project_similarities) / len(project_similarities) if project_similarities else 0.0
-        best_project = max(project_similarities) if project_similarities else 0.0
-        
-        # Sort matches by similarity
-        project_matches.sort(key=lambda x: x['similarity'], reverse=True)
-        
-        return {
-            'average_similarity': avg_similarity,
-            'best_project_score': best_project,
-            'project_matches': project_matches,
-            'projects_analyzed': len(project_similarities)
-        }
-        
-    except Exception as e:
-        return {
-            'average_similarity': 0.0,
-            'error': f"Project similarity calculation failed: {str(e)}"
-        }
-
-def calculate_semantic_scores(resume_section_embeddings: Dict[str, Any], jd_embeddings_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Main function to calculate semantic similarity scores using old archive algorithm
-    Uses 6-section scoring with proper weights and compute_section_score function
+    Compute section score using EXACT SemanticComparitor.py algorithm.
     
     Args:
-        resume_section_embeddings: Dict with keys: profile, skills, projects, responsibilities, education, overall (numpy arrays)
-        jd_embeddings_data: Dict from job.embeddings containing profile_embedding, skills_embedding, etc. (lists)
+        jd_embeddings: JD embeddings for this section (2D array)
+        resume_embeddings: Resume embeddings for this section (2D array)
     
-    Returns: {
-        'success': bool,
-        'overall_semantic_score': float,
-        'section_scores': dict,
-        'semantic_breakdown': dict,
-        'error': str or None
-    }
+    Returns:
+        Tuple of (section_score, coverage, depth, matches)
+        - section_score: Combined score using SECTION_COMB weights
+        - coverage: Fraction of JD sentences well-matched (>= TAU_COV)
+        - depth: Average max similarity across JD sentences
+        - matches: List of (jd_idx, resume_idx, similarity) tuples
+    """
+    # Handle empty cases
+    if jd_embeddings.size == 0:
+        return 0.5, 0.0, 0.0, []  # Keep 0.5 for empty JD sections as requested
+    if resume_embeddings.size == 0:
+        return 0.0, 0.0, 0.0, []
+    
+    # Compute cosine similarity matrix: jd_sentences × resume_sentences
+    C = cosine_sim(jd_embeddings, resume_embeddings)
+    
+    # Coverage: fraction of JD sentences with strong match (>= TAU_COV)
+    max_j = C.max(axis=1)
+    coverage = float((max_j >= TAU_COV).sum()) / len(max_j)
+    
+    # Depth: average best match across JD sentences
+    depth = float(max_j.mean())
+    
+    # Density: fraction of resume sentences well-utilized (>= TAU_RESUME)
+    max_r = C.max(axis=0)
+    density = float((max_r >= TAU_RESUME).sum()) / max(1, len(max_r))
+    
+    # Combined section score
+    section_score = SECTION_COMB[0] * coverage + SECTION_COMB[1] * depth + SECTION_COMB[2] * density
+    
+    # Best matches for each JD sentence
+    matches = [
+        (j, int(C[j].argmax()), float(C[j].max()))
+        for j in range(C.shape[0])
+    ]
+    
+    return section_score, coverage, depth, matches
+
+
+# ============================================================================
+# MAIN SCORING FUNCTION
+# ============================================================================
+
+def calculate_semantic_scores(resume_embeddings: Dict[str, Any], jd_embeddings: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Calculate semantic similarity scores using 6-section algorithm.
+    Matches old SemanticComparitor.py logic exactly.
+    
+    Args:
+        resume_embeddings: Dict with section keys (profile, skills, projects, 
+                          responsibilities, education, overall) containing 2D numpy arrays (N × 1536)
+        jd_embeddings: Dict from Job.embeddings with fields like profile_embedding,
+                      skills_embedding containing 2D arrays as lists (M × 1536) from MongoDB
+    
+    Returns:
+        Dictionary with:
+            - success: bool
+            - overall_semantic_score: float (0-1, weighted aggregate)
+            - section_scores: dict with individual section scores
+            - section_details: dict with coverage/depth metrics per section
+            - error: str or None
     """
     try:
-        # Check if JD embeddings are nested under 'embeddings' key
-        if 'embeddings' in jd_embeddings_data:
-            jd_embeddings_source = jd_embeddings_data['embeddings']
-        else:
-            jd_embeddings_source = jd_embeddings_data
-        
-        # Convert JD embeddings from lists to numpy arrays
+        # Convert JD embeddings from MongoDB 2D lists to numpy 2D arrays
         jd_section_embeddings = {}
-        for section in ['profile', 'skills', 'projects', 'responsibilities', 'education', 'overall']:
+        for section in SECTION_WEIGHTS.keys():
+            # MongoDB stores as: profile_embedding, skills_embedding, etc.
             jd_key = f'{section}_embedding'
-            if jd_key in jd_embeddings_source and jd_embeddings_source[jd_key]:
-                emb_data = jd_embeddings_source[jd_key]
-                # Check if it's a 2D array [[emb1], [emb2]] or single 1D array [emb]
+            
+            if jd_key in jd_embeddings and jd_embeddings[jd_key]:
+                emb_data = jd_embeddings[jd_key]
+                
+                # Expect 2D list: [[emb1], [emb2], ...] where each emb is 1536 floats
                 if isinstance(emb_data, list) and len(emb_data) > 0:
-                    if isinstance(emb_data[0], list):
-                        # Already 2D: [[emb1], [emb2], ...]
-                        jd_section_embeddings[section] = np.array(emb_data, dtype=np.float32)
-                    else:
-                        # 1D array, wrap in 2D: [emb] -> [[emb]]
-                        jd_section_embeddings[section] = np.array([emb_data], dtype=np.float32)
+                    # Validate it's 2D
+                    if not isinstance(emb_data[0], list):
+                        raise ValueError(f"JD {section}_embedding is 1D (expected 2D). Got: {type(emb_data[0])}. First item sample: {emb_data[0][:5] if len(emb_data[0]) > 0 else 'empty'}")
+                    
+                    # Convert 2D list to numpy 2D array
+                    jd_section_embeddings[section] = np.array(emb_data, dtype=np.float32)
                 else:
                     jd_section_embeddings[section] = np.zeros((0, 1536), dtype=np.float32)
             else:
-                # Empty embedding
                 jd_section_embeddings[section] = np.zeros((0, 1536), dtype=np.float32)
         
-        # Calculate section scores using old archive algorithm
+        # Calculate section scores
         section_scores = {}
         section_details = {}
         
+        print(f"\n🔍 SEMANTIC SCORING DEBUG:")
+        
         for section in SECTION_WEIGHTS.keys():
             jd_emb = jd_section_embeddings.get(section, np.zeros((0, 1536), dtype=np.float32))
-            resume_emb = resume_section_embeddings.get(section, np.zeros((0, 1536), dtype=np.float32))
+            resume_emb = resume_embeddings.get(section, np.zeros((0, 1536), dtype=np.float32))
             
-            # Use old archive's compute_section_score function
+            print(f"  📊 {section.upper()}:")
+            print(f"    JD embeddings: {jd_emb.shape[0]} sentences")
+            print(f"    Resume embeddings: {resume_emb.shape[0]} sentences")
+            
+            # Validate both are 2D arrays
+            if jd_emb.ndim != 2:
+                raise ValueError(f"JD {section} embedding is {jd_emb.ndim}D (expected 2D). Shape: {jd_emb.shape}")
+            if resume_emb.ndim != 2:
+                raise ValueError(f"Resume {section} embedding is {resume_emb.ndim}D (expected 2D). Shape: {resume_emb.shape}")
+            
+            # Compute section score using old archive algorithm
             sec_score, coverage, depth, matches = compute_section_score(jd_emb, resume_emb)
+            
+            print(f"    Score: {sec_score:.3f} (coverage: {coverage:.3f}, depth: {depth:.3f})")
+            print(f"    Weight: {SECTION_WEIGHTS[section]} → Contribution: {sec_score * SECTION_WEIGHTS[section]:.3f}")
             
             section_scores[section] = sec_score
             section_details[section] = {
                 'score': sec_score,
                 'coverage': coverage,
                 'depth': depth,
+                'jd_sentences': jd_emb.shape[0],
+                'resume_sentences': resume_emb.shape[0],
                 'match_count': len(matches)
             }
         
-        # Calculate weighted overall semantic score (old archive formula)
-        raw_score = sum(
+        # Calculate weighted overall score
+        overall_score = sum(
             section_scores[section] * weight
             for section, weight in SECTION_WEIGHTS.items()
         )
         
-        # Create semantic breakdown
-        semantic_breakdown = {
-            'section_weights': SECTION_WEIGHTS,
-            'section_scores': section_scores,
-            'section_details': section_details,
-            'weighted_components': {
-                f'{section}_weighted': section_scores[section] * weight
-                for section, weight in SECTION_WEIGHTS.items()
-            },
-            'raw_score': raw_score,
-            'algorithm': 'old_archive_6_section'
-        }
-        
         return {
             'success': True,
-            'overall_semantic_score': round(raw_score, 3),
-            'section_scores': section_scores,
-            'semantic_breakdown': semantic_breakdown
+            'overall_semantic_score': round(overall_score, 3),
+            'section_scores': {k: round(v, 3) for k, v in section_scores.items()},
+            'section_details': section_details,
+            'error': None
         }
         
     except Exception as e:
@@ -251,5 +182,7 @@ def calculate_semantic_scores(resume_section_embeddings: Dict[str, Any], jd_embe
         return {
             'success': False,
             'overall_semantic_score': 0.0,
+            'section_scores': {},
+            'section_details': {},
             'error': f"Semantic scoring failed: {str(e)}\n{traceback.format_exc()}"
         }

@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-
 """
 Keyword Scorer for Resume Analysis
 
-Calculates keyword matching scores using logic from KeywordComparitor.py
-in the existing codebase with exact matching algorithms.
+Calculates keyword matching scores by comparing resume tokens with JD keywords.
+Matches old KeywordComparitor.py logic exactly.
 """
 
-import re
-from typing import Dict, Any, List, Set, Tuple
-from collections import defaultdict
+import sys
+from pathlib import Path
+from typing import Dict, Any, Set
 
-# Experience action verb weights (from Old_Code_Archive/ResumeProcessor/KeywordComparitor.py)
+# Add parent directory for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+# Experience action verb weights for leadership/impact assessment
 EXPERIENCE_KEYWORD_WEIGHTS = {
     "lead": 4.0, "led": 4.0, "manager": 4.0, "managed": 4.0, "architect": 4.0,
     "architected": 4.0, "designed": 3.6, "design": 3.6, "owned": 3.6,
@@ -35,411 +41,338 @@ DEFAULT_WEIGHTS = {
     "education": 0.02,
 }
 
-def normalize_keyword(keyword: str) -> str:
-    """Normalize keywords for consistent matching"""
-    if not keyword:
-        return ""
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def norm(s: str) -> str:
+    """Normalize string to lowercase and strip whitespace"""
+    return s.strip().lower() if isinstance(s, str) else ""
+
+
+# ============================================================================
+# JD KEYWORD EXTRACTION
+# ============================================================================
+
+def collect_jd_keywords(jd: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract keywords from JD analysis.
     
-    # Convert to lowercase and strip
-    normalized = keyword.lower().strip()
+    Args:
+        jd: Job description document with jd_analysis field
+        
+    Returns:
+        Dictionary with categorized keyword sets and weighted_keywords dict
+    """
+    jd_analysis = jd.get('jd_analysis', {})
     
-    # Remove special characters except alphanumeric and spaces
-    normalized = re.sub(r'[^a-z0-9\s]', ' ', normalized)
-    
-    # Normalize common technology variations
-    tech_normalizations = {
-        'javascript': 'javascript', 'js': 'javascript',
-        'typescript': 'typescript', 'ts': 'typescript', 
-        'python': 'python', 'py': 'python',
-        'react js': 'react', 'reactjs': 'react', 'react.js': 'react',
-        'node js': 'nodejs', 'node.js': 'nodejs',
-        'c plus plus': 'cpp', 'c++': 'cpp',
-        'c sharp': 'csharp', 'c#': 'csharp',
-        'machine learning': 'machine learning', 'ml': 'machine learning',
-        'artificial intelligence': 'artificial intelligence', 'ai': 'artificial intelligence',
-        'amazon web services': 'aws', 'aws': 'aws',
-        'google cloud platform': 'gcp', 'gcp': 'gcp'
+    result = {
+        'required_skills': {norm(s) for s in jd_analysis.get('required_skills', []) if s and len(s.strip()) > 1},
+        'preferred_skills': {norm(s) for s in jd_analysis.get('preferred_skills', []) if s and len(s.strip()) > 1},
+        'domain_tags': {norm(s) for s in jd_analysis.get('domain_tags', []) if s and len(s.strip()) > 1},
+        'responsibilities': {norm(s) for s in jd_analysis.get('responsibilities', []) if s and len(s.strip()) > 1},
+        'education': {norm(s) for s in jd_analysis.get('education', []) if s and len(s.strip()) > 1},
+        'weighted_keywords': {
+            norm(k): float(v) for k, v in jd_analysis.get('keywords_weighted', {}).items() 
+            if k and len(k.strip()) > 1
+        }
     }
     
-    return tech_normalizations.get(normalized, normalized)
+    print(f"\n🔍 JD KEYWORDS DEBUG:")
+    print(f"  Required skills count: {len(result['required_skills'])}")
+    print(f"  Required skills: {list(result['required_skills'])[:10]}")
+    print(f"  Preferred skills count: {len(result['preferred_skills'])}")
+    print(f"  Weighted keywords count: {len(result['weighted_keywords'])}")
+    print(f"  Domain tags count: {len(result['domain_tags'])}")
+    
+    return result
 
-def extract_resume_keywords(resume: Dict[str, Any]) -> Set[str]:
-    """Extract all keywords from resume with normalization"""
-    keywords = set()
+
+# ============================================================================
+# RESUME TOKEN EXTRACTION
+# ============================================================================
+
+def collect_resume_tokens(resume: Dict[str, Any]) -> Set[str]:
+    """
+    Extract all relevant tokens from resume for keyword matching.
+    Matches old KeywordComparitor.py extraction logic exactly.
     
-    # From skills arrays
-    for skill in resume.get('skills', []):
-        if skill and len(skill.strip()) > 1:
-            keywords.add(normalize_keyword(skill))
+    Args:
+        resume: Resume document with AI parser output fields
+        
+    Returns:
+        Set of normalized tokens from resume
+    """
+    tokens = set()
     
-    # From canonical skills
+    # 1. Canonical skills (all categories: languages, frameworks, tools, databases, etc.)
     canonical_skills = resume.get('canonical_skills', {})
     for category, skills in canonical_skills.items():
         if isinstance(skills, list):
             for skill in skills:
                 if skill and len(skill.strip()) > 1:
-                    keywords.add(normalize_keyword(skill))
+                    tokens.add(norm(skill))
     
-    # From inferred skills
+    # 2. Inferred skills (only high confidence >= 0.6)
     for skill_obj in resume.get('inferred_skills', []):
-        if skill_obj.get('skill'):
-            keywords.add(normalize_keyword(skill_obj['skill']))
+        if skill_obj.get('confidence', 0) >= 0.6:
+            skill = skill_obj.get('skill')
+            if skill and len(skill.strip()) > 1:
+                tokens.add(norm(skill))
     
-    # From skill proficiency
+    # 3. Skill proficiency
     for skill_obj in resume.get('skill_proficiency', []):
-        if skill_obj.get('skill'):
-            keywords.add(normalize_keyword(skill_obj['skill']))
+        skill = skill_obj.get('skill')
+        if skill and len(skill.strip()) > 1:
+            tokens.add(norm(skill))
     
-    # From projects
+    # 4. Projects - tech_keywords and primary_skills
     for project in resume.get('projects', []):
-        # Technologies
-        for tech in project.get('technologies', []):
-            if tech and len(tech.strip()) > 1:
-                keywords.add(normalize_keyword(tech))
-        
         # Tech keywords
         for keyword in project.get('tech_keywords', []):
             if keyword and len(keyword.strip()) > 1:
-                keywords.add(normalize_keyword(keyword))
+                tokens.add(norm(keyword))
         
         # Primary skills
         for skill in project.get('primary_skills', []):
             if skill and len(skill.strip()) > 1:
-                keywords.add(normalize_keyword(skill))
+                tokens.add(norm(skill))
     
-    # From experience descriptions (extract common tech terms)
-    tech_pattern = re.compile(r'\b(python|java|javascript|react|angular|vue|node|django|flask|spring|mysql|mongodb|postgresql|aws|azure|docker|kubernetes|git|jenkins)\b', re.IGNORECASE)
-    
-    for exp in resume.get('experience', []):
-        description = exp.get('description', '') + ' ' + ' '.join(exp.get('responsibilities', []))
-        tech_matches = tech_pattern.findall(description)
-        for match in tech_matches:
-            keywords.add(normalize_keyword(match))
-    
-    # From keywords_flat if available
-    for keyword in resume.get('keywords_flat', []):
-        if keyword and len(keyword.strip()) > 1:
-            keywords.add(normalize_keyword(keyword))
-    
-    return keywords
-
-def score_weighted_keywords(jd_weighted_keywords: Dict[str, float], resume_tokens: Set[str]) -> float:
-    """Score using weighted keywords from JD (if available)"""
-    if not jd_weighted_keywords:
-        return 0.5
-    
-    matched_weight = 0.0
-    total_weight = sum(jd_weighted_keywords.values())
-    
-    for keyword, weight in jd_weighted_keywords.items():
-        normalized_kw = normalize_keyword(keyword)
-        if normalized_kw in resume_tokens:
-            matched_weight += weight
-    
-    return matched_weight / total_weight if total_weight > 0 else 0.5
-
-def score_experience_keywords(resume: Dict[str, Any]) -> float:
-    """Score based on leadership/experience action verbs in resume"""
-    text_sources = []
-    
-    # Collect text from experience entries
-    for exp in resume.get('experience', []):
-        text_sources.extend(exp.get('responsibilities', []))
-        text_sources.append(exp.get('description', ''))
-        if exp.get('achievements'):
-            text_sources.extend(exp['achievements'])
-    
-    # Join all text sources
-    joined_text = " ".join([str(t).lower() for t in text_sources if t])
-    
-    # Calculate weighted score based on presence of keywords
-    matched_weight = 0.0
-    for keyword, weight in EXPERIENCE_KEYWORD_WEIGHTS.items():
-        if keyword in joined_text:
-            matched_weight += weight
-    
-    max_possible = sum(EXPERIENCE_KEYWORD_WEIGHTS.values())
-    return matched_weight / max_possible if max_possible > 0 else 0.0
-
-def extract_jd_keywords(jd_data: Dict[str, Any]) -> Dict[str, Set[str]]:
-    """Extract keywords from JD with categorization"""
-    jd_analysis = jd_data.get('jd_analysis', {})
-    
-    keyword_categories = {
-        'required_skills': set(),
-        'preferred_skills': set(),
-        'tools_tech': set(),
-        'soft_skills': set(),
-        'weighted_keywords': {},
-        'all_keywords': set()
-    }
-    
-    # Required skills
-    for skill in jd_analysis.get('required_skills', []):
-        if skill and len(skill.strip()) > 1:
-            normalized = normalize_keyword(skill)
-            keyword_categories['required_skills'].add(normalized)
-            keyword_categories['all_keywords'].add(normalized)
-    
-    # Preferred skills
-    for skill in jd_analysis.get('preferred_skills', []):
-        if skill and len(skill.strip()) > 1:
-            normalized = normalize_keyword(skill)
-            keyword_categories['preferred_skills'].add(normalized)
-            keyword_categories['all_keywords'].add(normalized)
-    
-    # Tools and tech
-    for tech in jd_analysis.get('tools_tech', []):
-        if tech and len(tech.strip()) > 1:
-            normalized = normalize_keyword(tech)
-            keyword_categories['tools_tech'].add(normalized)
-            keyword_categories['all_keywords'].add(normalized)
-    
-    # Soft skills
-    for skill in jd_analysis.get('soft_skills', []):
-        if skill and len(skill.strip()) > 1:
-            normalized = normalize_keyword(skill)
-            keyword_categories['soft_skills'].add(normalized)
-            keyword_categories['all_keywords'].add(normalized)
-    
-    # From keywords_flat if available
-    for keyword in jd_analysis.get('keywords_flat', []):
-        if keyword and len(keyword.strip()) > 1:
-            normalized = normalize_keyword(keyword)
-            keyword_categories['all_keywords'].add(normalized)
-    
-    # Extract weighted keywords if available
-    keywords_weighted = jd_analysis.get('keywords_weighted', {})
-    if isinstance(keywords_weighted, dict):
-        for keyword, weight in keywords_weighted.items():
+    # 5. Experience entries - primary_tech and responsibilities_keywords
+    for exp in resume.get('experience_entries', []):
+        # Primary tech
+        for tech in exp.get('primary_tech', []):
+            if tech and len(tech.strip()) > 1:
+                tokens.add(norm(tech))
+        
+        # Responsibilities keywords
+        for keyword in exp.get('responsibilities_keywords', []):
             if keyword and len(keyword.strip()) > 1:
-                normalized = normalize_keyword(keyword)
-                keyword_categories['weighted_keywords'][normalized] = weight
-                keyword_categories['all_keywords'].add(normalized)
+                tokens.add(norm(keyword))
     
-    return keyword_categories
+    # 6. Profile and ATS lines (split by common delimiters)
+    profile_line = resume.get('profile_keywords_line', '')
+    if profile_line:
+        for token in profile_line.replace(',', ' ').replace(';', ' ').split():
+            token = token.strip()
+            if token and len(token) > 1:
+                tokens.add(norm(token))
+    
+    ats_line = resume.get('ats_boost_line', '')
+    if ats_line:
+        for token in ats_line.replace(',', ' ').replace(';', ' ').split():
+            token = token.strip()
+            if token and len(token) > 1:
+                tokens.add(norm(token))
+    
+    # 7. Domain tags
+    for tag in resume.get('domain_tags', []):
+        if tag and len(tag.strip()) > 1:
+            tokens.add(norm(tag))
+    
+    print(f"\n📄 RESUME TOKENS DEBUG:")
+    print(f"  Total unique tokens: {len(tokens)}")
+    print(f"  Sample tokens (first 20): {list(tokens)[:20]}")
+    print(f"  Canonical skills categories: {list(canonical_skills.keys())}")
+    print(f"  Inferred skills count: {len(resume.get('inferred_skills', []))}")
+    print(f"  Projects count: {len(resume.get('projects', []))}")
+    print(f"  Experience entries count: {len(resume.get('experience_entries', []))}")
+    
+    return tokens
 
-def calculate_exact_matches(resume_keywords: Set[str], jd_keywords: Set[str]) -> Dict[str, Any]:
-    """Calculate exact keyword matches"""
-    matches = resume_keywords.intersection(jd_keywords)
-    
-    if not jd_keywords:
-        match_percentage = 0.0
-    else:
-        match_percentage = len(matches) / len(jd_keywords) * 100
-    
-    return {
-        'matches': list(matches),
-        'match_count': len(matches),
-        'total_jd_keywords': len(jd_keywords),
-        'total_resume_keywords': len(resume_keywords),
-        'match_percentage': round(match_percentage, 2)
-    }
 
-def calculate_fuzzy_matches(resume_keywords: Set[str], jd_keywords: Set[str]) -> Dict[str, Any]:
-    """Calculate fuzzy/partial keyword matches"""
-    fuzzy_matches = set()
-    match_details = []
-    
-    for jd_keyword in jd_keywords:
-        for resume_keyword in resume_keywords:
-            # Skip if exact match (already counted)
-            if jd_keyword == resume_keyword:
-                continue
-            
-            # Check for partial matches
-            similarity = 0.0
-            match_type = None
-            
-            # Substring matching (both directions)
-            if jd_keyword in resume_keyword or resume_keyword in jd_keyword:
-                # Calculate similarity based on length ratio
-                min_len = min(len(jd_keyword), len(resume_keyword))
-                max_len = max(len(jd_keyword), len(resume_keyword))
-                similarity = min_len / max_len
-                match_type = 'substring'
-            
-            # Word overlap matching for multi-word terms
-            elif ' ' in jd_keyword or ' ' in resume_keyword:
-                jd_words = set(jd_keyword.split())
-                resume_words = set(resume_keyword.split())
-                common_words = jd_words.intersection(resume_words)
-                
-                if common_words and len(common_words) > 0:
-                    similarity = len(common_words) / max(len(jd_words), len(resume_words))
-                    match_type = 'word_overlap'
-            
-            # Consider it a fuzzy match if similarity is high enough
-            if similarity >= 0.6:  # Threshold for fuzzy matching
-                fuzzy_matches.add(jd_keyword)
-                match_details.append({
-                    'jd_keyword': jd_keyword,
-                    'resume_keyword': resume_keyword,
-                    'similarity': similarity,
-                    'match_type': match_type
-                })
-                break  # Only count first good match for each JD keyword
-    
-    return {
-        'fuzzy_matches': list(fuzzy_matches),
-        'fuzzy_count': len(fuzzy_matches),
-        'match_details': match_details
-    }
+# ============================================================================
+# SCORING FUNCTIONS
+# ============================================================================
 
-def calculate_weighted_score(exact_matches: Dict[str, Any], fuzzy_matches: Dict[str, Any], 
-                           category_weights: Dict[str, float]) -> float:
-    """Calculate weighted keyword score with exact and fuzzy matches"""
-    # Weights for different match types
-    exact_weight = 1.0
-    fuzzy_weight = 0.6
+def score_overlap(jd_list: Set[str], resume_tokens: Set[str]) -> float:
+    """
+    Calculate overlap score as percentage of JD keywords found in resume.
     
-    # Calculate base score
-    exact_score = exact_matches['match_count'] * exact_weight
-    fuzzy_score = fuzzy_matches['fuzzy_count'] * fuzzy_weight
+    Args:
+        jd_list: Set of keywords from JD
+        resume_tokens: Set of tokens from resume
+        
+    Returns:
+        Float between 0 and 1 representing match percentage
+    """
+    if not jd_list:
+        return 0.5  # Neutral score if no JD requirements
     
-    total_possible = exact_matches['total_jd_keywords']
+    matched = jd_list.intersection(resume_tokens)
+    score = len(matched) / len(jd_list)
     
-    if total_possible == 0:
+    print(f"    Overlap: {len(matched)}/{len(jd_list)} = {score:.3f}")
+    if matched:
+        print(f"    Matched: {list(matched)[:5]}")
+    
+    return score
+
+
+def score_weighted_keywords(jd_kw: Dict[str, float], resume_tokens: Set[str]) -> float:
+    """
+    Calculate weighted keyword score.
+    
+    Args:
+        jd_kw: Dictionary of {keyword: weight} from JD
+        resume_tokens: Set of tokens from resume
+        
+    Returns:
+        Float between 0 and 1 representing weighted match percentage
+    """
+    if not jd_kw:
+        return 0.5  # Neutral score if no weighted keywords
+    
+    matched_weight = sum(weight for keyword, weight in jd_kw.items() if keyword in resume_tokens)
+    total_weight = sum(jd_kw.values())
+    
+    score = matched_weight / total_weight if total_weight > 0 else 0.5
+    
+    matched_kws = [kw for kw in jd_kw if kw in resume_tokens]
+    print(f"    Weighted: {len(matched_kws)}/{len(jd_kw)} keywords, {matched_weight:.2f}/{total_weight:.2f} weight = {score:.3f}")
+    if matched_kws:
+        print(f"    Matched weighted: {matched_kws[:5]}")
+    
+    return score
+
+
+def score_project_metrics(resume: Dict[str, Any]) -> float:
+    """
+    Average project quality metrics from resume.
+    
+    Args:
+        resume: Resume document with projects field
+        
+    Returns:
+        Float between 0 and 1 representing average project quality
+    """
+    projects = resume.get('projects', [])
+    if not projects:
         return 0.0
     
-    # Normalize to 0-1 scale
-    raw_score = (exact_score + fuzzy_score) / total_possible
+    metric_sums = {'skill_relevance': 0.0, 'domain_relevance': 0.0, 'execution_quality': 0.0}
     
-    # Cap at 1.0
-    return min(raw_score, 1.0)
+    for project in projects:
+        metric_sums['skill_relevance'] += project.get('skill_relevance', 0.0)
+        metric_sums['domain_relevance'] += project.get('domain_relevance', 0.0)
+        metric_sums['execution_quality'] += project.get('execution_quality', 0.0)
+    
+    avg_skill = metric_sums['skill_relevance'] / len(projects)
+    avg_domain = metric_sums['domain_relevance'] / len(projects)
+    avg_execution = metric_sums['execution_quality'] / len(projects)
+    
+    return (avg_skill + avg_domain + avg_execution) / 3.0
 
-def calculate_keyword_scores(resume: Dict[str, Any], jd_data: Dict[str, Any]) -> Dict[str, Any]:
+
+def score_experience_keywords(resume: Dict[str, Any]) -> float:
     """
-    Main function to calculate keyword matching scores
-    Returns: {
-        'success': bool,
-        'overall_score': float,
-        'category_scores': dict,
-        'exact_matches': dict,
-        'fuzzy_matches': dict,
-        'keyword_analysis': dict,
-        'error': str or None
-    }
+    Score based on leadership/impact action verbs in experience entries.
+    
+    Args:
+        resume: Resume document with experience_entries field
+        
+    Returns:
+        Float between 0 and 1 representing experience keyword match
+    """
+    experience_entries = resume.get('experience_entries', [])
+    if not experience_entries:
+        return 0.0
+    
+    # Collect all experience text
+    text_parts = []
+    for exp in experience_entries:
+        text_parts.extend(exp.get('responsibilities_keywords', []))
+        text_parts.extend(exp.get('achievements', []))
+    
+    joined_text = " ".join([str(t).lower() for t in text_parts if t])
+    
+    # Calculate weighted score
+    matched_weight = sum(weight for keyword, weight in EXPERIENCE_KEYWORD_WEIGHTS.items() if keyword in joined_text)
+    max_weight = sum(EXPERIENCE_KEYWORD_WEIGHTS.values())
+    
+    return matched_weight / max_weight if max_weight > 0 else 0.0
+
+
+# ============================================================================
+# MAIN SCORING FUNCTION
+# ============================================================================
+
+def calculate_keyword_scores(resume: Dict[str, Any], jd: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Calculate comprehensive keyword matching scores between resume and JD.
+    Matches old KeywordComparitor.py logic exactly.
+    
+    Args:
+        resume: Resume document with AI parser output
+        jd: Job description document with jd_analysis field
+        
+    Returns:
+        Dictionary with:
+            - success: bool
+            - overall_score: float (0-1, weighted aggregate)
+            - category_scores: dict with individual category scores
+            - error: str or None
     """
     try:
-        # Extract keywords
-        resume_keywords = extract_resume_keywords(resume)
-        jd_keyword_categories = extract_jd_keywords(jd_data)
+        # Extract keywords and tokens
+        jd_keywords = collect_jd_keywords(jd)
+        resume_tokens = collect_resume_tokens(resume)
         
-        # Get custom weights from JD or use defaults
-        jd_analysis = jd_data.get('jd_analysis', {})
-        custom_weights = jd_analysis.get('weighting', {})
-        category_weights = DEFAULT_WEIGHTS.copy()
-        category_weights.update(custom_weights)
+        # Use default weights only (ignore custom weights from JD to avoid normalization issues)
+        weights = DEFAULT_WEIGHTS.copy()
         
-        # Add experience keyword score
-        experience_score = score_experience_keywords(resume)
+        print(f"\n⚖️  WEIGHTS DEBUG:")
+        print(f"  Using default weights (sum: {sum(DEFAULT_WEIGHTS.values()):.3f})")
         
-        # Add weighted keyword score if available
-        weighted_kw_score = 0.5
-        if jd_keyword_categories.get('weighted_keywords'):
-            weighted_kw_score = score_weighted_keywords(
-                jd_keyword_categories['weighted_keywords'],
-                resume_keywords
-            )
+        # Calculate individual category scores
+        category_scores = {
+            'required_skills': score_overlap(jd_keywords['required_skills'], resume_tokens),
+            'preferred_skills': score_overlap(jd_keywords['preferred_skills'], resume_tokens),
+            'weighted_keywords': score_weighted_keywords(jd_keywords['weighted_keywords'], resume_tokens),
+            'experience_keywords': score_experience_keywords(resume),
+            'domain_relevance': score_overlap(jd_keywords['domain_tags'], resume_tokens),
+            'project_metrics': score_project_metrics(resume),
+            'responsibilities': score_overlap(jd_keywords['responsibilities'], resume_tokens),
+            'education': score_overlap(jd_keywords['education'], resume_tokens),
+        }
         
-        # Calculate scores for each category
-        category_scores = {}
-        all_exact_matches = set()
-        all_fuzzy_matches = set()
+        print(f"\n📊 CATEGORY SCORES DEBUG:")
+        for cat, score in category_scores.items():
+            weight = weights.get(cat, 0.0)
+            contribution = score * weight
+            print(f"  {cat}: {score:.3f} × {weight:.3f} = {contribution:.3f}")
         
-        for category, jd_keywords in jd_keyword_categories.items():
-            if category == 'all_keywords':  # Skip this meta category
-                continue
-                
-            if not jd_keywords:  # Skip empty categories
-                category_scores[category] = {
-                    'score': 0.0,
-                    'exact_matches': {'match_count': 0, 'match_percentage': 0.0, 'total_jd_keywords': 0},
-                    'fuzzy_matches': {'fuzzy_count': 0}
-                }
-                continue
-            
-            # Calculate exact matches
-            exact_results = calculate_exact_matches(resume_keywords, jd_keywords)
-            
-            # Calculate fuzzy matches
-            fuzzy_results = calculate_fuzzy_matches(resume_keywords, jd_keywords)
-            
-            # Calculate weighted score for this category
-            category_score = calculate_weighted_score(exact_results, fuzzy_results, category_weights)
-            
-            category_scores[category] = {
-                'score': category_score,
-                'exact_matches': exact_results,
-                'fuzzy_matches': fuzzy_results,
-                'weight': category_weights.get(category, 0.0)
-            }
-            
-            # Collect all matches for overall analysis
-            all_exact_matches.update(exact_results['matches'])
-            all_fuzzy_matches.update(fuzzy_results['fuzzy_matches'])
+        # Calculate weighted overall score
+        overall_score = sum(
+            category_scores[category] * weights.get(category, 0.0)
+            for category in category_scores
+        )
         
-        # Calculate overall weighted score
-        overall_score = 0.0
-        total_weight = 0.0
-        
-        for category, results in category_scores.items():
-            weight = category_weights.get(category, 0.0)
-            total_jd_keywords = results['exact_matches'].get('total_jd_keywords', 0)
-            if weight > 0 and total_jd_keywords > 0:
-                category_contribution = results['score'] * weight
-                overall_score += category_contribution
-                total_weight += weight
-        
-        # Add experience keyword score
-        exp_weight = category_weights.get('experience_keywords', 0.0)
-        if exp_weight > 0:
-            exp_contribution = experience_score * exp_weight
-            overall_score += exp_contribution
-            total_weight += exp_weight
-        
-        # Add weighted keyword score
-        weighted_kw_weight = category_weights.get('weighted_keywords', 0.0)
-        if weighted_kw_weight > 0:
-            weighted_contribution = weighted_kw_score * weighted_kw_weight
-            overall_score += weighted_contribution
-            total_weight += weighted_kw_weight
-        
-        # Normalize overall score
+        # Normalize by total weight
+        total_weight = sum(weights.get(cat, 0.0) for cat in category_scores)
         if total_weight > 0:
             overall_score = overall_score / total_weight
         
-        # Generate keyword analysis summary
-        keyword_analysis = {
-            'total_resume_keywords': len(resume_keywords),
-            'total_jd_keywords': len(jd_keyword_categories['all_keywords']),
-            'total_exact_matches': len(all_exact_matches),
-            'total_fuzzy_matches': len(all_fuzzy_matches),
-            'coverage_percentage': (len(all_exact_matches) + len(all_fuzzy_matches)) / max(len(jd_keyword_categories['all_keywords']), 1) * 100,
-            'keyword_density': len(all_exact_matches) / max(len(resume_keywords), 1) * 100
-        }
+        print(f"\n✅ FINAL KEYWORD SCORE: {overall_score:.3f} (total_weight: {total_weight:.3f})")
         
         return {
             'success': True,
             'overall_score': round(overall_score, 3),
-            'category_scores': category_scores,
-            'experience_keyword_score': round(experience_score, 3),
-            'weighted_keyword_score': round(weighted_kw_score, 3),
-            'exact_matches': {
-                'all_matches': list(all_exact_matches),
-                'count': len(all_exact_matches)
+            'category_scores': {k: round(v, 3) for k, v in category_scores.items()},
+            'weights_used': {k: round(v, 3) for k, v in weights.items()},
+            'keyword_analysis': {
+                'jd_required_skills_count': len(jd_keywords['required_skills']),
+                'jd_weighted_keywords_count': len(jd_keywords['weighted_keywords']),
+                'resume_tokens_count': len(resume_tokens),
             },
-            'fuzzy_matches': {
-                'all_matches': list(all_fuzzy_matches), 
-                'count': len(all_fuzzy_matches)
-            },
-            'keyword_analysis': keyword_analysis
+            'error': None
         }
         
     except Exception as e:
         return {
             'success': False,
             'overall_score': 0.0,
+            'category_scores': {},
             'error': f"Keyword scoring failed: {str(e)}"
         }

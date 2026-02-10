@@ -3,388 +3,249 @@
 """
 Hard Requirements Checker for Resume Analysis
 
-Checks mandatory HR requirements based on EarlyFilter.py logic.
-Filters candidates who don't meet critical requirements.
+Checks mandatory HR requirements using filter_requirements.mandatory_compliances.structured format.
+Returns simple pass/fail based on whether candidate meets ALL mandatory requirements.
 """
 
-import re
-from typing import Dict, Any, List, Tuple, Optional
-
-def normalize_skill(skill: str) -> str:
-    """Normalize skill names for consistent matching"""
-    if not skill:
-        return ""
-    
-    # Convert to lowercase and remove special characters
-    normalized = re.sub(r'[^\w\s]', ' ', skill.lower().strip())
-    
-    # Common technology normalizations
-    tech_mappings = {
-        'javascript': 'javascript', 'js': 'javascript',
-        'typescript': 'typescript', 'ts': 'typescript',
-        'python': 'python', 'py': 'python',
-        'react js': 'react', 'reactjs': 'react', 'react.js': 'react',
-        'node js': 'nodejs', 'node.js': 'nodejs',
-        'c++': 'cpp', 'c plus plus': 'cpp',
-        'c#': 'csharp', 'c sharp': 'csharp'
-    }
-    
-    return tech_mappings.get(normalized, normalized)
-
-def check_experience_requirement(resume: Dict[str, Any], min_experience_years: float) -> Dict[str, Any]:
-    """Check if candidate meets minimum experience requirement"""
-    try:
-        # Extract total experience from resume
-        total_experience = 0.0
-        
-        # Try to get from summary field first
-        if resume.get('years_experience'):
-            try:
-                total_experience = float(resume['years_experience'])
-            except (ValueError, TypeError):
-                pass
-        
-        # Calculate from individual experiences if not found in summary
-        if total_experience == 0.0 and resume.get('experience'):
-            for exp in resume['experience']:
-                # Try to get duration_years
-                if exp.get('duration_years'):
-                    try:
-                        total_experience += float(exp['duration_years'])
-                    except (ValueError, TypeError):
-                        pass
-                elif exp.get('start_date') and exp.get('end_date'):
-                    # Simple year calculation
-                    try:
-                        start_year = int(exp['start_date'][:4])
-                        end_year = int(exp['end_date'][:4]) if exp['end_date'] != 'Present' else 2024
-                        years = max(0, end_year - start_year)
-                        total_experience += years
-                    except (ValueError, TypeError, IndexError):
-                        # Default to 1 year if parsing fails
-                        total_experience += 1.0
-                else:
-                    # Default to 1 year per job if no dates
-                    total_experience += 1.0
-        
-        # Check if meets requirement
-        meets_requirement = total_experience >= min_experience_years
-        
-        return {
-            'requirement_type': 'experience',
-            'required_years': min_experience_years,
-            'candidate_years': total_experience,
-            'meets_requirement': meets_requirement,
-            'reason': f"Candidate has {total_experience} years, requires {min_experience_years} years" if not meets_requirement else f"Meets experience requirement ({total_experience} years)"
-        }
-        
-    except Exception as e:
-        return {
-            'requirement_type': 'experience',
-            'required_years': min_experience_years,
-            'candidate_years': 0.0,
-            'meets_requirement': False,
-            'reason': f"Error checking experience: {str(e)}"
-        }
-
-def check_skills_requirement(resume: Dict[str, Any], required_skills: List[str]) -> Dict[str, Any]:
-    """Check if candidate has all required skills"""
-    try:
-        if not required_skills:
-            return {
-                'requirement_type': 'skills',
-                'required_skills': [],
-                'found_skills': [],
-                'missing_skills': [],
-                'meets_requirement': True,
-                'reason': 'No skills requirement specified'
-            }
-        
-        # Collect all skills from resume
-        resume_skills = set()
-        
-        # From skills array
-        for skill in resume.get('skills', []):
-            if skill:
-                resume_skills.add(normalize_skill(skill))
-        
-        # From canonical skills
-        canonical_skills = resume.get('canonical_skills', {})
-        for category, skills in canonical_skills.items():
-            if isinstance(skills, list):
-                for skill in skills:
-                    if skill:
-                        resume_skills.add(normalize_skill(skill))
-        
-        # From inferred skills
-        for skill_obj in resume.get('inferred_skills', []):
-            if skill_obj.get('skill'):
-                resume_skills.add(normalize_skill(skill_obj['skill']))
-        
-        # From skill proficiency
-        for skill_obj in resume.get('skill_proficiency', []):
-            if skill_obj.get('skill'):
-                resume_skills.add(normalize_skill(skill_obj['skill']))
-        
-        # From projects
-        for project in resume.get('projects', []):
-            for tech in project.get('technologies', []):
-                if tech:
-                    resume_skills.add(normalize_skill(tech))
-            for keyword in project.get('tech_keywords', []):
-                if keyword:
-                    resume_skills.add(normalize_skill(keyword))
-            for skill in project.get('primary_skills', []):
-                if skill:
-                    resume_skills.add(normalize_skill(skill))
-        
-        # Check which required skills are found
-        found_skills = []
-        missing_skills = []
-        
-        for req_skill in required_skills:
-            normalized_req = normalize_skill(req_skill)
-            
-            # Check for exact match
-            if normalized_req in resume_skills:
-                found_skills.append(req_skill)
-            else:
-                # Check for partial matches
-                found_partial = False
-                for resume_skill in resume_skills:
-                    if normalized_req in resume_skill or resume_skill in normalized_req:
-                        found_skills.append(req_skill)
-                        found_partial = True
-                        break
-                
-                if not found_partial:
-                    missing_skills.append(req_skill)
-        
-        # All required skills must be found
-        meets_requirement = len(missing_skills) == 0
-        
-        return {
-            'requirement_type': 'skills',
-            'required_skills': required_skills,
-            'found_skills': found_skills,
-            'missing_skills': missing_skills,
-            'meets_requirement': meets_requirement,
-            'reason': f"Found {len(found_skills)}/{len(required_skills)} required skills" + (f". Missing: {', '.join(missing_skills)}" if missing_skills else "")
-        }
-        
-    except Exception as e:
-        return {
-            'requirement_type': 'skills',
-            'required_skills': required_skills,
-            'found_skills': [],
-            'missing_skills': required_skills,
-            'meets_requirement': False,
-            'reason': f"Error checking skills: {str(e)}"
-        }
-
-def check_education_requirement(resume: Dict[str, Any], required_education: Optional[str] = None) -> Dict[str, Any]:
-    """Check if candidate meets education requirements"""
-    try:
-        education_entries = resume.get('education', [])
-        
-        if not required_education:
-            return {
-                'requirement_type': 'education',
-                'required_education': None,
-                'candidate_education': [edu.get('degree', '') for edu in education_entries],
-                'meets_requirement': True,
-                'reason': 'No education requirement specified'
-            }
-        
-        if not education_entries:
-            return {
-                'requirement_type': 'education',
-                'required_education': required_education,
-                'candidate_education': [],
-                'meets_requirement': False,
-                'reason': 'No education information found in resume'
-            }
-        
-        # Education level hierarchy
-        education_levels = {
-            'phd': 7, 'doctorate': 7, 'doctoral': 7,
-            'masters': 6, 'master': 6, 'msc': 6, 'mba': 6, 'ms': 6,
-            'bachelors': 5, 'bachelor': 5, 'bsc': 5, 'btech': 5, 'be': 5, 'bs': 5,
-            'diploma': 4, 'associate': 4,
-            'certificate': 3, 'certification': 3,
-            'high school': 2, 'secondary': 2,
-            '12th': 1, '10th': 0
-        }
-        
-        # Determine required education level
-        required_level = 0
-        req_lower = required_education.lower()
-        for edu_type, level in education_levels.items():
-            if edu_type in req_lower:
-                required_level = max(required_level, level)
-        
-        # Find candidate's highest education level
-        candidate_level = 0
-        best_degree = ""
-        
-        for edu in education_entries:
-            degree = edu.get('degree', '').lower()
-            for edu_type, level in education_levels.items():
-                if edu_type in degree:
-                    if level > candidate_level:
-                        candidate_level = level
-                        best_degree = edu.get('degree', '')
-        
-        meets_requirement = candidate_level >= required_level
-        
-        return {
-            'requirement_type': 'education',
-            'required_education': required_education,
-            'candidate_education': [edu.get('degree', '') for edu in education_entries],
-            'best_degree': best_degree,
-            'meets_requirement': meets_requirement,
-            'reason': f"Candidate has {best_degree}, requires {required_education}" if not meets_requirement else f"Education requirement met: {best_degree}"
-        }
-        
-    except Exception as e:
-        return {
-            'requirement_type': 'education',
-            'required_education': required_education,
-            'candidate_education': [],
-            'meets_requirement': False,
-            'reason': f"Error checking education: {str(e)}"
-        }
-
-def check_location_requirement(resume: Dict[str, Any], required_location: Optional[str] = None) -> Dict[str, Any]:
-    """Check if candidate meets location requirements"""
-    try:
-        if not required_location or required_location.lower() in ['any', 'anywhere', 'flexible', 'remote/onsite']:
-            return {
-                'requirement_type': 'location',
-                'required_location': required_location,
-                'candidate_location': resume.get('location', 'Not specified'),
-                'meets_requirement': True,
-                'reason': 'No specific location requirement'
-            }
-        
-        candidate_location = resume.get('location', '')
-        if not candidate_location:
-            return {
-                'requirement_type': 'location',
-                'required_location': required_location,
-                'candidate_location': 'Not specified',
-                'meets_requirement': False,
-                'reason': 'Location not specified in resume'
-            }
-        
-        req_lower = required_location.lower()
-        cand_lower = candidate_location.lower()
-        
-        # Check for work arrangement matches
-        if 'remote' in req_lower and 'remote' in cand_lower:
-            meets_requirement = True
-        elif 'onsite' in req_lower and ('onsite' in cand_lower or 'office' in cand_lower):
-            meets_requirement = True
-        elif 'hybrid' in req_lower and 'hybrid' in cand_lower:
-            meets_requirement = True
-        # Check for city/state matches
-        elif req_lower in cand_lower or cand_lower in req_lower:
-            meets_requirement = True
-        else:
-            meets_requirement = False
-        
-        return {
-            'requirement_type': 'location',
-            'required_location': required_location,
-            'candidate_location': candidate_location,
-            'meets_requirement': meets_requirement,
-            'reason': f"Location match: {candidate_location}" if meets_requirement else f"Location mismatch: {candidate_location} (required: {required_location})"
-        }
-        
-    except Exception as e:
-        return {
-            'requirement_type': 'location',
-            'required_location': required_location,
-            'candidate_location': resume.get('location', 'Not specified'),
-            'meets_requirement': False,
-            'reason': f"Error checking location: {str(e)}"
-        }
+from typing import Dict, Any
 
 def check_hard_requirements(resume: Dict[str, Any], jd_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Main function to check all hard requirements
+    Check if resume meets ALL mandatory compliance requirements.
+    Uses filter_requirements.mandatory_compliances.structured format.
+    
     Returns: {
         'success': bool,
-        'all_requirements_met': bool,
-        'overall_compliance_score': float,
-        'requirement_results': dict,
-        'failed_requirements': list,
+        'meets_all_requirements': bool,
+        'compliance_score': float,
+        'requirements_met': list,
+        'requirements_missing': list,
+        'filter_reason': str or None,
         'error': str or None
     }
     """
     try:
-        jd_analysis = jd_data.get('jd_analysis', {})
+        # Extract mandatory compliances from JD
+        filter_requirements = jd_data.get('filter_requirements', {})
+        mandatory_compliances = filter_requirements.get('mandatory_compliances', {})
         
-        # Extract requirements from JD
-        min_experience = jd_analysis.get('minimum_experience_years', 0.0)
-        required_skills = jd_analysis.get('required_skills', [])
-        required_education = jd_analysis.get('required_education')
-        required_location = jd_analysis.get('location')
+        if not mandatory_compliances:
+            # No mandatory requirements
+            return {
+                'success': True,
+                'meets_all_requirements': True,
+                'compliance_score': 1.0,
+                'requirements_met': [],
+                'requirements_missing': [],
+                'filter_reason': None,
+                'error': None
+            }
+        
+        structured = mandatory_compliances.get('structured', {})
+        
+        if not structured:
+            # No structured requirements
+            return {
+                'success': True,
+                'meets_all_requirements': True,
+                'compliance_score': 1.0,
+                'requirements_met': [],
+                'requirements_missing': [],
+                'filter_reason': None,
+                'error': None
+            }
         
         # Check each requirement
-        requirement_results = {}
-        failed_requirements = []
+        requirements_met = []
+        requirements_missing = []
+        filter_reasons = []
         
-        # Experience check
-        exp_result = check_experience_requirement(resume, min_experience)
-        requirement_results['experience'] = exp_result
-        if not exp_result['meets_requirement']:
-            failed_requirements.append('experience')
+        def field_has_value(val):
+            """Check if a field has a meaningful value."""
+            if val is None:
+                return False
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, (list, tuple, set)):
+                return len(val) > 0
+            if isinstance(val, dict):
+                if val.get('specified', False):
+                    return True
+                for k, v in val.items():
+                    if k != 'specified' and v not in (None, [], {}, ''):
+                        return True
+                return False
+            return bool(val)
         
-        # Skills check
-        skills_result = check_skills_requirement(resume, required_skills)
-        requirement_results['skills'] = skills_result
-        if not skills_result['meets_requirement']:
-            failed_requirements.append('skills')
+        # Check each field in structured requirements
+        for field_name, field_spec in structured.items():
+            if not field_has_value(field_spec):
+                continue  # Skip empty fields
+            
+            # Check the requirement
+            meets_requirement = check_requirement(resume, field_name, field_spec)
+            
+            if meets_requirement:
+                requirements_met.append(field_name)
+            else:
+                requirements_missing.append(field_name)
+                filter_reasons.append(f"{field_name}: requirement not met")
         
-        # Education check
-        edu_result = check_education_requirement(resume, required_education)
-        requirement_results['education'] = edu_result
-        if not edu_result['meets_requirement']:
-            failed_requirements.append('education')
+        # Calculate compliance
+        total_requirements = len(requirements_met) + len(requirements_missing)
+        if total_requirements == 0:
+            compliance_score = 1.0
+            meets_all = True
+        else:
+            compliance_score = len(requirements_met) / total_requirements
+            meets_all = len(requirements_missing) == 0
         
-        # Location check
-        loc_result = check_location_requirement(resume, required_location)
-        requirement_results['location'] = loc_result
-        if not loc_result['meets_requirement']:
-            failed_requirements.append('location')
-        
-        # Calculate overall compliance
-        total_requirements = len(requirement_results)
-        met_requirements = total_requirements - len(failed_requirements)
-        
-        overall_compliance_score = met_requirements / total_requirements if total_requirements > 0 else 1.0
-        all_requirements_met = len(failed_requirements) == 0
+        filter_reason = None
+        if not meets_all and filter_reasons:
+            filter_reason = '; '.join(filter_reasons[:3])
         
         return {
             'success': True,
-            'all_requirements_met': all_requirements_met,
-            'overall_compliance_score': overall_compliance_score,
-            'requirement_results': requirement_results,
-            'failed_requirements': failed_requirements,
-            'requirements_summary': {
-                'total_requirements': total_requirements,
-                'met_requirements': met_requirements,
-                'failed_requirements': len(failed_requirements)
-            }
+            'meets_all_requirements': meets_all,
+            'compliance_score': compliance_score,
+            'requirements_met': requirements_met,
+            'requirements_missing': requirements_missing,
+            'filter_reason': filter_reason,
+            'error': None
         }
         
     except Exception as e:
         return {
             'success': False,
-            'all_requirements_met': False,
-            'overall_compliance_score': 0.0,
-            'requirement_results': {},
-            'failed_requirements': [],
+            'meets_all_requirements': False,
+            'compliance_score': 0.0,
+            'requirements_met': [],
+            'requirements_missing': [],
+            'filter_reason': None,
             'error': f"Hard requirements check failed: {str(e)}"
         }
+
+
+def check_requirement(resume: Dict[str, Any], field_name: str, field_spec: Any) -> bool:
+    """
+    Check if resume meets a specific requirement.
+    Returns True if requirement is met, False otherwise.
+    """
+    try:
+        # Handle different requirement types
+        if field_name == 'experience':
+            return check_experience(resume, field_spec)
+        elif field_name == 'hard_skills':
+            return check_skills(resume, field_spec)
+        elif field_name == 'education':
+            return check_education(resume, field_spec)
+        elif field_name == 'location':
+            return check_location(resume, field_spec)
+        else:
+            # Unknown requirement type - pass by default
+            return True
+    except Exception:
+        return False
+
+
+def check_experience(resume: Dict[str, Any], spec: Any) -> bool:
+    """Check experience requirement."""
+    if not isinstance(spec, dict) or not spec.get('specified'):
+        return True
+    
+    min_years = spec.get('min', 0)
+    resume_years = resume.get('years_experience', 0)
+    
+    try:
+        resume_years = float(resume_years)
+    except (ValueError, TypeError):
+        resume_years = 0.0
+    
+    return resume_years >= min_years
+
+
+def check_skills(resume: Dict[str, Any], spec: Any) -> bool:
+    """Check skills requirement."""
+    if not isinstance(spec, dict) or not spec.get('specified'):
+        return True
+    
+    required_skills = spec.get('required', [])
+    if not required_skills:
+        return True
+    
+    # Collect resume skills
+    resume_skills = set()
+    
+    # From canonical_skills
+    canonical = resume.get('canonical_skills', {})
+    for cat_skills in canonical.values():
+        if isinstance(cat_skills, list):
+            resume_skills.update(s.lower().strip() for s in cat_skills if s)
+    
+    # From inferred_skills
+    for inf in resume.get('inferred_skills', []):
+        if inf.get('skill'):
+            resume_skills.add(inf['skill'].lower().strip())
+    
+    # From skill_proficiency
+    for sp in resume.get('skill_proficiency', []):
+        if sp.get('skill'):
+            resume_skills.add(sp['skill'].lower().strip())
+    
+    # Check if all required skills are present
+    for req_skill in required_skills:
+        req_normalized = req_skill.lower().strip()
+        found = any(req_normalized in skill or skill in req_normalized for skill in resume_skills)
+        if not found:
+            return False
+    
+    return True
+
+
+def check_education(resume: Dict[str, Any], spec: Any) -> bool:
+    """Check education requirement."""
+    if not isinstance(spec, dict) or not spec.get('specified'):
+        return True
+    
+    required_ed = spec.get('required', '') or spec.get('minimum', '')
+    if not required_ed:
+        return True
+    
+    education_entries = resume.get('education', [])
+    if not education_entries:
+        return False
+    
+    # Simple check - if any education entry matches
+    req_lower = required_ed.lower()
+    for edu in education_entries:
+        degree = edu.get('degree', '').lower()
+        if req_lower in degree or degree in req_lower:
+            return True
+    
+    return False
+
+
+def check_location(resume: Dict[str, Any], spec: Any) -> bool:
+    """Check location requirement."""
+    if not isinstance(spec, dict) or not spec.get('specified'):
+        return True
+    
+    required_loc = spec.get('required', '')
+    if not required_loc or required_loc.lower() in ['any', 'anywhere', 'flexible']:
+        return True
+    
+    candidate_loc = resume.get('location', '').lower()
+    if not candidate_loc:
+        return False
+    
+    required_loc_lower = required_loc.lower()
+    
+    # Check for remote/onsite/hybrid
+    if 'remote' in required_loc_lower and 'remote' in candidate_loc:
+        return True
+    
+    # Check for city/state match
+    if required_loc_lower in candidate_loc or candidate_loc in required_loc_lower:
+        return True
+    
+    return False

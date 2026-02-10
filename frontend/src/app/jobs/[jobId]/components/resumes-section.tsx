@@ -24,15 +24,14 @@ import {
   CheckCircle2,
   FileUp,
 } from "lucide-react";
-import type { ResumeGroup, Resume, ResumeStatus } from "@/lib/types";
-import { jobsAPI, resumesAPI, processingAPI, resumeGroupsAPI } from "@/lib/api";
+import type { Resume, ResumeStatus } from "@/lib/types";
+import { jobsAPI, resumesAPI, processingAPI } from "@/lib/api";
 
 interface ResumesSectionProps {
   jobId: string;
 }
 
 export function ResumesSection({ jobId }: ResumesSectionProps) {
-  const [resumeGroup, setResumeGroup] = useState<string | null>(null);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -42,47 +41,21 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchResumeGroupAndResumes();
+    fetchResumes();
   }, [jobId]);
 
-  const fetchResumeGroupAndResumes = async () => {
+  const fetchResumes = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get job data which contains resume groups
-      const jobRes = await jobsAPI.getById(jobId);
-      
-      if (!jobRes.success) {
-        setError("Failed to load job data");
-        return;
-      }
-
-      const job = jobRes.data;
-      const groups = job.resume_groups || [];
-      
-      console.log('🔍 [Resume Groups] Job data:', job);
-      console.log('🔍 [Resume Groups] Groups found:', groups);
-      
-      // Check if exactly one group exists
-      if (groups.length === 0) {
-        setError("No resume group found. Please process the JD first to create a resume group.");
-        return;
-      }
-      
-      if (groups.length > 1) {
-        setError("Multiple resume groups found. Something went wrong - only one group should exist per job.");
-        return;
-      }
-
-      // Exactly one group - this is what we expect
-      const group = groups[0];
-      setResumeGroup(group);
-
-      console.log('📂 [Resumes] Using resume group:', group);
-      const resumesRes = await resumesAPI.getByGroup(group);
+      console.log('📂 [Resumes] Fetching resumes for job:', jobId);
+      const resumesRes = await resumesAPI.getByJob(jobId);
       if (resumesRes.success) {
         setResumes(resumesRes.data);
+        console.log('📂 [Resumes] Loaded resumes:', resumesRes.data.length);
+      } else {
+        setError("Failed to load resumes. Please try again.");
       }
     } catch (error) {
       console.error("Failed to load resume data:", error);
@@ -94,7 +67,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (!files || files.length === 0 || !resumeGroup) return;
+    if (!files || files.length === 0) return;
 
     // Filter for PDF files only
     const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
@@ -118,14 +91,8 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
     setUploadSuccess(null);
 
     try {
-      const groupId = resumeGroup;
-      if (!groupId) {
-        setError("Resume group has no valid ID");
-        return;
-      }
-      
-      console.log('📤 [Upload] Uploading to group ID:', groupId);
-      const response = await resumeGroupsAPI.uploadResumes(groupId, pdfFiles, jobId);
+      console.log('📤 [Upload] Uploading to job ID:', jobId);
+      const response = await jobsAPI.uploadResumes(jobId, pdfFiles);
       
       if (response.success) {
         const uploadCount = pdfFiles.length;
@@ -135,7 +102,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
           setUploadSuccess(`Successfully uploaded ${uploadCount} resume(s)`);
         }
         // Refresh the resume list
-        await fetchResumeGroupAndResumes();
+        await fetchResumes();
       } else {
         setError(response.message || "Upload failed");
       }
@@ -152,7 +119,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
   };
 
   const handleProcessResumes = async () => {
-    if (!resumeGroup || resumes.length === 0) return;
+    if (resumes.length === 0) return;
     
     setProcessing(true);
     setError(null);
@@ -206,21 +173,20 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
         </Alert>
       )}
 
-      {/* Resume Group Info & Upload Section */}
-      {resumeGroup && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Resume Management
-              </div>
-            </CardTitle>
-            <CardDescription>
-              Upload and manage resumes for:
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      {/* Upload & Management Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Resume Management
+            </div>
+          </CardTitle>
+          <CardDescription>
+            Upload and manage resumes for this job
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
             {/* Upload Section */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="space-y-1">
@@ -293,7 +259,6 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
             )}
           </CardContent>
         </Card>
-      )}
 
       {/* Resumes List */}
       {resumes.length > 0 ? (
@@ -336,22 +301,20 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
           </CardContent>
         </Card>
       ) : (
-        resumeGroup && (
-          <EmptyState
-            icon={<Users className="h-8 w-8" />}
-            title="No resumes uploaded yet"
-            description="Upload PDF resumes to get started with candidate evaluation"
-            action={
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-4"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload First Resume
-              </Button>
-            }
-          />
-        )
+        <EmptyState
+          icon={<Users className="h-8 w-8" />}
+          title="No resumes uploaded yet"
+          description="Upload PDF resumes to get started with candidate evaluation"
+          action={
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-4"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload First Resume
+            </Button>
+          }
+        />
       )}
     </div>
   );

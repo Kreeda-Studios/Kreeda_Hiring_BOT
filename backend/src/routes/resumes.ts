@@ -3,17 +3,16 @@ import { Resume } from '../models';
 
 const router = Router();
 
-// GET /api/resumes - Get all resumes
+// GET /api/resumes - Get all resumes for a job
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { group_id } = req.query;
+    const { job_id } = req.query;
     const filter: any = {};
     
-    if (group_id) filter.group_id = group_id;
+    if (job_id) filter.job_id = job_id;
 
     const resumes = await Resume.find(filter)
-      .populate('group_id', 'name')
-      .select('filename candidate_name extraction_status parsing_status embedding_status createdAt')
+      .select('filename original_name extraction_status parsing_status embedding_status processing_status createdAt')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -33,8 +32,7 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/resumes/:id - Get resume by ID
 router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const resume = await Resume.findById(req.params.id)
-      .populate('group_id');
+    const resume = await Resume.findById(req.params.id);
 
     if (!resume) {
       res.status(404).json({

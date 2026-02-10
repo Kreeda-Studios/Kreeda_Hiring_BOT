@@ -9,252 +9,172 @@ Based on the exact schema from Old_Code_Archive parsing logic.
 import os
 import json
 import time
+import asyncio
 from typing import Dict, Any, List, Optional
 
 try:
-    from openai import OpenAI
+    from openai import AsyncOpenAI
 except ImportError:
-    OpenAI = None
+    AsyncOpenAI = None
 
 # OpenAI Configuration
 MODEL_NAME = "gpt-4o-mini"
 MAX_TOKENS = 4096
-TEMPERATURE = 0.1
 
-PARSE_RESUME_FUNCTION = {
-    "name": "parse_resume",
-    "description": "Parse resume content into structured data with comprehensive details",
+PARSE_FUNCTION = {
+    "name": "parse_resume_detailed",
+    "description": "Return a richly-structured JSON resume for ATS and LLM ranking. Include canonical skills, inferred skills with provenance & confidence, projects, experiences, domain tags (AIML, Fullstack, Cloud, DB, Testing, Sales, Solution Arch, etc.), minimal filler, and embedding hint strings.",
     "parameters": {
         "type": "object",
         "properties": {
-            "name": {
-                "type": "string",
-                "description": "Full name of the candidate"
-            },
-            "contact_info": {
+            "candidate_id": {"type": "string"},
+            "name": {"type": "string"},
+            "role_claim": {"type": "string"},
+            "years_experience": {"type": "number"},
+            "location": {"type": "string"},
+            "contact": {
                 "type": "object",
                 "properties": {
-                    "email": {"type": "string", "description": "Email address"},
-                    "phone": {"type": "string", "description": "Phone number"},
-                    "address": {"type": "string", "description": "Full address"},
-                    "linkedin": {"type": "string", "description": "LinkedIn profile URL"},
-                    "github": {"type": "string", "description": "GitHub profile URL"},
-                    "portfolio": {"type": "string", "description": "Portfolio website URL"}
-                },
-                "required": ["email"]
+                    "email": {"type": "string"},
+                    "phone": {"type": "string"},
+                    "profile": {"type": "string"}
+                }
             },
-            "location": {
-                "type": "string",
-                "description": "Current location/city/state"
-            },
-            "summary": {
+            "domain_tags": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Professional summary or objective statements"
+                "description": "High-level role areas e.g., AIML, Fullstack, Testing, DB Modeling, Cloud, Solution Arch, Sales"
             },
-            "years_experience": {
-                "type": "number",
-                "description": "Total years of professional experience"
-            },
-            "experience": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "company": {"type": "string", "description": "Company/organization name"},
-                        "title": {"type": "string", "description": "Job title/position"},
-                        "duration": {"type": "string", "description": "Employment duration (e.g., '2020-2023')"},
-                        "location": {"type": "string", "description": "Job location"},
-                        "description": {"type": "string", "description": "Detailed job description"},
-                        "responsibilities": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of key responsibilities"
-                        },
-                        "achievements": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Notable achievements or accomplishments"
-                        },
-                        "industry": {"type": "string", "description": "Industry sector"},
-                        "years_at_company": {"type": "number", "description": "Years worked at this company"}
-                    },
-                    "required": ["company", "title", "duration"]
-                },
-                "description": "Professional work experience"
-            },
-            "education": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "institution": {"type": "string", "description": "Educational institution name"},
-                        "degree": {"type": "string", "description": "Degree type (e.g., Bachelor's, Master's)"},
-                        "field": {"type": "string", "description": "Field of study/major"},
-                        "year": {"type": "string", "description": "Graduation year or duration"},
-                        "gpa": {"type": "string", "description": "GPA if mentioned"},
-                        "honors": {"type": "string", "description": "Honors, dean's list, etc."}
-                    },
-                    "required": ["institution", "degree", "field"]
-                },
-                "description": "Educational background"
-            },
-            "skills": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Technical and professional skills"
-            },
+            "profile_keywords_line": {"type": "string"},
             "canonical_skills": {
                 "type": "object",
                 "properties": {
-                    "programming_languages": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Programming languages (Python, JavaScript, etc.)"
-                    },
-                    "frameworks_libraries": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Frameworks and libraries (React, Django, etc.)"
-                    },
-                    "databases": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Database technologies (MySQL, MongoDB, etc.)"
-                    },
-                    "cloud_platforms": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Cloud platforms (AWS, Azure, GCP)"
-                    },
-                    "tools_software": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Tools and software (Git, Docker, etc.)"
-                    },
-                    "soft_skills": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Soft skills (leadership, communication, etc.)"
-                    }
-                },
-                "description": "Skills categorized into canonical groups"
+                    "programming": {"type": "array", "items": {"type": "string"}},
+                    "ml_ai": {"type": "array", "items": {"type": "string"}},
+                    "frontend": {"type": "array", "items": {"type": "string"}},
+                    "backend": {"type": "array", "items": {"type": "string"}},
+                    "testing": {"type": "array", "items": {"type": "string"}},
+                    "databases": {"type": "array", "items": {"type": "string"}},
+                    "cloud": {"type": "array", "items": {"type":"string"}},
+                    "infra": {"type": "array", "items": {"type":"string"}},
+                    "devtools": {"type": "array", "items": {"type":"string"}},
+                    "methodologies": {"type": "array", "items": {"type":"string"}}
+                }
             },
             "inferred_skills": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "skill": {"type": "string", "description": "Skill name"},
-                        "source": {"type": "string", "description": "Where skill was inferred from"},
-                        "confidence": {"type": "number", "description": "Confidence score (0-1)"}
-                    },
-                    "required": ["skill", "source", "confidence"]
-                },
-                "description": "Skills inferred from experience and projects"
+                        "skill": {"type": "string"},
+                        "confidence": {"type": "number"},
+                        "provenance": {"type": "array", "items": {"type": "string"}}
+                    }
+                }
             },
             "skill_proficiency": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "skill": {"type": "string", "description": "Skill name"},
-                        "level": {"type": "string", "description": "Proficiency level (Beginner/Intermediate/Advanced/Expert)"},
-                        "years_experience": {"type": "number", "description": "Years of experience with this skill"}
-                    },
-                    "required": ["skill", "level"]
-                },
-                "description": "Skills with proficiency levels"
+                        "skill": {"type":"string"},
+                        "level": {"type":"string"},
+                        "years_last_used": {"type":"integer"},
+                        "provenance": {"type":"array", "items": {"type":"string"}}
+                    }
+                }
             },
             "projects": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "name": {"type": "string", "description": "Project name"},
-                        "description": {"type": "string", "description": "Project description"},
-                        "technologies": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Technologies/tools used"
-                        },
-                        "tech_keywords": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Technical keywords from project"
-                        },
-                        "primary_skills": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Primary skills demonstrated"
-                        },
-                        "url": {"type": "string", "description": "Project URL/link"},
-                        "duration": {"type": "string", "description": "Project duration"},
-                        "role": {"type": "string", "description": "Role in the project"}
-                    },
-                    "required": ["name", "description"]
-                },
-                "description": "Personal and professional projects"
+                        "name": {"type": "string"},
+                        "duration_start": {"type": "string"},
+                        "duration_end": {"type": "string"},
+                        "role": {"type": "string"},
+                        "domain": {"type": "string"},
+                        "tech_keywords": {"type": "array", "items": {"type": "string"}},
+                        "approach": {"type": "string"},
+                        "impact_metrics": {"type": "object"},
+                        "primary_skills": {"type": "array", "items": {"type": "string"}},
+                        "metrics": {
+                            "type": "object",
+                            "properties": {
+                                "difficulty": {"type": "number", "description": "Rating 0–1"},
+                                "novelty": {"type": "number", "description": "Rating 0–1"},
+                                "skill_relevance": {"type": "number", "description": "Rating 0–1"},
+                                "complexity": {"type": "number", "description": "Rating 0–1"},
+                                "technical_depth": {"type": "number", "description": "Rating 0–1"},
+                                "domain_relevance": {"type": "number", "description": "Rating 0–1"},
+                                "execution_quality": {"type": "number", "description": "Rating 0–1"}
+                            },
+                            "required": [
+                                "difficulty", "novelty", "skill_relevance", "complexity",
+                                "technical_depth", "domain_relevance", "execution_quality"
+                            ]
+                        }
+                    }
+                }
             },
-            "certifications": {
+            "experience_entries": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "name": {"type": "string", "description": "Certification name"},
-                        "issuer": {"type": "string", "description": "Issuing organization"},
-                        "date": {"type": "string", "description": "Issue/expiry date"},
-                        "credential_id": {"type": "string", "description": "Credential ID if available"}
-                    },
-                    "required": ["name", "issuer"]
-                },
-                "description": "Professional certifications"
+                        "company": {"type":"string"},
+                        "title": {"type":"string"},
+                        "period_start": {"type":"string"},
+                        "period_end": {"type":"string"},
+                        "responsibilities_keywords": {"type":"array", "items":{"type":"string"}},
+                        "achievements": {"type":"array", "items":{"type":"string"}},
+                        "primary_tech": {"type":"array", "items":{"type":"string"}},
+                        "provenance_spans": {"type":"array", "items":{"type":"object", "properties":{"start":{"type":"integer"},"end":{"type":"integer"},"text":{"type":"string"}}}}
+                    }
+                }
             },
-            "languages": {
+            "education": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "language": {"type": "string", "description": "Language name"},
-                        "proficiency": {"type": "string", "description": "Proficiency level (Native/Fluent/Conversational/Basic)"}
-                    },
-                    "required": ["language", "proficiency"]
+                        "degree": {"type": "string", "description": "Degree level (e.g., B.Tech, M.Tech, B.E., M.S., Ph.D.)"},
+                        "field": {"type": "string", "description": "Field of study/department (e.g., Computer Science, Mechanical Engineering, IT, CE, AIDS, ENTC)"},
+                        "institution": {"type": "string", "description": "University/College name"},
+                        "year": {"type": "string", "description": "Graduation year or period"}
+                    }
                 },
-                "description": "Language skills"
+                "description": "Education entries with degree, field/department, institution, and year"
             },
-            "responsibilities": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Overall key responsibilities across roles"
-            },
-            "achievements": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Notable achievements and accomplishments"
-            },
-            "keywords_flat": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Flat list of all relevant keywords from resume"
-            },
-            "meta": {
+            "ats_boost_line": {"type":"string"},
+            "embedding_hints": {
                 "type": "object",
                 "properties": {
-                    "resume_version": {"type": "string", "description": "Resume version or format"},
-                    "sections_detected": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Resume sections found"
-                    },
-                    "parsing_confidence": {"type": "number", "description": "Overall parsing confidence (0-1)"},
-                    "total_experience_calculated": {"type": "number", "description": "Calculated total experience in years"}
-                },
-                "description": "Metadata about the parsing process"
+                    "profile_embed": {"type":"string"},
+                    "projects_embed": {"type":"string"},
+                    "skills_embed": {"type":"string"}
+                }
+            },
+            "explainability": {
+                "type":"object",
+                "properties": {
+                    "top_matched_sentences": {"type":"array", "items":{"type":"string"}},
+                    "top_matched_keywords": {"type":"array", "items":{"type":"string"}}
+                }
+            },
+            "meta": {
+                "type":"object",
+                "properties": {
+                    "raw_text_length": {"type":"integer"},
+                    "keyword_occurrences": {"type":"object"},
+                    "last_updated": {"type":"string"}
+                }
             }
         },
-        "required": ["name", "contact_info", "experience", "education", "skills"]
+        "required": ["candidate_id", "name", "profile_keywords_line", "canonical_skills", "ats_boost_line"]
     }
 }
+
 
 # System prompt for resume parsing
 SYSTEM_PROMPT = """
@@ -287,21 +207,48 @@ For skill inference:
 Be thorough and accurate - this data will be used for candidate matching.
 """
 
+def extract_jd_skills_from_domain_tags(domain_tags: List[str]) -> Dict[str, List[str]]:
+    """
+    Extract required and preferred skills from JD domain_tags.
+    Matches old GptJson.py utility function.
+    
+    Args:
+        domain_tags: List of domain tag strings
+        
+    Returns:
+        Dictionary with 'required' and 'preferred' skill lists
+    """
+    required_skills = []
+    preferred_skills = []
+    
+    for tag in domain_tags:
+        if isinstance(tag, str):
+            if tag.startswith("REQ_SKILL:"):
+                required_skills.append(tag.replace("REQ_SKILL:", "").strip())
+            elif tag.startswith("PREF_SKILL:"):
+                preferred_skills.append(tag.replace("PREF_SKILL:", "").strip())
+    
+    return {
+        "required": required_skills,
+        "preferred": preferred_skills
+    }
+
+
 def get_openai_client():
-    """Initialize OpenAI client"""
-    if OpenAI is None:
+    """Initialize async OpenAI client"""
+    if AsyncOpenAI is None:
         raise ImportError("OpenAI library not installed. Run: pip install openai")
     
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable not set")
     
-    return OpenAI(api_key=api_key)
+    return AsyncOpenAI(api_key=api_key)
 
-def parse_resume_with_ai(resume_text: str, jd_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+async def parse_resume_with_ai(resume_text: str, jd_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
-    Parse resume using OpenAI function calling with JD context.
-    Matches old archive logic with skill normalization and scoring against JD.
+    Parse resume using OpenAI function calling with JD context (async).
+    Matches old GptJson.py logic with skill normalization and scoring against JD.
     
     Args:
         resume_text: Raw resume text
@@ -315,23 +262,23 @@ def parse_resume_with_ai(resume_text: str, jd_data: Optional[Dict[str, Any]] = N
         
         start_time = time.time()
         
-        # Extract JD context for skill normalization
+        # Extract JD context for skill normalization (matching old GptJson.py logic)
         domain_tags = []
         jd_required_skills = []
         jd_preferred_skills = []
         
         if jd_data:
             domain_tags = jd_data.get('domain_tags', [])
-            # Extract skills from jd_analysis
-            jd_analysis = jd_data.get('jd_analysis', {})
-            jd_required_skills = jd_analysis.get('required_skills', [])
-            jd_preferred_skills = jd_analysis.get('preferred_skills', [])
+            # Extract JD skills from domain_tags for normalization reference (using old system utility)
+            jd_skills = extract_jd_skills_from_domain_tags(domain_tags)
+            jd_required_skills = jd_skills["required"]
+            jd_preferred_skills = jd_skills["preferred"]
             
         # Truncate domain_tags for prompt (keep first 20 to save tokens)
         domain_tags_preview = domain_tags[:20] if len(domain_tags) > 20 else domain_tags
         domain_tags_str = str(domain_tags_preview) + ("..." if len(domain_tags) > 20 else "")
         
-        # Build enhanced system prompt with JD context (matching old archive logic)
+        # Build enhanced system prompt with JD context (matching old GptJson.py logic exactly)
         system_prompt_enhanced = (
             "Parse resume into structured JSON. Return EXACTLY ONE function call to `parse_resume`.\n\n"
         )
@@ -344,13 +291,11 @@ def parse_resume_with_ai(resume_text: str, jd_data: Optional[Dict[str, Any]] = N
                 "SKILL NORMALIZATION (CRITICAL):\n"
                 "• Match JD skill format. If JD requires 'RAG' and resume has 'Retrieval Augmented Generation', extract as 'RAG'\n"
                 "• If JD requires 'ML' and resume has 'Machine Learning', extract as 'Machine Learning' (use JD's canonical form)\n"
-                "• Use JD required_skills as normalization reference\n"
+                "• Use JD required_skills as normalization reference (check REQ_SKILL: tags in domain_tags)\n"
                 "• Normalize all skills to match JD format for consistent filtering\n"
             )
             
-            if jd_required_skills:
-                system_prompt_enhanced += f"• JD Required Skills (normalize to these forms): {', '.join(jd_required_skills[:10])}\n"
-            
+            system_prompt_enhanced += (f"• JD Required Skills (normalize to these forms): {', '.join(jd_required_skills[:10])}\n" if jd_required_skills else "")
             system_prompt_enhanced += "\n"
             
             system_prompt_enhanced += (
@@ -364,7 +309,7 @@ def parse_resume_with_ai(resume_text: str, jd_data: Optional[Dict[str, Any]] = N
         
         system_prompt_enhanced += (
             "EXPERIENCE CALCULATION (CRITICAL):\n"
-            "• Calculate years_experience from experience dates\n"
+            "• Calculate years_experience from experience_entries dates\n"
             "• Handle overlapping periods, internships, part-time correctly\n"
             "• Sum all relevant work experience (exclude internships if not relevant)\n"
             "• Use current date or latest period_end as reference\n"
@@ -376,36 +321,34 @@ def parse_resume_with_ai(resume_text: str, jd_data: Optional[Dict[str, Any]] = N
             "• Map abbreviations: CS→Computer Science, CE→Computer Engineering, IT→Information Technology\n"
             "• Include all degrees (B.Tech, M.Tech, etc.)\n\n"
             
-            "PROJECT REQUIREMENTS:\n"
-            "1. Fill all project fields (except dates may be optional)\n"
-            "2. Include tech_keywords and primary_skills for each project\n"
+             "REQUIREMENTS:\n"
+            "1. Fill all project fields (except dates)\n"
+            "2. Include provenance spans\n"
             "3. Normalize skills to JD format (see above)\n"
-            "4. Score projects based on JD alignment\n\n"
+            "4. Calculate years_experience accurately from dates\n"
+            "5. Extract education with field/department\n"
+            "6. No hallucinations - only extract what's present\n"
+            "7. Use canonical tokens\n\n"
             
-            "REQUIREMENTS:\n"
-            "1. Calculate years_experience accurately from dates\n"
-            "2. Extract education with field/department\n"
-            "3. No hallucinations - only extract what's present\n"
-            "4. Use canonical skill names\n"
-            "5. Extract ALL skills from experience and projects (inferred_skills)\n"
-            "6. Assign confidence scores to inferred skills\n\n"
-            
-            "Return ONLY the function call with complete structured data."
+            "Return ONLY the function call. See schema for field descriptions."
         )
         
-        # Prepare messages
+        # Prepare messages (matching old GptJson.py format)
+        # Generate temporary candidate_id (will be replaced after parsing)
+        candidate_id = f"temp_{int(time.time() * 1000)}"
+        
         messages = [
             {"role": "system", "content": system_prompt_enhanced},
-            {"role": "user", "content": f"Parse this resume:\n\n{resume_text}"}
+            {"role": "user", "content": f"CandidateID: {candidate_id}\n\nRawResumeText:\n```\n{resume_text}\n```"}
         ]
         
-        # Make API call with function calling
-        response = client.chat.completions.create(
+        # Make async API call with function calling
+        response = await client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
-            functions=[PARSE_RESUME_FUNCTION],
-            function_call={"name": "parse_resume"},
-            temperature=TEMPERATURE,
+            functions=[PARSE_FUNCTION],
+            function_call={"name": "parse_resume_detailed"},
+            temperature=0.0,
             max_tokens=MAX_TOKENS
         )
         
@@ -414,7 +357,7 @@ def parse_resume_with_ai(resume_text: str, jd_data: Optional[Dict[str, Any]] = N
         # Extract function call result
         message = response.choices[0].message
         
-        if message.function_call and message.function_call.name == "parse_resume":
+        if message.function_call and message.function_call.name == "parse_resume_detailed":
             try:
                 parsed_data = json.loads(message.function_call.arguments)
                 
@@ -461,7 +404,7 @@ def validate_parsed_resume(parsed_data: Dict[str, Any]) -> Dict[str, Any]:
     score = 1.0
     
     # Required field validation
-    required_fields = ['name', 'contact_info', 'experience', 'education', 'skills']
+    required_fields = ['name', 'contact_info', 'experience_entries', 'education', 'skills']
     for field in required_fields:
         if not parsed_data.get(field):
             issues.append(f"Missing required field: {field}")
@@ -474,7 +417,7 @@ def validate_parsed_resume(parsed_data: Dict[str, Any]) -> Dict[str, Any]:
         score -= 0.1
     
     # Experience validation
-    experience = parsed_data.get('experience', [])
+    experience = parsed_data.get('experience_entries', [])
     if not experience:
         issues.append("No work experience found")
         score -= 0.2
@@ -513,36 +456,113 @@ def validate_parsed_resume(parsed_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 def enhance_parsed_data(parsed_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Enhance parsed data with additional processing"""
+    """Enhance parsed data with additional processing (matching old GptJson.py logic)"""
+    import hashlib
     enhanced = parsed_data.copy()
     
-    # Generate candidate_id if not present
+    # Generate candidate_id if not present (deterministic based on contact info)
     if not enhanced.get('candidate_id'):
+        contact = enhanced.get('contact_info', {})
+        email = contact.get('email', '') if isinstance(contact, dict) else ''
+        phone = contact.get('phone', '') if isinstance(contact, dict) else ''
         name = enhanced.get('name', 'unknown')
-        email = enhanced.get('contact_info', {}).get('email', '')
-        candidate_id = f"{name.replace(' ', '_').lower()}_{hash(email) % 10000}"
-        enhanced['candidate_id'] = candidate_id
+        
+        # Normalize inputs
+        email = (email or "").strip().lower()
+        phone = (phone or "").strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        name_normalized = " ".join(name.strip().title().split()) if name else ""
+        
+        # Create hash from available identifiers
+        if email:
+            identifier = f"email:{email}"
+            prefix = email.split("@")[0][:8] if "@" in email else "cand"
+        elif phone:
+            identifier = f"phone:{phone}"
+            prefix = "cand"
+        elif name_normalized:
+            identifier = f"name:{name_normalized}"
+            prefix = name_normalized.replace(" ", "")[:8].lower()
+        else:
+            identifier = f"unknown"
+            prefix = "cand"
+        
+        # Generate deterministic hash (first 12 chars of SHA256)
+        hash_id = hashlib.sha256(identifier.encode('utf-8')).hexdigest()[:12]
+        enhanced['candidate_id'] = f"{prefix}_{hash_id}"
     
     # Normalize years_experience if not calculated
     if not enhanced.get('years_experience'):
         total_years = 0
-        for exp in enhanced.get('experience', []):
-            duration = exp.get('duration', '')
-            years_at_company = exp.get('years_at_company')
+        for exp in enhanced.get('experience_entries', []):
+            # Try to parse period dates
+            period_start = exp.get('period_start', '')
+            period_end = exp.get('period_end', '')
             
-            if years_at_company:
-                total_years += years_at_company
-            else:
-                # Try to parse duration string
+            if period_start and period_end:
+                # Try to parse years from dates
                 import re
-                year_match = re.findall(r'(\d{4})', duration)
-                if len(year_match) >= 2:
-                    start_year = int(year_match[0])
-                    end_year = int(year_match[-1])
+                start_match = re.findall(r'(\d{4})', period_start)
+                end_match = re.findall(r'(\d{4})', period_end)
+                if start_match and end_match:
+                    start_year = int(start_match[0])
+                    end_year = int(end_match[0])
                     total_years += max(0, end_year - start_year)
         
         enhanced['years_experience'] = round(total_years, 1)
     
+    # Canonicalize skills
+    canonical = enhanced.get('canonical_skills', {})
+    for cat, skill_list in canonical.items():
+        if isinstance(skill_list, list):
+            canonical[cat] = sorted(list(set([s.strip() for s in skill_list if s and isinstance(s, str)])))
+    
+    # Canonicalize project fields
+    for proj in enhanced.get('projects', []):
+        for field in ['tech_keywords', 'technologies', 'primary_skills']:
+            if field in proj and isinstance(proj[field], list):
+                proj[field] = sorted(list(set([s.strip() for s in proj[field] if s and isinstance(s, str)])))
+    
+    # Canonicalize experience_entries fields
+    for exp in enhanced.get('experience_entries', []):
+        for field in ['primary_tech', 'responsibilities_keywords']:
+            if field in exp and isinstance(exp[field], list):
+                exp[field] = sorted(list(set([s.strip() for s in exp[field] if s and isinstance(s, str)])))
+    
+    # Build ATS boost line
+    boost_tokens = set()
+    for cat_list in canonical.values():
+        if isinstance(cat_list, list):
+            boost_tokens.update([tok.lower() for tok in cat_list if tok])
+    for sp in enhanced.get('skill_proficiency', []):
+        if sp.get('skill'):
+            boost_tokens.add(sp['skill'].lower())
+    for iskill in enhanced.get('inferred_skills', []):
+        if iskill.get('skill'):
+            boost_tokens.add(iskill['skill'].lower())
+    enhanced['ats_boost_line'] = ", ".join(sorted(boost_tokens))
+    
+    # Build embedding hints
+    enhanced.setdefault('embedding_hints', {
+        "profile_embed": enhanced.get("profile_keywords_line", ""),
+        "projects_embed": " | ".join([p.get("name","") + ": " + p.get("approach","") for p in enhanced.get("projects", [])[:2]]),
+        "skills_embed": ", ".join(list(boost_tokens)[:10])
+    })
+    
+    # Initialize explainability
+    enhanced.setdefault('explainability', {"top_matched_sentences": [], "top_matched_keywords": []})
+    
+    # Flatten all skills into keywords_flat if not present
+    if not enhanced.get('keywords_flat'):
+        all_keywords = set()
+        
+        # Add skills
+        all_keywords.update(enhanced.get('skills', []))
+        
+        # Add canonical skills
+        for skill_list in canonical.values():
+            if isinstance(skill_list, list):
+                all_keywords.update(skill_list)
+        
     # Flatten all skills into keywords_flat if not present
     if not enhanced.get('keywords_flat'):
         all_keywords = set()
@@ -567,6 +587,10 @@ def enhance_parsed_data(parsed_data: Dict[str, Any]) -> Dict[str, Any]:
             all_keywords.update(project.get('tech_keywords', []))
         
         enhanced['keywords_flat'] = sorted(list(all_keywords))
+    
+    # Update meta
+    enhanced.setdefault('meta', {})
+    enhanced['meta']['last_updated'] = time.strftime("%Y-%m-%d")
     
     return enhanced
 

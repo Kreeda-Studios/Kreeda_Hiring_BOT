@@ -165,7 +165,7 @@ class KreedaJobProcessor:
             batch_index = job_data.get('batchIndex', 1)
             total_batches = job.data.get('totalBatches', 1)
             ranking_criteria = job.data.get('rankingCriteria', {})
-            resume_group_id = job.data.get('resumeGroupId', 'all-groups')
+            batch_identifier = job.data.get('resumeGroupId', job_id)  # Use jobId as batch identifier
             
             logger.info(f"📊 Batch {batch_index}/{total_batches}, {len(score_result_ids)} scores")
             
@@ -175,7 +175,7 @@ class KreedaJobProcessor:
                 None,
                 process_final_ranking,
                 job_id,
-                resume_group_id,
+                batch_identifier,
                 score_result_ids,
                 batch_index,
                 total_batches,
@@ -227,7 +227,7 @@ class KreedaJobProcessor:
             self.process_resume_job, 
             {
                 "connection": self.redis_config,
-                "concurrency": 4  # Set to 4 as requested
+                "concurrency": 16  # Set to 4 as requested
             }
         )
         self.workers.append(resume_worker)

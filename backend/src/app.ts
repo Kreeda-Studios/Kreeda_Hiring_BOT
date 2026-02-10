@@ -4,7 +4,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import Database from './config/database';
 import config from './config';
@@ -12,7 +11,6 @@ import config from './config';
 // Import routes
 import jobRoutes from './routes/jobs';
 import resumeRoutes from './routes/resumes';
-import resumeGroupRoutes from './routes/resumeGroups';
 import processRoutes from './routes/process';
 import scoresRoutes from './routes/scores';
 import updatesRoutes from './routes/updates';
@@ -41,14 +39,6 @@ class App {
   private initializeMiddleware(): void {
     // Security middleware
     this.app.use(helmet());
-    
-    // Rate limiting
-    const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 1000, // Limit each IP to 1000 requests per windowMs
-      message: 'Too many requests from this IP, please try again later.'
-    });
-    this.app.use(limiter);
 
     // CORS configuration
     this.app.use(cors({
@@ -92,7 +82,6 @@ class App {
     // API routes
     this.app.use('/api/jobs', jobRoutes);
     this.app.use('/api/resumes', resumeRoutes);
-    this.app.use('/api/resume-groups', resumeGroupRoutes);
     this.app.use('/api/procesS', processRoutes);
     this.app.use('/api/scores', scoresRoutes);
     this.app.use('/api/status', statusRoutes);

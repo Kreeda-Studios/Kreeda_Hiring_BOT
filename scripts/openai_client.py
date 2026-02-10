@@ -8,14 +8,16 @@ import os
 from typing import List, Dict, Any, Optional
 
 try:
-    from openai import OpenAI
+    from openai import OpenAI, AsyncOpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None
+    AsyncOpenAI = None
 
-# Singleton client instance
+# Singleton client instances
 _client_instance = None
+_async_client_instance = None
 
 def get_openai_client():
     """Get or create OpenAI client instance"""
@@ -34,6 +36,22 @@ def get_openai_client():
 
 # Alias for backward compatibility
 openai_client = get_openai_client
+
+
+def get_async_openai_client():
+    """Get or create async OpenAI client instance"""
+    global _async_client_instance
+    
+    if not OPENAI_AVAILABLE:
+        raise ImportError("OpenAI package not installed. Run: pip install openai")
+    
+    if _async_client_instance is None:
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+        _async_client_instance = AsyncOpenAI(api_key=api_key)
+    
+    return _async_client_instance
 
 
 def create_chat_completion(
@@ -93,6 +111,27 @@ def create_embedding(text: str, model: str = "text-embedding-3-small") -> List[f
     return response.data[0].embedding
 
 
+async def create_embedding_async(text: str, model: str = "text-embedding-3-small") -> List[float]:
+    """
+    Create text embedding using OpenAI API (async version)
+    
+    Args:
+        text: Text to embed
+        model: Embedding model to use
+        
+    Returns:
+        List of embedding floats
+    """
+    client = get_async_openai_client()
+    
+    response = await client.embeddings.create(
+        model=model,
+        input=text
+    )
+    
+    return response.data[0].embedding
+
+
 def create_embeddings_batch(texts: List[str], model: str = "text-embedding-3-small") -> List[List[float]]:
     """
     Create embeddings for multiple texts in batch
@@ -107,6 +146,27 @@ def create_embeddings_batch(texts: List[str], model: str = "text-embedding-3-sma
     client = get_openai_client()
     
     response = client.embeddings.create(
+        model=model,
+        input=texts
+    )
+    
+    return [item.embedding for item in response.data]
+
+
+async def create_embeddings_batch_async(texts: List[str], model: str = "text-embedding-3-small") -> List[List[float]]:
+    """
+    Create embeddings for multiple texts in batch (async version)
+    
+    Args:
+        texts: List of texts to embed
+        model: Embedding model to use
+        
+    Returns:
+        List of embedding vectors
+    """
+    client = get_async_openai_client()
+    
+    response = await client.embeddings.create(
         model=model,
         input=texts
     )

@@ -50,6 +50,23 @@ export const jobsAPI = {
     return response.json();
   },
 
+  uploadResumes: async (jobId: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('resumes', file));
+    
+    const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/upload-resumes`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Resume upload failed' }));
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
   linkResumeGroups: (jobId: string, resumeGroupIds: string[]) =>
     fetchAPI<{ success: boolean; data: any }>(`/jobs/${jobId}/resume-groups`, {
       method: 'PUT',
@@ -103,6 +120,9 @@ export const resumesAPI = {
 
   getByGroup: (groupId: string) =>
     fetchAPI<{ success: boolean; data: any[]; count: number }>(`/resumes?group_id=${groupId}`),
+  
+  getByJob: (jobId: string) =>
+    fetchAPI<{ success: boolean; data: any[]; count: number }>(`/resumes?job_id=${jobId}`),
   
   getById: (id: string) =>
     fetchAPI<{ success: boolean; data: any }>(`/resumes/${id}`),
@@ -206,7 +226,7 @@ export const processingAPI = {
         updatedAt: string;
       }[]; 
       count: number;
-    }>(`/scores/job/${jobId}`),
+    }>(`/scores/resumes/${jobId}`),
   
   getRankings: (jobId: string) =>
     fetchAPI<any[]>(`/jobs/${jobId}/rankings`),

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { Job, Resume, ResumeGroup } from '../models';
+import { Job, Resume } from '../models';
 import { QueueService } from '../services/queueService';
 
 const router = Router();
@@ -90,7 +90,7 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
   try {
     const { jobId } = req.params;
 
-    const job = await Job.findById(jobId).populate('resume_groups');
+    const job = await Job.findById(jobId);
     if (!job) {
       res.status(404).json({
         success: false,
@@ -99,36 +99,25 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Check if job has resume groups
-    if (!job.resume_groups || job.resume_groups.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'No resume groups linked to this job'
-      });
-      return;
-    }
-
-    // Fetch all resumes from all linked groups
-    const groupIds = job.resume_groups.map((g: any) => g._id);
-    const resumes = await Resume.find({ group_id: { $in: groupIds } });
+    // Check if job has resumes
+    const resumes = await Resume.find({ job_id: jobId });
 
     if (resumes.length === 0) {
       res.status(400).json({
         success: false,
-        error: 'No resumes found in linked groups'
+        error: 'No resumes found for this job'
       });
       return;
     }
 
     // Prepare resume job data
     const resumeJobsData = resumes.map(resume => {
-      const groupId = resume.group_id?.toString() || '';
-      // Compute file path from group_id and filename (relative to uploads/)
-      const filePath = groupId ? `uploads/${groupId}/resumes/${resume.filename}` : '';
+      // Compute file path from job_id and filename (relative to uploads/)
+      const filePath = `uploads/${jobId}/resumes/${resume.filename}`;
       return {
         resumeId: resume._id.toString(),
         jobId: jobId,
-        resumeGroupId: groupId,
+        resumeGroupId: jobId, // Use jobId as group identifier for compatibility
         fileName: resume.filename || '',
         filePath: filePath
       };
@@ -138,7 +127,7 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
     const flowResult = await QueueService.addResumeGroupFlow(
       {
         jobId: jobId,
-        resumeGroupId: groupIds[0]?.toString() || 'multiple-groups',
+        resumeGroupId: jobId, // Use jobId instead of groupId
         totalResumes: resumes.length
       },
       resumeJobsData
@@ -185,18 +174,23 @@ router.post('/ranking/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Check if job has resume groups
-    if (!job.resume_groups || job.resume_groups.length === 0) {
+    // Check if job has resumes with scores
+    const resumes = await Resume.find({ 
+      job_id: jobId, 
+      'scores.scoring_status': 'success' 
+    });
+
+    if (resumes.length === 0) {
       res.status(400).json({
         success: false,
-        error: 'No resume groups linked to this job'
+        error: 'No scored resumes found for this job'
       });
       return;
     }
 
     // Get all scores for this job (we need the actual scores, not just resumes)
     const { ScoreResult } = await import('../models');
-    const allScores = await ScoreResult.find({ job_id: jobId }).populate('resume_id', 'candidate_name group_id filename');
+    const allScores = await ScoreResult.find({ job_id: jobId }).populate('resume_id', 'candidate_name filename');
 
     if (allScores.length === 0) {
       res.status(400).json({
@@ -222,7 +216,7 @@ router.post('/ranking/:jobId', async (req: Request, res: Response): Promise<void
     // Create ranking job data for each batch
     const rankingBatches = batches.map((batch, index) => ({
       jobId,
-      resumeGroupId: 'all-groups', // Processing all groups together
+      resumeGroupId: jobId, // Use jobId as identifier
       scoreResults: batch.map(score => score._id.toString()),
       // Add ranking criteria that can be used for LLM re-ranking
       rankingCriteria: {

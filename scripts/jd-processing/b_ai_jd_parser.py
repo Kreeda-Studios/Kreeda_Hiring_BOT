@@ -6,17 +6,17 @@ Complete JD parsing logic from Old_Code_Archive/InputThread/AI Processing/JDGpt.
 Adapted for processing pipeline: takes jd_text instead of file path.
 """
 
-import os
 import sys
 import json
 import time
+import asyncio
 from pathlib import Path
 from typing import Dict, Any
 
 # Add parent directory for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from openai_client import get_openai_client
+from openai import AsyncOpenAI
 
 MODEL_NAME = "gpt-4o-mini"
 MAX_RESPONSE_TOKENS = 2500
@@ -256,6 +256,54 @@ PARSE_FUNCTION = {
                 }
             },
             
+            "filter_requirements": {
+                "type": "object",
+                "description": "Additional filter requirements from HR (parsed from UI text input). Used for candidate filtering and re-ranking.",
+                "properties": {
+                    "raw_prompt": {"type": "string", "description": "Original HR prompt text"},
+                    "structured": {
+                        "type": "object",
+                        "description": "Structured requirements extracted from prompt. IMPORTANT: Only include fields that HR explicitly specified. If a requirement is NOT mentioned, set it to null or empty array. Mark each field with 'specified: true' only if HR explicitly mentioned it.",
+                        "properties": {
+                            "experience": {
+                                "type": "object",
+                                "description": "Experience requirements. Include ONLY if HR specified experience. Set 'specified: true' if mentioned.",
+                                "properties": {
+                                    "min": {"type": "number", "description": "Minimum years required"},
+                                    "max": {"type": "number", "description": "Maximum years (optional, only if HR specified upper limit)"},
+                                    "field": {"type": "string", "description": "Specific field/domain (optional)"},
+                                    "specified": {"type": "boolean", "description": "True if HR explicitly mentioned experience requirement"}
+                                }
+                            },
+                            "hard_skills": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Must-have skills. Empty array if not specified. Normalize to canonical forms (e.g., 'Machine Learning' not 'ML')."
+                            },
+                            "preferred_skills": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Nice-to-have skills. Empty array if not specified."
+                            },
+                            "department": {
+                                "type": "object",
+                                "description": "Department/field of study requirements. Include ONLY if HR specified department. Examples: 'IT field only', 'Not Mechanical/Chemical', 'CS, CE, IT, AIDS, ENTC only'.",
+                                "properties": {
+                                    "category": {"type": "string", "enum": ["IT", "Non-IT", "Specific"], "description": "Category: 'IT' for IT fields only, 'Non-IT' for non-IT fields, 'Specific' for specific departments"},
+                                    "allowed_departments": {"type": "array", "items": {"type": "string"}, "description": "Allowed departments (e.g., ['CS', 'CE', 'IT', 'AIDS', 'ENTC'])"},
+                                    "excluded_departments": {"type": "array", "items": {"type": "string"}, "description": "Excluded departments (e.g., ['Mechanical', 'Chemical', 'Civil'])"},
+                                    "specified": {"type": "boolean", "description": "True if HR explicitly mentioned department requirement"}
+                                }
+                            },
+                            "location": {"type": "string", "description": "Location requirements. Null if not specified. 'Any' or empty string means flexible."},
+                            "education": {"type": "array", "items": {"type": "string"}, "description": "Education requirements. Empty array if not specified."},
+                            "other_criteria": {"type": "array", "items": {"type": "string"}, "description": "Other filtering criteria that don't fit standard fields. IMPORTANT: Extract ALL requirements mentioned in natural language that are not covered by experience, skills, location, department, or education. Examples: 'Must have worked in fintech', 'Should have startup experience', 'Must be available for night shifts', 'Should have published research papers', 'Must have security clearance', 'Should have experience with specific tools/frameworks not in hard_skills', 'Must have specific certifications', 'Should have worked with specific clients/industries', etc. Be comprehensive - if HR mentions ANY requirement, capture it here as a clear, actionable criterion. Empty array if none."}
+                        }
+                    },
+                    "re_ranking_instructions": {"type": "string", "description": "How to use these requirements for re-ranking candidates"}
+                }
+            },
+            
             # --- Meta ---
             "meta": {
                 "type": "object",
@@ -281,12 +329,24 @@ PARSE_FUNCTION = {
 }
 
 
+from openai_client import get_async_openai_client
+
+def get_openai_client():
+    """Get async OpenAI client instance"""
+    return get_async_openai_client()
+
 client = get_openai_client()
 
-def process_jd_with_ai(jd_text: str) -> Dict[str, Any]:
+async def process_jd_with_ai(jd_text: str, filter_text: str = None) -> Dict[str, Any]:
     """
     Process JD text with AI parsing.
-    Compliance parsing is done separately in d_compliance_parser.py
+    
+    Args:
+        jd_text: Job description text to parse
+        filter_text: Optional HR filter requirements text
+    
+    Returns:
+        dict: {'success': bool, 'parsed_data': dict} or {'success': False, 'error': str}
     """
     raw_text = jd_text
 
@@ -305,22 +365,34 @@ def process_jd_with_ai(jd_text: str) -> Dict[str, Any]:
             "1. Extract ALL information (explicit + implicit)\n"
             "2. Normalize skills to canonical forms (see above)\n"
             "3. Add missing domain-relevant skills if JD is incomplete\n"
-            "4. Build keywords_flat (deduped) and keywords_weighted (token→0-1)\n"
-            "5. Set weighting: required_skills > responsibilities > domain_relevance > technical_depth > preferred_skills\n"
-            "6. Provide embedding_hints, provenance_spans, explainability\n"
-            "7. HR notes: Add to hr_notes for recommendations/inferred requirements (type: 'recommendation' or 'inferred_requirement')\n"
-            "8. Set hr_points = len(hr_notes). Do NOT hallucinate - use hr_notes for suggestions only\n\n"
+            "4. Structure filter_requirements if provided (see below)\n"
+            "5. Build keywords_flat (deduped) and keywords_weighted (token→0-1)\n"
+            "6. Set weighting: required_skills > responsibilities > domain_relevance > technical_depth > preferred_skills\n"
+            "7. Provide embedding_hints, provenance_spans, explainability\n"
+            "8. HR notes: Add to hr_notes for recommendations/inferred requirements (type: 'recommendation' or 'inferred_requirement')\n"
+            "9. Set hr_points = len(hr_notes). Do NOT hallucinate - use hr_notes for suggestions only\n\n"
+            
+            + ("FILTER REQUIREMENTS (if provided):\n"
+               "Structure HR's additional criteria. CRITICAL: Only extract what HR explicitly mentioned.\n"
+               "- experience: {min, max, field, specified: true} - ONLY if HR mentioned experience\n"
+               "- hard_skills: [must-have skills] - NORMALIZE to canonical forms. Empty [] if not specified\n"
+               "- department: {category, allowed_departments, excluded_departments, specified: true} - ONLY if HR mentioned department/field\n"
+               "  Examples: 'IT field only' → category:'IT', 'Not Mechanical/Chemical' → excluded_departments:['Mechanical','Chemical']\n"
+               "- location: string or null - null if not specified\n"
+               "- education: [requirements] - Empty [] if not specified\n"
+               "- other_criteria: [any other requirements - be exhaustive] - Empty [] if none\n"
+               "Examples of other_criteria: 'fintech experience', 'night shift availability', 'security clearance'\n"
+               "IMPORTANT: Mark 'specified: true' only for fields HR explicitly mentioned. If not mentioned, set to null/empty.\n\n" if filter_text else "") +
             
             "Return ONLY the function call. See schema for field descriptions."
-        )
-    }
+        )}
 
     user_content = f"RawJDText:\n```\n{raw_text}\n```"
     user_msg = {"role": "user", "content": user_content}
 
     # API call with retry and circuit breaker
-    def call_openai_api():
-        return client.chat.completions.create(
+    async def call_openai_api():
+        return await client.chat.completions.create(
             model=MODEL_NAME,
             messages=[system_msg, user_msg],
             functions=[PARSE_FUNCTION],
@@ -330,7 +402,7 @@ def process_jd_with_ai(jd_text: str) -> Dict[str, Any]:
         )
     
     try:
-        resp = call_openai_api()
+        resp = await call_openai_api()
     except Exception as e:
         return {'success': False, 'error': f'API call failed: {str(e)}'}
 
@@ -455,8 +527,8 @@ def process_jd_with_ai(jd_text: str) -> Dict[str, Any]:
             parsed["hr_points"] = len(parsed.get("hr_notes", []))
 
     except Exception as _err:
-        # don't fail the whole pipeline on tagging; just log
-        #print(f"Warning: Failed to enrich domain_tags: {_err}")
+        # Don't fail the whole pipeline on tagging enrichment errors
+        # Uncomment for debugging: print(f"Warning: Failed to enrich domain_tags: {_err}")
         # Ensure hr_points exists even if enrichment failed
         if "hr_points" not in parsed:
             parsed["hr_points"] = len(parsed.get("hr_notes", []))
@@ -464,69 +536,20 @@ def process_jd_with_ai(jd_text: str) -> Dict[str, Any]:
     return {'success': True, 'parsed_data': parsed}
 
 
-def format_jd_analysis_payload(parsed_jd: dict, filter_requirements: dict) -> dict:
+def format_jd_analysis_payload(parsed_jd: dict, filter_requirements: dict = None) -> dict:
     """
     Format parsed JD data into database payload (API-ready)
     
     Args:
         parsed_jd: Parsed JD data from AI
-        filter_requirements: Validated compliance requirements
+        filter_requirements: Optional validated compliance requirements
         
     Returns:
         dict: Payload ready for API PATCH to /jobs/:id
     """
+    jd_analysis = dict(parsed_jd)
+    
+    
     return {
-        'jd_analysis': {
-            'meta': parsed_jd.get('meta', {}),
-            'hr_points': parsed_jd.get('hr_points', 0),
-            'hr_notes': parsed_jd.get('hr_notes', []),
-            'explainability': parsed_jd.get('explainability'),
-            'provenance_spans': parsed_jd.get('provenance_spans', []),
-            'mandatory_compliances': filter_requirements.get('mandatory_compliances', {}),
-            'soft_compliances': filter_requirements.get('soft_compliances', {}),
-            'role_title': parsed_jd.get('role_title'),
-            'alt_titles': parsed_jd.get('alt_titles', []),
-            'seniority_level': parsed_jd.get('seniority_level'),
-            'department': parsed_jd.get('department'),
-            'industry': parsed_jd.get('industry'),
-            'domain_tags': parsed_jd.get('domain_tags', []),
-            'location': parsed_jd.get('location'),
-            'work_model': parsed_jd.get('work_model'),
-            'employment_type': parsed_jd.get('employment_type'),
-            'contract': parsed_jd.get('contract'),
-            'start_date_preference': parsed_jd.get('start_date_preference'),
-            'travel_requirement_percent': parsed_jd.get('travel_requirement_percent'),
-            'work_hours': parsed_jd.get('work_hours'),
-            'shift_details': parsed_jd.get('shift_details'),
-            'visa_sponsorship': parsed_jd.get('visa_sponsorship'),
-            'clearances_required': parsed_jd.get('clearances_required', []),
-            'years_experience_required': parsed_jd.get('years_experience_required'),
-            'education_requirements': parsed_jd.get('education_requirements', []),
-            'min_degree_level': parsed_jd.get('min_degree_level'),
-            'fields_of_study': parsed_jd.get('fields_of_study', []),
-            'certifications_required': parsed_jd.get('certifications_required', []),
-            'certifications_preferred': parsed_jd.get('certifications_preferred', []),
-            'required_skills': parsed_jd.get('required_skills', []),
-            'preferred_skills': parsed_jd.get('preferred_skills', []),
-            'tools_tech': parsed_jd.get('tools_tech', []),
-            'soft_skills': parsed_jd.get('soft_skills', []),
-            'languages': parsed_jd.get('languages', []),
-            'canonical_skills': parsed_jd.get('canonical_skills', {}),
-            'skill_requirements': parsed_jd.get('skill_requirements', []),
-            'responsibilities': parsed_jd.get('responsibilities', []),
-            'deliverables': parsed_jd.get('deliverables', []),
-            'kpis_okrs': parsed_jd.get('kpis_okrs', []),
-            'team_context': parsed_jd.get('team_context'),
-            'exclusions': parsed_jd.get('exclusions', []),
-            'compliance': parsed_jd.get('compliance', []),
-            'screening_questions': parsed_jd.get('screening_questions', []),
-            'interview_process': parsed_jd.get('interview_process'),
-            'compensation': parsed_jd.get('compensation'),
-            'benefits': parsed_jd.get('benefits', []),
-            'keywords_flat': parsed_jd.get('keywords_flat', []),
-            'keywords_weighted': parsed_jd.get('keywords_weighted', {}),
-            'weighting': parsed_jd.get('weighting', {}),
-            'embedding_hints': parsed_jd.get('embedding_hints', {}),
-        },
-        'filter_requirements': filter_requirements,
+        'jd_analysis': jd_analysis,
     }

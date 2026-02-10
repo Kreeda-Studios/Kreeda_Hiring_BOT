@@ -241,8 +241,7 @@ def process_jd_file(file_path: str) -> Dict[str, Any]:
                 # If OCR also fails, return the original PyMuPDF error
                 return result
         
-        # If we got some text from PyMuPDF, use it even if it seems short
-        #print(f"✅ PyMuPDF extracted {len(result.get('text', ''))} characters")
+
         return result
         
     elif file_ext in ['.docx', '.doc']:

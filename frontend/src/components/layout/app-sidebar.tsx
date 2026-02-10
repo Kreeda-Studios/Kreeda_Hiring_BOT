@@ -40,11 +40,6 @@ const mainNavItems: NavItem[] = [
     href: "/jobs",
     icon: Briefcase,
   },
-  {
-    title: "Resume Groups",
-    href: "/resume-groups",
-    icon: FolderOpen,
-  },
 ];
 
 const secondaryNavItems: NavItem[] = [];

@@ -1,53 +1,107 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-interface IComplianceRequirement {
-  raw_prompt?: string;
-  structured?: {
-    experience?: {
-      min?: number;
-      max?: number;
-      field?: string;
-      specified?: boolean;
-      type?: string;
-      unit?: string;
-    };
-    hard_skills?: string[];
-    preferred_skills?: string[];
-    department?: {
-      category?: 'IT' | 'Non-IT' | 'Specific';
-      allowed_departments?: string[];
-      excluded_departments?: string[];
-      specified?: boolean;
-    };
-    location?: {
-      type?: string;
-      specified?: boolean;
-      required?: string;
-      allowed?: string[];
-    } | string | null;
-    education?: {
-      type?: string;
-      specified?: boolean;
-      minimum?: string;
-      required?: string;
-    } | string[];
-    other_criteria?: string[];
-    [key: string]: any;  // Allow dynamic fields
+/**
+ * Job Model with JD Analysis - Exact Schema from b_ai_jd_parser.py
+ * 
+ * Core fields:
+ * - title, description, company_name
+ * - status (draft/active/completed/archived)
+ * - jd_file_path, jd_pdf_filename, jd_text
+ * - filter_requirements (HR compliance filters)
+ * - jd_analysis (structured data matching PARSE_FUNCTION schema from b_ai_jd_parser.py)
+ * - embeddings (JD embeddings for semantic matching)
+ */
+
+interface IFilterRequirements {
+  mandatory_compliances?: {
+    raw_prompt?: string;
+    structured?: Record<string, any>;
+  };
+  soft_compliances?: {
+    raw_prompt?: string;
+    structured?: Record<string, any>;
   };
 }
 
-interface IFilterRequirements {
-  mandatory_compliances?: IComplianceRequirement;
-  soft_compliances?: IComplianceRequirement;
+interface IContract {
+  duration_months?: number;
+  extendable?: boolean;
 }
 
-interface IHRNote {
-  category: string;
-  type: 'recommendation' | 'inferred_requirement';
-  note: string;
-  impact?: number;
-  reason?: string;
-  source_provenance?: string[];
+interface ICanonicalSkills {
+  programming?: string[];
+  frameworks?: string[];
+  libraries?: string[];
+  ml_ai?: string[];
+  frontend?: string[];
+  backend?: string[];
+  testing?: string[];
+  databases?: string[];
+  cloud?: string[];
+  infra?: string[];
+  devtools?: string[];
+  methodologies?: string[];
+}
+
+interface ISkillRequirement {
+  skill: string;
+  category?: string;
+  priority?: string;
+  level?: string;
+  years_min?: number;
+  versions?: string[];
+  related_tools?: string[];
+  mandatory?: boolean;
+  provenance?: string[];
+}
+
+interface ITeamContext {
+  team_size?: number;
+  reports_to?: string;
+  manages_team?: boolean;
+  direct_reports?: number;
+}
+
+interface IInterviewStage {
+  name?: string;
+  purpose?: string;
+  skills_evaluated?: string[];
+}
+
+interface IInterviewProcess {
+  total_rounds?: number;
+  stages?: IInterviewStage[];
+  assignment_expected?: boolean;
+}
+
+interface ICompensation {
+  currency?: string;
+  salary_min?: number;
+  salary_max?: number;
+  period?: string;
+  bonus?: string;
+  equity?: string;
+}
+
+interface IWeighting {
+  required_skills?: number;
+  preferred_skills?: number;
+  responsibilities?: number;
+  domain_relevance?: number;
+  technical_depth?: number;
+  soft_skills?: number;
+  education?: number;
+  certifications?: number;
+  keywords_exact?: number;
+  keywords_semantic?: number;
+}
+
+interface IEmbeddingHints {
+  skills_embed?: string;
+  responsibilities_embed?: string;
+  overall_embed?: string;
+  negatives_embed?: string;
+  seniority_embed?: string;
 }
 
 interface IExplainability {
@@ -61,47 +115,67 @@ interface IProvenanceSpan {
   text: string;
 }
 
-interface IJDAnalysis {
-  // Analysis metadata
-  meta?: {
-    jd_version?: string;
-    raw_text_length?: number;
-    sections_detected?: string[];
+interface IHRNote {
+  category: string;
+  type: 'recommendation' | 'inferred_requirement';
+  note: string;
+  impact?: number;
+  reason?: string;
+  source_provenance?: string[];
+}
+
+interface IFilterRequirementStructured {
+  raw_prompt?: string;
+  structured?: {
+    experience?: {
+      min?: number;
+      max?: number;
+      field?: string;
+      specified?: boolean;
+    };
+    hard_skills?: string[];
+    preferred_skills?: string[];
+    department?: {
+      category?: 'IT' | 'Non-IT' | 'Specific';
+      allowed_departments?: string[];
+      excluded_departments?: string[];
+      specified?: boolean;
+    };
+    location?: string;
+    education?: string[];
+    other_criteria?: string[];
   };
-  
-  // HR insights
-  hr_points?: number;
-  hr_notes?: IHRNote[];
-  explainability?: IExplainability;
-  provenance_spans?: IProvenanceSpan[];
-  
-  // Compliance parsing results
-  mandatory_compliances?: IComplianceRequirement;
-  soft_compliances?: IComplianceRequirement;
-  
+  re_ranking_instructions?: string;
+}
+
+interface IMeta {
+  jd_version?: string;
+  raw_text_length?: number;
+  last_updated?: string;
+  sections_detected?: string[];
+}
+
+interface IJDAnalysis {
   // Core role context
-  role_title?: string;
+  role_title: string;
   alt_titles?: string[];
   seniority_level?: string;
   department?: string;
   industry?: string;
   domain_tags?: string[];
-  
+
   // Work model & logistics
   location?: string;
   work_model?: string;
   employment_type?: string;
-  contract?: {
-    duration_months?: number;
-    extendable?: boolean;
-  };
+  contract?: IContract;
   start_date_preference?: string;
   travel_requirement_percent?: number;
   work_hours?: string;
   shift_details?: string;
   visa_sponsorship?: boolean;
   clearances_required?: string[];
-  
+
   // Experience & education
   years_experience_required?: number;
   education_requirements?: string[];
@@ -109,73 +183,57 @@ interface IJDAnalysis {
   fields_of_study?: string[];
   certifications_required?: string[];
   certifications_preferred?: string[];
-  
+
   // Skills
   required_skills: string[];
-  preferred_skills: string[];
-  tools_tech: string[];
-  soft_skills: string[];
+  preferred_skills?: string[];
+  tools_tech?: string[];
+  soft_skills?: string[];
   languages?: string[];
-  canonical_skills: Record<string, any>;
-  skill_requirements?: Array<{
-    skill: string;
-    category?: string;
-    priority?: string;
-    level?: string;
-    years_min?: number;
-    versions?: string[];
-    related_tools?: string[];
-    mandatory?: boolean;
-    provenance?: string[];
-  }>;
-  
+  canonical_skills?: ICanonicalSkills;
+  skill_requirements?: ISkillRequirement[];
+
   // Duties & outcomes
   responsibilities: string[];
   deliverables?: string[];
   kpis_okrs?: string[];
-  
+
   // Team & reporting
-  team_context?: {
-    team_size?: number;
-    reports_to?: string;
-    manages_team?: boolean;
-    direct_reports?: number;
-  };
-  
+  team_context?: ITeamContext;
+
   // Constraints / exclusions / compliance
   exclusions?: string[];
   compliance?: string[];
   screening_questions?: string[];
-  
+
   // Interview process
-  interview_process?: {
-    total_rounds?: number;
-    stages?: Array<{
-      name?: string;
-      purpose?: string;
-      skills_evaluated?: string[];
-    }>;
-    assignment_expected?: boolean;
-  };
-  
+  interview_process?: IInterviewProcess;
+
   // Compensation & benefits
-  compensation?: {
-    currency?: string;
-    salary_min?: number;
-    salary_max?: number;
-    period?: string;
-    bonus?: string;
-    equity?: string;
-  };
+  compensation?: ICompensation;
   benefits?: string[];
-  
+
   // Keywords for ATS scoring
   keywords_flat: string[];
   keywords_weighted: Record<string, number>;
-  
+
   // Weighting hints
-  weighting: Record<string, any>;
-  embedding_hints: Record<string, any>;
+  weighting: IWeighting;
+  embedding_hints?: IEmbeddingHints;
+
+  // Explainability
+  explainability?: IExplainability;
+  provenance_spans?: IProvenanceSpan[];
+
+  // HR insights
+  hr_points: number;
+  hr_notes: IHRNote[];
+
+  // Filter requirements
+  filter_requirements?: IFilterRequirementStructured;
+
+  // Meta
+  meta?: IMeta;
 }
 
 interface IEmbeddings {
@@ -195,15 +253,14 @@ export interface IJob extends Document {
   company_name?: string;
   status: 'draft' | 'active' | 'completed' | 'archived';
   locked: boolean;
-  resume_groups: mongoose.Types.ObjectId[];
-  jd_file_path?: string;
+
   jd_pdf_filename?: string;
   jd_text?: string;
-  filter_requirements?: IFilterRequirements;
+  filter_requirements?: IFilterRequirementStructured;
+  
   jd_analysis: IJDAnalysis;
-  embeddings?: IEmbeddings;
-  explainability?: IExplainability;
-  provenance_spans?: IProvenanceSpan[];
+  
+  jd_embedding?: IEmbeddings;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -232,13 +289,6 @@ const jobSchema = new Schema<IJob>({
     type: Boolean,
     default: false
   },
-  resume_groups: [{
-    type: Schema.Types.ObjectId,
-    ref: 'ResumeGroup'
-  }],
-  jd_file_path: {
-    type: String
-  },
   jd_pdf_filename: {
     type: String
   },
@@ -248,80 +298,76 @@ const jobSchema = new Schema<IJob>({
   filter_requirements: {
     mandatory_compliances: {
       raw_prompt: String,
-      structured: Schema.Types.Mixed
+      structured: {
+        hard_skills: {
+          type: { type: String }, // "list"
+          specified: Boolean,
+          required: [String],
+          optional: [String]
+        },
+        experience: {
+          type: { type: String }, // "numeric"
+          specified: Boolean,
+          min: Number,
+          max: Number,
+          unit: String // "years"
+        },
+        location: {
+          type: { type: String }, // "location" or "text"
+          specified: Boolean,
+          required: String,
+          allowed: [String]
+        },
+        education: {
+          type: { type: String }, // "education" or "text"
+          specified: Boolean,
+          minimum: String,
+          required: String
+        }
+      }
     },
     soft_compliances: {
       raw_prompt: String,
-      structured: Schema.Types.Mixed
+      structured: {
+        hard_skills: {
+          type: { type: String }, // "list"
+          specified: Boolean,
+          required: [String],
+          optional: [String]
+        },
+        experience: {
+          type: { type: String }, // "numeric"
+          specified: Boolean,
+          min: Number,
+          max: Number,
+          unit: String // "years"
+        },
+        location: {
+          type: { type: String }, // "location" or "text"
+          specified: Boolean,
+          required: String,
+          allowed: [String]
+        },
+        education: {
+          type: { type: String }, // "education" or "text"
+          specified: Boolean,
+          minimum: String,
+          required: String
+        }
+      }
     }
   },
   jd_analysis: {
-    // Analysis metadata
-    meta: {
-      jd_version: {
-        type: String,
-        default: "1.0"
-      },
-      raw_text_length: Number,
-      sections_detected: [String]
-    },
-    
-    // HR insights
-    hr_points: {
-      type: Number,
-      default: 0
-    },
-    hr_notes: [{
-      category: {
-        type: String,
-        required: true
-      },
-      type: {
-        type: String,
-        enum: ['recommendation', 'inferred_requirement'],
-        required: true
-      },
-      note: {
-        type: String,
-        required: true
-      },
-      impact: Number,
-      reason: String,
-      source_provenance: [String]
-    }],
-    explainability: {
-      top_jd_sentences: [String],
-      key_phrases: [String],
-      rationales: [String]
-    },
-    provenance_spans: [{
-      type: {
-        type: String,
-        required: true
-      },
-      text: {
-        type: String,
-        required: true
-      }
-    }],
-    
-    // Compliance parsing results
-    mandatory_compliances: {
-      raw_prompt: String,
-      structured: Schema.Types.Mixed
-    },
-    soft_compliances: {
-      raw_prompt: String,
-      structured: Schema.Types.Mixed
-    },
     // Core role context
-    role_title: String,
+    role_title: {
+      type: String
+    },
     alt_titles: [String],
     seniority_level: String,
     department: String,
     industry: String,
     domain_tags: [String],
-    
+
     // Work model & logistics
     location: String,
     work_model: String,
@@ -336,7 +382,7 @@ const jobSchema = new Schema<IJob>({
     shift_details: String,
     visa_sponsorship: Boolean,
     clearances_required: [String],
-    
+
     // Experience & education
     years_experience_required: Number,
     education_requirements: [String],
@@ -344,16 +390,28 @@ const jobSchema = new Schema<IJob>({
     fields_of_study: [String],
     certifications_required: [String],
     certifications_preferred: [String],
-    
+
     // Skills
-    required_skills: [String],
+    required_skills: {
+      type: [String]
+    },
     preferred_skills: [String],
     tools_tech: [String],
     soft_skills: [String],
     languages: [String],
     canonical_skills: {
-      type: Schema.Types.Mixed,
-      default: {}
+      programming: [String],
+      frameworks: [String],
+      libraries: [String],
+      ml_ai: [String],
+      frontend: [String],
+      backend: [String],
+      testing: [String],
+      databases: [String],
+      cloud: [String],
+      infra: [String],
+      devtools: [String],
+      methodologies: [String]
     },
     skill_requirements: [{
       skill: String,
@@ -366,12 +424,14 @@ const jobSchema = new Schema<IJob>({
       mandatory: Boolean,
       provenance: [String]
     }],
-    
+
     // Duties & outcomes
-    responsibilities: [String],
+    responsibilities: {
+      type: [String]
+    },
     deliverables: [String],
     kpis_okrs: [String],
-    
+
     // Team & reporting
     team_context: {
       team_size: Number,
@@ -379,12 +439,12 @@ const jobSchema = new Schema<IJob>({
       manages_team: Boolean,
       direct_reports: Number
     },
-    
+
     // Constraints / exclusions / compliance
     exclusions: [String],
     compliance: [String],
     screening_questions: [String],
-    
+
     // Interview process
     interview_process: {
       total_rounds: Number,
@@ -395,7 +455,7 @@ const jobSchema = new Schema<IJob>({
       }],
       assignment_expected: Boolean
     },
-    
+
     // Compensation & benefits
     compensation: {
       currency: String,
@@ -406,25 +466,110 @@ const jobSchema = new Schema<IJob>({
       equity: String
     },
     benefits: [String],
-    
+
     // Keywords for ATS scoring
-    keywords_flat: [String],
-    keywords_weighted: {
-      type: Schema.Types.Mixed,
-      default: {}
+    keywords_flat: {
+      type: [String]
     },
-    
+    keywords_weighted: {
+      type: Schema.Types.Mixed
+    },
+
     // Weighting hints
     weighting: {
-      type: Schema.Types.Mixed,
-      default: {}
+      type: {
+        required_skills: Number,
+        preferred_skills: Number,
+        responsibilities: Number,
+        domain_relevance: Number,
+        technical_depth: Number,
+        soft_skills: Number,
+        education: Number,
+        certifications: Number,
+        keywords_exact: Number,
+        keywords_semantic: Number
+      }
     },
     embedding_hints: {
-      type: Schema.Types.Mixed,
-      default: {}
+      skills_embed: String,
+      responsibilities_embed: String,
+      overall_embed: String,
+      negatives_embed: String,
+      seniority_embed: String
+    },
+
+    // Explainability
+    explainability: {
+      top_jd_sentences: [String],
+      key_phrases: [String],
+      rationales: [String]
+    },
+    provenance_spans: [{
+      type: {
+        type: String
+      },
+      text: String
+    }],
+
+    // HR insights
+    hr_points: {
+      type: Number
+    },
+    hr_notes: {
+      type: [{
+        category: {
+          type: String
+        },
+        type: {
+          type: String,
+          enum: ['recommendation', 'inferred_requirement']
+        },
+        note: {
+          type: String
+        },
+        impact: Number,
+        reason: String,
+        source_provenance: [String]
+      }]
+    },
+
+    // Filter requirements
+    filter_requirements: {
+      raw_prompt: String,
+      structured: {
+        experience: {
+          min: Number,
+          max: Number,
+          field: String,
+          specified: Boolean
+        },
+        hard_skills: [String],
+        preferred_skills: [String],
+        department: {
+          category: {
+            type: String,
+            enum: ['IT', 'Non-IT', 'Specific']
+          },
+          allowed_departments: [String],
+          excluded_departments: [String],
+          specified: Boolean
+        },
+        location: String,
+        education: [String],
+        other_criteria: [String]
+      },
+      re_ranking_instructions: String
+    },
+
+    // Meta
+    meta: {
+      jd_version: String,
+      raw_text_length: Number,
+      last_updated: String,
+      sections_detected: [String]
     }
   },
-  embeddings: {
+  jd_embedding: {
     embedding_model: {
       type: String,
       default: 'text-embedding-3-small'
@@ -433,12 +578,12 @@ const jobSchema = new Schema<IJob>({
       type: Number,
       default: 1536
     },
-    profile_embedding: [Number],
-    skills_embedding: [Number],
-    projects_embedding: [Number],
-    responsibilities_embedding: [Number],
-    education_embedding: [Number],
-    overall_embedding: [Number]
+    profile_embedding: [[Number]],
+    skills_embedding: [[Number]],
+    projects_embedding: [[Number]],
+    responsibilities_embedding: [[Number]],
+    education_embedding: [[Number]],
+    overall_embedding: [[Number]]
   }
 }, {
   timestamps: true

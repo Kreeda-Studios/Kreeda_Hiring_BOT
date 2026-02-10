@@ -67,7 +67,7 @@ async def process_jd_complete(job) -> dict:
         await tracker.update(10, "fetching_job", "Fetching job details from database")
         logger.progress("Fetching job details from database")
         
-        job_data = api.get(f"/jobs/{job_id}")
+        job_data = api.get(f"/updates/job/{job_id}")
         processing_stages['job_fetch']['completed'] = True
         
         logger.progress(f"Job loaded: {job_data.get('title', 'N/A')}")
@@ -119,7 +119,7 @@ async def process_jd_complete(job) -> dict:
         await tracker.update(45, "ai_parsing", "Processing JD with AI (1-2 minutes)")
         logger.progress("Parsing JD with GPT-4 (this may take 1-2 minutes)")
         
-        ai_result = process_jd_with_ai(combined_text)
+        ai_result = await process_jd_with_ai(combined_text)
         
         if not ai_result.get('success'):
             error_msg = ai_result.get('error', 'AI JD parsing failed')
@@ -133,22 +133,33 @@ async def process_jd_complete(job) -> dict:
         logger.progress(f"Parsed: {parsed_jd.get('role_title', 'N/A')} | {len(parsed_jd.get('required_skills', []))} skills")
         await tracker.update(60, "ai_parsing", "AI parsing completed")
         
-        # Step 5: Save complete data to DB
-        await tracker.update(65, "saving_analysis", "Saving complete analysis to database")
-        logger.progress("Saving analysis to database")
+        # Step 5: Save parsed data to DB using new API
+        await tracker.update(65, "saving_analysis", "Saving parsed analysis to database")
+        logger.progress("Saving parsed analysis to database")
         
-        update_payload = format_jd_analysis_payload(parsed_jd, updated_filter_requirements)
+        jd_analysis_payload = format_jd_analysis_payload(parsed_jd, updated_filter_requirements)
         
-        api.patch(f"/jobs/{job_id}", data=update_payload)
+        api.post("/updates/jd/parsed", data={
+            'job_id': job_id,
+            'jd_analysis': jd_analysis_payload['jd_analysis']
+        })
         processing_stages['save_analysis']['completed'] = True
-        logger.progress("Analysis saved to database")
-        await tracker.update(70, "saving_analysis", "Complete analysis saved to database")
+        logger.progress("Parsed analysis saved to database")
+        await tracker.update(70, "saving_analysis", "Parsed analysis saved")
+        
+        # Save compliance requirements if available
+        if updated_filter_requirements:
+            api.post("/updates/jd/compliance", data={
+                'job_id': job_id,
+                'filter_requirements': updated_filter_requirements
+            })
+            logger.progress("Compliance requirements saved")
         
         # Step 6: Generate embeddings
         await tracker.update(75, "generating_embeddings", "Generating embeddings")
         logger.progress("Generating embeddings")
         
-        embeddings_result = generate_and_format_embeddings(parsed_jd)
+        embeddings_result = await generate_and_format_embeddings(parsed_jd)
         
         if not embeddings_result.get('success'):
             error_msg = embeddings_result.get('error')
@@ -163,14 +174,19 @@ async def process_jd_complete(job) -> dict:
             logger.progress(f"Generated {sections_count}/{stats.get('total_sections', 6)} embeddings")
             await tracker.update(85, "generating_embeddings", "Embeddings generated")
             
-            # Step 7: Save embeddings
+            # Step 7: Save embeddings using new API
             await tracker.update(90, "saving_embeddings", "Saving embeddings to database")
             logger.progress("Saving embeddings to database")
             
-            api.patch(f"/jobs/{job_id}", data=embeddings_result.get('embeddings_payload'))
+            api.post("/updates/jd/embeddings", data={
+                'job_id': job_id,
+                'jd_embedding': embeddings_result.get('embeddings_payload', {}).get('embeddings')
+            })
             processing_stages['save_embeddings']['completed'] = True
             logger.progress("Embeddings saved to database")
             await tracker.update(95, "saving_embeddings", "Embeddings saved successfully")
+        
+        api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'completed'})
         
         logger.complete("JD processing completed successfully")
         await tracker.complete(summary={
@@ -188,6 +204,7 @@ async def process_jd_complete(job) -> dict:
     except APIError as e:
         logger.fail(f"API error: {e.message}")
         error_msg = f"API error: {e.message}"
+        api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'failed'})
         return {
             'success': False,
             'job_id': job_id, 
@@ -199,6 +216,7 @@ async def process_jd_complete(job) -> dict:
         error_traceback = traceback.format_exc()
         logger.fail(f"{type(e).__name__}: {str(e)}")
         print(f"📋 Full error traceback:\n{error_traceback}")
+        api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'failed'})
         return {
             'success': False,
             'job_id': job_id, 

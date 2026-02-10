@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { Job } from '../models';
+import { Job, Resume } from '../models';
 import config from '../config';
 
 const router = Router();
@@ -329,20 +329,52 @@ router.post('/:id/upload-jd', jdUpload.single('jd_pdf'), async (req: Request, re
   }
 });
 
-// PUT /api/jobs/:id/resume-groups - Link resume groups to job
-router.put('/:id/resume-groups', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { resume_group_ids } = req.body;
+// Configure multer for resume uploads
+const resumeStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const jobId = req.params.id;
+    const uploadDir = path.join('/app', config.uploadPath, jobId, 'resumes');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'resume-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
 
-    if (!Array.isArray(resume_group_ids)) {
+const resumeUpload = multer({
+  storage: resumeStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.pdf', '.doc', '.docx'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF, DOC, and DOCX files are allowed'));
+    }
+  }
+});
+
+// POST /api/jobs/:id/upload-resumes - Upload resumes for a job
+router.post('/:id/upload-resumes', resumeUpload.array('resumes', 500), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const jobId = req.params.id;
+    const files = req.files as Express.Multer.File[];
+    
+    if (!files || files.length === 0) {
       res.status(400).json({
         success: false,
-        error: 'resume_group_ids must be an array'
+        error: 'No files uploaded'
       });
       return;
     }
 
-    const job = await Job.findById(req.params.id);
+    // Verify job exists
+    const job = await Job.findById(jobId);
     if (!job) {
       res.status(404).json({
         success: false,
@@ -351,23 +383,36 @@ router.put('/:id/resume-groups', async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Update resume groups (replace or add)
-    job.resume_groups = resume_group_ids;
-    await job.save();
+    const uploadedResumes = [];
 
-    res.json({
+    // Create resume records
+    for (const file of files) {
+      const resume = new Resume({
+        filename: file.filename,
+        original_name: file.originalname,
+        job_id: jobId,
+        extraction_status: 'pending',
+        parsing_status: 'pending',
+        embedding_status: 'pending',
+        processing_status: 'pending'
+      });
+
+      await resume.save();
+      uploadedResumes.push(resume);
+    }
+
+    res.status(201).json({
       success: true,
-      data: job,
-      message: `${resume_group_ids.length} resume groups linked to job`
+      data: uploadedResumes,
+      count: uploadedResumes.length,
+      message: `${uploadedResumes.length} resumes uploaded successfully`
     });
-    return;
   } catch (error) {
-    console.error('Error linking resume groups:', error);
+    console.error('Error uploading resumes:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to link resume groups'
+      error: 'Failed to upload resumes'
     });
-    return;
   }
 });
 

@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 """
-Embedding Generator for Resumes
+Resume Embedding Generator
 
-Generates vector embeddings for resume content using OpenAI embeddings.
-Exact match with old archive SemanticComparitor.py logic.
+Generates vector embeddings for resume sections using OpenAI text-embedding-3-small.
+Matches old system logic for semantic scoring compatibility.
 """
 
-import os
+import sys
 import time
 import random
 import hashlib
 import pickle
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import numpy as np
 
-try:
-    from openai import OpenAI
-except ImportError:
-    OpenAI = None
+# Add parent directory for imports
+sys.path.append(str(Path(__file__).parent.parent))
 
-# Model configuration - exact match with old archive
+from openai_client import get_async_openai_client
+import asyncio
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMENSION = 1536
 EMBED_BATCH = 128
@@ -28,331 +32,317 @@ EMBED_RETRIES = 5
 BACKOFF_BASE = 1.4
 MAX_SENT = 200
 
-# Cache for embeddings
 EMBED_CACHE_PATH = Path(__file__).parent / ".semantic_embed_cache.pkl"
 
+
+# ============================================================================
+# EMBEDDING CACHE
+# ============================================================================
+
 class EmbedCache:
-    """Embedding cache - exact match with old archive"""
+    """Persistent cache for embeddings to avoid redundant API calls"""
+    
     def __init__(self, path: Path):
         self.path = path
         self._cache = {}
         if path.exists():
             try:
-                self._cache = pickle.load(open(path, "rb"))
+                with open(path, "rb") as f:
+                    self._cache = pickle.load(f)
             except Exception:
                 self._cache = {}
 
-    def _key(self, text: str):
+    def _key(self, text: str) -> str:
+        """Generate cache key from text and model name"""
         return hashlib.sha256(f"{EMBEDDING_MODEL}||{text}".encode()).hexdigest()
 
     def get(self, text: str):
+        """Retrieve cached embedding for text"""
         return self._cache.get(self._key(text))
 
     def set(self, text: str, vec):
+        """Store embedding in cache"""
         self._cache[self._key(text)] = vec
         if len(self._cache) % 100 == 0:
-            try:
-                pickle.dump(self._cache, open(self.path, "wb"))
-            except Exception:
-                pass
+            self._save()
 
     def close(self):
+        """Persist cache to disk"""
+        self._save()
+    
+    def _save(self):
+        """Internal save method"""
         try:
-            pickle.dump(self._cache, open(self.path, "wb"))
+            with open(self.path, "wb") as f:
+                pickle.dump(self._cache, f)
         except Exception:
             pass
 
-def get_openai_client():
-    """Initialize OpenAI client"""
-    if OpenAI is None:
-        raise ImportError("openai library not installed. Run: pip install openai")
-    
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
-    
-    return OpenAI(api_key=api_key)
 
-def _embed_batch(client, texts: List[str]) -> List[List[float]]:
-    """Generate embeddings for batch - exact match with old archive"""
+# ============================================================================
+# EMBEDDING GENERATION
+# ============================================================================
+
+async def _embed_batch(client, texts: List[str]) -> List[List[float]]:
+    """
+    Generate embeddings for a batch of texts with retry logic
+    
+    Args:
+        client: OpenAI client instance
+        texts: List of text strings to embed
+        
+    Returns:
+        List of embedding vectors
+    """
     for attempt in range(1, EMBED_RETRIES + 1):
         try:
-            res = client.embeddings.create(model=EMBEDDING_MODEL, input=texts)
-            return [d.embedding for d in res.data]
+            response = await client.embeddings.create(model=EMBEDDING_MODEL, input=texts)
+            return [d.embedding for d in response.data]
         except Exception as e:
             if attempt == EMBED_RETRIES:
-                raise RuntimeError(f"OpenAI embeddings failed: {e}")
-            time.sleep((BACKOFF_BASE ** attempt) + random.random())
+                raise RuntimeError(f"OpenAI embeddings failed after {EMBED_RETRIES} attempts: {e}")
+            await asyncio.sleep((BACKOFF_BASE ** attempt) + random.random())
 
-def embed_texts(cache: EmbedCache, client, texts: List[str]) -> np.ndarray:
-    """Embed texts with caching - exact match with old archive"""
-    if not texts: 
+
+async def embed_texts(cache: EmbedCache, client, texts: List[str]) -> np.ndarray:
+    """
+    Generate embeddings for texts with caching and normalization
+    
+    Args:
+        cache: Embedding cache instance
+        client: OpenAI client instance
+        texts: List of text strings to embed
+        
+    Returns:
+        Normalized embedding matrix (N x EMBEDDING_DIMENSION)
+    """
+    if not texts:
         return np.zeros((0, EMBEDDING_DIMENSION), dtype=np.float32)
 
     vecs = [None] * len(texts)
     todo, todo_i = [], []
 
-    for i, t in enumerate(texts):
-        c = cache.get(t)
-        if c is None:
-            todo.append(t)
+    # Check cache for existing embeddings
+    for i, text in enumerate(texts):
+        cached = cache.get(text)
+        if cached is None:
+            todo.append(text)
             todo_i.append(i)
         else:
-            vecs[i] = np.array(c, dtype=np.float32)
+            vecs[i] = np.array(cached, dtype=np.float32)
 
+    # Generate embeddings for uncached texts in batches
     for i in range(0, len(todo), EMBED_BATCH):
-        batch = todo[i:i+EMBED_BATCH]
-        emb = _embed_batch(client, batch)
-        for j, vec in enumerate(emb):
-            idx = todo_i[i+j]
+        batch = todo[i:i + EMBED_BATCH]
+        embeddings = await _embed_batch(client, batch)
+        
+        for j, vec in enumerate(embeddings):
+            idx = todo_i[i + j]
             arr = np.array(vec, dtype=np.float32)
-            n = np.linalg.norm(arr)
-            if n > 0: 
-                arr = arr / n
+            norm = np.linalg.norm(arr)
+            if norm > 0:
+                arr = arr / norm
             vecs[idx] = arr
             cache.set(batch[j], arr.tolist())
 
-    d = EMBEDDING_DIMENSION
+    # Fill any missing vectors with zeros
     for i, v in enumerate(vecs):
-        if v is None: 
-            vecs[i] = np.zeros((d,), dtype=np.float32)
+        if v is None:
+            vecs[i] = np.zeros(EMBEDDING_DIMENSION, dtype=np.float32)
 
+    # Stack and normalize
     M = np.vstack(vecs)
     M /= np.linalg.norm(M, axis=1, keepdims=True).clip(min=1e-9)
     return M.astype(np.float32)
 
+
+# ============================================================================
+# TEXT PROCESSING UTILITIES
+# ============================================================================
+
 def sentence_split(text: str) -> List[str]:
-    """Split text into sentences - exact match with old archive"""
-    if not text: 
+    """
+    Split text into sentences on punctuation marks
+    
+    Args:
+        text: Input text string
+        
+    Returns:
+        List of sentences with at least 3 words each
+    """
+    if not text:
         return []
+    
     text = text.replace("\n", " ")
     parts = []
     start = 0
+    
     for i, ch in enumerate(text):
         if ch in ".!?":
-            seg = text[start:i+1].strip()
-            if seg: 
+            seg = text[start:i + 1].strip()
+            if seg:
                 parts.append(seg)
-            start = i+1
+            start = i + 1
+    
     tail = text[start:].strip()
-    if tail: 
+    if tail:
         parts.append(tail)
+    
     return [p for p in parts if len(p.split()) >= 3]
 
-def safe_list(x): 
-    """Safe list conversion - exact match with old archive"""
+
+def safe_list(x):
+    """Convert to list if not already a list, otherwise return empty list"""
     return x if isinstance(x, list) else []
 
-def norm(s): 
-    """Normalize text - exact match with old archive"""
-    return s.strip()
+
+def norm(s):
+    """Normalize string by stripping whitespace"""
+    return s.strip() if isinstance(s, str) else ""
+
+
+# ============================================================================
+# RESUME SECTION EXTRACTION
+# ============================================================================
 
 def extract_sections_from_resume(resume: dict) -> Dict[str, List[str]]:
-    """Extract resume sections - updated for new AI parser field names"""
-    sections = {k: [] for k in ["profile","skills","projects","responsibilities","education","overall"]}
+    """
+    Extract text sections from parsed resume for embedding generation
+    
+    Field mappings match AI parser schema:
+    - profile_keywords_line → profile section
+    - canonical_skills + inferred_skills → skills section
+    - projects.approach + projects.tech_keywords → projects section
+    - experience_entries.responsibilities_keywords + achievements → responsibilities section
+    - education → education section
+    - Combined fields → overall section
+    
+    Args:
+        resume: Parsed resume dictionary from AI parser
+        
+    Returns:
+        Dictionary with 6 section keys, each containing list of text strings
+    """
+    sections = {k: [] for k in ["profile", "skills", "projects", "responsibilities", "education", "overall"]}
 
-    # Profile - use summary instead of profile_keywords_line
-    summary = resume.get("summary")
-    if summary:
-        if isinstance(summary, list):
-            for s in summary:
-                if s:
-                    sections["profile"] += sentence_split(s)
-        elif isinstance(summary, str):
-            sections["profile"] += sentence_split(summary)
+    # Profile section
+    profile_line = resume.get("profile_keywords_line")
+    if profile_line:
+        sections["profile"] += sentence_split(profile_line)
 
-    # Skills - canonical and inferred (same structure)
+    # Skills section: canonical + inferred (confidence >= 0.6)
     canonical = resume.get("canonical_skills") or {}
-    for vals in canonical.values():
-        if isinstance(vals, list):
-            sections["skills"] += [norm(v) for v in vals if v]
+    for skill_list in canonical.values():
+        if isinstance(skill_list, list):
+            sections["skills"] += [norm(v) for v in skill_list if v]
 
-    for inf in safe_list(resume.get("inferred_skills")):
-        if inf.get("skill") and inf.get("confidence",0) >= 0.6:
-            sections["skills"].append(norm(inf["skill"]))
+    for inferred in safe_list(resume.get("inferred_skills")):
+        if inferred.get("skill") and inferred.get("confidence", 0) >= 0.6:
+            sections["skills"].append(norm(inferred["skill"]))
 
-    # Projects - use description instead of approach
+    # Projects section: name + approach + tech_keywords
     for proj in safe_list(resume.get("projects")):
-        if proj.get("name"): 
+        if proj.get("name"):
             sections["projects"] += sentence_split(proj["name"])
-        if proj.get("description"):  # Changed from 'approach'
-            sections["projects"] += sentence_split(proj["description"])
-        if proj.get("tech_keywords"): 
+        if proj.get("approach"):
+            sections["projects"] += sentence_split(proj["approach"])
+        if proj.get("tech_keywords"):
             sections["projects"] += [norm(x) for x in proj["tech_keywords"]]
-        if proj.get("primary_skills"):  # Also use primary_skills
-            sections["projects"] += [norm(x) for x in safe_list(proj["primary_skills"])]
 
-    # Experience/Responsibilities - use experience instead of experience_entries
-    for exp in safe_list(resume.get("experience")):  # Changed from 'experience_entries'
-        if exp.get("description"):  # Use description instead of responsibilities_keywords
-            sections["responsibilities"] += sentence_split(exp["description"])
+    # Responsibilities section: responsibilities + achievements + primary_tech
+    for exp in safe_list(resume.get("experience_entries")):
+        for resp in safe_list(exp.get("responsibilities_keywords")):
+            if resp:
+                sections["responsibilities"] += sentence_split(resp)
+        for ach in safe_list(exp.get("achievements")):
+            if ach:
+                sections["responsibilities"] += sentence_split(ach)
+        for tech in safe_list(exp.get("primary_tech")):
+            if tech:
+                sections["responsibilities"].append(norm(tech))
 
-    # Education (same structure)
-    for e in safe_list(resume.get("education")):
-        if isinstance(e, dict):
-            # New structure: education is list of objects
-            if e.get("degree"):
-                sections["education"] += sentence_split(e["degree"])
-            if e.get("field"):
-                sections["education"] += sentence_split(e["field"])
-            if e.get("institution"):
-                sections["education"] += sentence_split(e["institution"])
-        elif isinstance(e, str): 
-            sections["education"] += sentence_split(e)
+    # Education section: string entries only
+    for edu in safe_list(resume.get("education")):
+        if isinstance(edu, str):
+            sections["education"] += sentence_split(edu)
 
-    # Overall section - combine key fields
-    overall = []
-    
-    # Add summary to overall
-    summary = resume.get("summary")
-    if summary:
-        if isinstance(summary, list):
-            overall.extend(summary)
-        elif isinstance(summary, str):
-            overall.append(summary)
-    
-    # Add project descriptions to overall
+    # Fallback: use ats_boost_line for empty education
+    ats = resume.get("ats_boost_line") or ""
+    if ats and not sections["education"]:
+        parts = [x.strip() for x in ats.split(",") if x.strip()]
+        sections["education"] += parts[:20]
+
+    # Overall section: comprehensive combination
+    overall_parts = []
+    if resume.get("profile_keywords_line"):
+        overall_parts.append(resume["profile_keywords_line"])
     for proj in safe_list(resume.get("projects")):
-        if proj.get("description"): 
-            overall.append(proj["description"])
-    
-    # Add experience descriptions to overall
-    for exp in safe_list(resume.get("experience")):
-        if exp.get("description"):
-            overall.append(exp["description"])
-    
-    # Convert overall to sentences
-    sections["overall"] = [s for text in overall for s in sentence_split(text)]
+        if proj.get("approach"):
+            overall_parts.append(proj["approach"])
+    for exp in safe_list(resume.get("experience_entries")):
+        if exp.get("responsibilities_keywords"):
+            overall_parts += exp["responsibilities_keywords"]
+    if ats:
+        overall_parts.append(ats)
+    sections["overall"] = [s for part in overall_parts for s in sentence_split(part)]
 
-    # Truncate sections to MAX_SENT
-    for k in sections:
-        if len(sections[k]) > MAX_SENT: 
-            sections[k] = sections[k][:MAX_SENT]
-    
+    # Truncate all sections to MAX_SENT
+    for key in sections:
+        if len(sections[key]) > MAX_SENT:
+            sections[key] = sections[key][:MAX_SENT]
+
     return sections
 
-def generate_resume_embeddings(parsed_resume: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate resume embeddings using OpenAI - exact match with old archive"""
+
+# ============================================================================
+# MAIN FUNCTION
+# ============================================================================
+
+async def generate_resume_embeddings(parsed_resume: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate embeddings for all resume sections
+    
+    Args:
+        parsed_resume: Parsed resume dictionary from AI parser
+        
+    Returns:
+        Dictionary containing:
+        - success: bool
+        - section_embeddings: dict with 6 section keys, each with embedding matrix
+        - section_texts: dict with original text lists per section
+        - model_used: str
+        - dimension: int
+        - error: str (if success=False)
+    """
     try:
-        client = get_openai_client()
+        client = get_async_openai_client()
         cache = EmbedCache(EMBED_CACHE_PATH)
-        
-        # Extract sections exactly like old archive
+
         resume_sections = extract_sections_from_resume(parsed_resume)
-        
-        # Generate embeddings for each section
+
         section_embeddings = {}
         section_texts = {}
-        
-        for section_name, section_texts_list in resume_sections.items():
-            if section_texts_list:
-                section_embeddings[section_name] = embed_texts(cache, client, section_texts_list)
-                section_texts[section_name] = section_texts_list
+
+        for section_name, text_list in resume_sections.items():
+            if text_list:
+                section_embeddings[section_name] = await embed_texts(cache, client, text_list)
+                section_texts[section_name] = text_list
             else:
                 section_embeddings[section_name] = np.zeros((0, EMBEDDING_DIMENSION), dtype=np.float32)
                 section_texts[section_name] = []
-        
+
         cache.close()
-        
+
         return {
             'success': True,
-            'resume_sections': resume_sections,
             'section_embeddings': section_embeddings,
             'section_texts': section_texts,
             'model_used': EMBEDDING_MODEL,
             'dimension': EMBEDDING_DIMENSION
         }
-        
+
     except Exception as e:
         return {
             'success': False,
             'error': f"Resume embedding generation failed: {str(e)}"
-        }
-
-def generate_skill_embeddings(parsed_resume: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate embeddings for different skill categories"""
-    try:
-        model = get_embedding_model()
-        
-        skill_embeddings = {}
-        canonical_skills = parsed_resume.get('canonical_skills', {})
-        
-        # Generate embeddings for each skill category
-        for category, skills in canonical_skills.items():
-            if isinstance(skills, list) and skills:
-                # Combine skills into text
-                skills_text = ' '.join(skills)
-                embedding = model.encode(skills_text, convert_to_tensor=False)
-                skill_embeddings[category] = {
-                    'embedding': embedding.tolist(),
-                    'skills': skills,
-                    'text': skills_text
-                }
-        
-        # Generate embedding for all skills combined
-        all_skills = parsed_resume.get('skills', [])
-        if all_skills:
-            all_skills_text = ' '.join(all_skills)
-            embedding = model.encode(all_skills_text, convert_to_tensor=False)
-            skill_embeddings['all_skills'] = {
-                'embedding': embedding.tolist(),
-                'skills': all_skills,
-                'text': all_skills_text
-            }
-        
-        return {
-            'success': True,
-            'skill_embeddings': skill_embeddings,
-            'categories_processed': len(skill_embeddings)
-        }
-        
-    except Exception as e:
-        return {
-            'success': False,
-            'error': f"Skill embedding generation failed: {str(e)}"
-        }
-
-def process_resume_embeddings(parsed_resume: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Main function to generate all resume embeddings
-    Returns: {
-        'success': bool,
-        'resume_embedding': list,
-        'skill_embeddings': dict,
-        'metadata': dict,
-        'error': str or None
-    }
-    """
-    try:
-        start_time = time.time()
-        
-        # Generate main resume embedding
-        resume_result = generate_resume_embeddings(parsed_resume)
-        if not resume_result['success']:
-            return resume_result
-        
-        # Generate skill embeddings
-        skill_result = generate_skill_embeddings(parsed_resume)
-        if not skill_result['success']:
-            return skill_result
-        
-        total_time = time.time() - start_time
-        
-        return {
-            'success': True,
-            'resume_embedding': resume_result['resume_embedding'],
-            'skill_embeddings': skill_result['skill_embeddings'],
-            'metadata': {
-                'model_used': EMBEDDING_MODEL,
-                'embedding_dimension': EMBEDDING_DIMENSION,
-                'total_processing_time': total_time,
-                'resume_embedding_time': resume_result.get('processing_time', 0),
-                'skill_categories': skill_result.get('categories_processed', 0)
-            }
-        }
-        
-    except Exception as e:
-        return {
-            'success': False,
-            'error': f"Resume embedding processing failed: {str(e)}"
         }

@@ -64,16 +64,16 @@ def get_candidate_scores_via_api(job_id: str) -> List[Dict]:
             if isinstance(resume, dict):
                 resume_id = str(resume.get('_id', ''))
                 candidate_name = resume.get('candidate_name', 'Unknown')
-                group_id = str(resume.get('group_id', ''))
+                job_id = str(resume.get('job_id', ''))
             else:
                 resume_id = str(resume)
                 candidate_name = 'Unknown'
-                group_id = ''
+                job_id = ''
             
             candidates.append({
                 'candidate_id': resume_id,
                 'name': candidate_name,
-                'group_id': group_id,
+                'job_id': job_id,
                 'Keyword_Score': score.get('keyword_score', 0.0),
                 'Semantic_Score': score.get('semantic_score', 0.0),
                 'project_aggregate': score.get('project_score', 0.0),
@@ -569,7 +569,7 @@ def process_ranking_batch(
 
 def process_final_ranking(
     job_id: str,
-    resume_group_id: str = None,
+    batch_identifier: str = None,
     score_result_ids: List[str] = None,
     batch_index: int = 1,
     total_batches: int = 1,
