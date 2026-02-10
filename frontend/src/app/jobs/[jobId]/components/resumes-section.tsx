@@ -26,12 +26,22 @@ import {
 } from "lucide-react";
 import type { Resume, ResumeStatus } from "@/lib/types";
 import { jobsAPI, resumesAPI, processingAPI } from "@/lib/api";
+import { useJobStatus } from "@/hooks/useJobStatus";
 
 interface ResumesSectionProps {
   jobId: string;
 }
 
 export function ResumesSection({ jobId }: ResumesSectionProps) {
+  // Use status hook for real-time tracking
+  const { 
+    statusData, 
+    isResumeProcessingInProgress, 
+    canUploadResumes, 
+    canStartResumeProcessing, 
+    refetch: refetchStatus 
+  } = useJobStatus(jobId);
+  
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -43,6 +53,12 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
   useEffect(() => {
     fetchResumes();
   }, [jobId]);
+
+  // Update processing state based on status
+  useEffect(() => {
+    const processingState = isResumeProcessingInProgress();
+    setProcessing(processingState);
+  }, [isResumeProcessingInProgress]);
 
   const fetchResumes = async () => {
     try {
@@ -68,6 +84,12 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
+
+    // Check if upload is allowed
+    if (!canUploadResumes()) {
+      setError("Cannot upload resumes while resume processing is in progress. Please wait for current processing to complete.");
+      return;
+    }
 
     // Filter for PDF files only
     const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
@@ -101,8 +123,9 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
         } else {
           setUploadSuccess(`Successfully uploaded ${uploadCount} resume(s)`);
         }
-        // Refresh the resume list
+        // Refresh the resume list and status
         await fetchResumes();
+        refetchStatus();
       } else {
         setError(response.message || "Upload failed");
       }
@@ -121,6 +144,12 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
   const handleProcessResumes = async () => {
     if (resumes.length === 0) return;
     
+    // Check if processing is allowed
+    if (!canStartResumeProcessing()) {
+      setError("Cannot start resume processing. Please ensure JD is processed first and no other processing is in progress.");
+      return;
+    }
+    
     setProcessing(true);
     setError(null);
     
@@ -128,7 +157,8 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
       const response = await processingAPI.processResumes(jobId);
       if (response.success) {
         console.log('Resume processing started:', response.message);
-        // Optionally show success message or redirect
+        // Refresh status to get updated processing state
+        refetchStatus();
       } else {
         setError(response.message || "Failed to start processing");
       }
@@ -136,7 +166,10 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
       console.error("Failed to start resume processing:", error);
       setError(error instanceof Error ? error.message : "Failed to start processing");
     } finally {
-      setProcessing(false);
+      // Keep processing true while status is processing
+      if (!isResumeProcessingInProgress()) {
+        setProcessing(false);
+      }
     }
   };
 
@@ -199,7 +232,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
                 <Button
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
+                  disabled={uploading || !canUploadResumes()}
                 >
                   {uploading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -208,6 +241,11 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
                   )}
                   {uploading ? 'Uploading...' : 'Select PDFs'}
                 </Button>
+                {!canUploadResumes() && (
+                  <p className="text-xs text-orange-600">
+                    Upload locked during processing
+                  </p>
+                )}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -241,20 +279,49 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
 
             {/* Process Button */}
             {resumes.length > 0 && (
-              <div className="flex justify-center pt-4 border-t">
-                <Button
-                  onClick={handleProcessResumes}
-                  disabled={processing}
-                  className="w-full max-w-md"
-                  size="lg"
-                >
-                  {processing ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <Play className="mr-2 h-5 w-5" />
-                  )}
-                  {processing ? 'Processing Resumes...' : 'Start Resume Processing'}
-                </Button>
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex justify-center">
+                  <Button
+                    onClick={handleProcessResumes}
+                    disabled={!canStartResumeProcessing() || processing}
+                    className="w-full max-w-md"
+                    size="lg"
+                  >
+                    {processing ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-5 w-5" />
+                    )}
+                    {processing ? 'Processing Resumes...' : 'Start Resume Processing'}
+                  </Button>
+                </div>
+                
+                {/* Status Messages */}
+                {statusData && (
+                  <div className="text-center space-y-1">
+                    {statusData.job.jd_processing.status !== 'success' && (
+                      <p className="text-xs text-orange-600">
+                        ⚠️ JD must be processed before resume processing can start
+                      </p>
+                    )}
+                    {statusData.job.resume_processing.status === 'processing' && (
+                      <p className="text-xs text-blue-600">
+                        🔄 Processing {statusData.job.resume_processing.completed_count} / {statusData.job.resume_processing.total_resumes} resumes 
+                        ({statusData.job.resume_processing.progress}%)
+                      </p>
+                    )}
+                    {statusData.job.resume_processing.status === 'success' && (
+                      <p className="text-xs text-green-600">
+                        ✅ All resumes processed successfully
+                      </p>
+                    )}
+                    {statusData.job.resume_processing.status === 'failed' && (
+                      <p className="text-xs text-red-600">
+                        ❌ Resume processing failed: {statusData.job.resume_processing.error}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

@@ -32,6 +32,40 @@ from h_composite_scorer import calculate_composite_score
 class ResumeProcessingError(Exception):
     pass
 
+
+def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None):
+    """Update resume processing status in database"""
+    try:
+        payload = {
+            'overall_processing_status': status
+        }
+        if progress is not None:
+            payload['processing_progress'] = progress
+        if error is not None:
+            payload['processing_error'] = error
+        if job_id is not None:
+            payload['bullmq_job_id'] = job_id
+        
+        api.patch(f"/resumes/{resume_id}", data=payload)
+    except Exception as e:
+        print(f"⚠️ Failed to update resume status: {e}")
+
+
+def update_job_resume_status(job_id: str, status: str, progress: int = None, error: str = None):
+    """Update job's resume processing status"""
+    try:
+        payload = {
+            'resume_processing_status': status
+        }
+        if progress is not None:
+            payload['resume_processing_progress'] = progress
+        if error is not None:
+            payload['resume_processing_error'] = error
+        
+        api.patch(f"/jobs/{job_id}", data=payload)
+    except Exception as e:
+        print(f"⚠️ Failed to update job resume status: {e}")
+
 def update_resume_embeddings(resume_id: str, section_embeddings: Dict[str, Any]) -> Dict:
     """Format resume embeddings for database update"""
     try:
@@ -72,6 +106,9 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
     
     logger = JobLogger.for_resume(resume_id, index, total)
     tracker = ProgressTracker(job)
+    
+    # Update resume status to processing
+    update_resume_status(resume_id, 'processing', 0, job_id=job.id)
     
     try:
         # Fetch resume data
@@ -244,6 +281,9 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         
         api.post("/updates/resume/status", data={'resume_id': resume_id, 'status': 'completed'})
         
+        # Update resume status to success
+        update_resume_status(resume_id, 'success', 100)
+        
         logger.complete(f"Completed: Score {final_score:.2f}")
         await tracker.complete(summary={
             'resumeId': resume_id,
@@ -260,15 +300,19 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         }
         
     except APIError as e:
-        logger.fail(f"API error: {e.message}")
+        error_msg = f"API error: {e.message}"
+        logger.fail(error_msg)
         api.post("/updates/resume/status", data={'resume_id': resume_id, 'status': 'failed'})
-        await tracker.failed(f"API error: {e.message}", "APIError", "processing")
-        return {'success': False, 'error': f"API error: {e.message}", 'final_score': 0.0}
+        update_resume_status(resume_id, 'failed', error=error_msg)
+        await tracker.failed(error_msg, "APIError", "processing")
+        return {'success': False, 'error': error_msg, 'final_score': 0.0}
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
-        logger.fail(f"{type(e).__name__}: {str(e)}")
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        logger.fail(error_msg)
         print(f"📋 Full error traceback:\n{error_traceback}")
         api.post("/updates/resume/status", data={'resume_id': resume_id, 'status': 'failed'})
+        update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(str(e), type(e).__name__, "processing")
         return {'success': False, 'error': str(e), 'final_score': 0.0}

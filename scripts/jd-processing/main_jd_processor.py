@@ -34,6 +34,22 @@ from c_ai_embedding_generator import generate_and_format_embeddings
 from d_compliance_parser import validate_and_format_compliances
 
 
+def update_job_status(job_id: str, status: str, progress: int = None, error: str = None):
+    """Update job processing status in database"""
+    try:
+        payload = {
+            'jd_processing_status': status
+        }
+        if progress is not None:
+            payload['jd_processing_progress'] = progress
+        if error is not None:
+            payload['jd_processing_error'] = error
+        
+        api.patch(f"/jobs/{job_id}", data=payload)
+    except Exception as e:
+        print(f"⚠️ Failed to update job status: {e}")
+
+
 async def process_jd_complete(job) -> dict:
     """
     Complete JD processing pipeline
@@ -51,6 +67,9 @@ async def process_jd_complete(job) -> dict:
     job_id = job.data.get("jobId")
     logger = JobLogger.for_jd(job_id)
     tracker = ProgressTracker(job)
+    
+    # Update status to processing
+    update_job_status(job_id, 'processing', 0)
     
     processing_stages = {
         'job_fetch': {'completed': False, 'error': None},
@@ -188,6 +207,9 @@ async def process_jd_complete(job) -> dict:
         
         api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'completed'})
         
+        # Update status to success
+        update_job_status(job_id, 'success', 100)
+        
         logger.complete("JD processing completed successfully")
         await tracker.complete(summary={
             'jobId': job_id,
@@ -205,6 +227,7 @@ async def process_jd_complete(job) -> dict:
         logger.fail(f"API error: {e.message}")
         error_msg = f"API error: {e.message}"
         api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'failed'})
+        update_job_status(job_id, 'failed', error=error_msg)
         return {
             'success': False,
             'job_id': job_id, 
@@ -214,9 +237,11 @@ async def process_jd_complete(job) -> dict:
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
-        logger.fail(f"{type(e).__name__}: {str(e)}")
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        logger.fail(error_msg)
         print(f"📋 Full error traceback:\n{error_traceback}")
         api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'failed'})
+        update_job_status(job_id, 'failed', error=error_msg)
         return {
             'success': False,
             'job_id': job_id, 

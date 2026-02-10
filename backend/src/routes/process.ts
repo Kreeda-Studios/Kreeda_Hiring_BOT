@@ -39,6 +39,8 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
     // Lock the job before processing
     job.locked = true;
     job.status = 'active';
+    job.jd_processing_status = 'processing';
+    job.jd_processing_progress = 0;
     await job.save();
 
     // Only pass jobId to the queue
@@ -49,9 +51,11 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
     const queueResult = await QueueService.addJDProcessingJob(jobData);
 
     if (!queueResult.success) {
-      // Unlock if queue failed
+      // Unlock and reset status if queue failed
       job.locked = false;
       job.status = 'draft';
+      job.jd_processing_status = 'failed';
+      job.jd_processing_error = queueResult.error || 'Failed to queue JD processing';
       await job.save();
       
       res.status(500).json({
@@ -61,10 +65,10 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // // Save the JD processing job ID in the jobs object
-    // if (!job.jobs) job.jobs = {};
-    // job.jobs.jd = queueResult.jobId;
-    // await job.save();
+    // Save the JD processing job ID
+    if (!job.bullmq_jobs) job.bullmq_jobs = {};
+    job.bullmq_jobs.jd_processing_job_id = queueResult.jobId;
+    await job.save();
 
     res.json({
       success: true,
@@ -72,7 +76,9 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
         job_id: jobId,
         jd_job_id: queueResult.jobId,
         status: job.status,
-        locked: job.locked
+        locked: job.locked,
+        jd_processing_status: job.jd_processing_status,
+        jd_processing_progress: job.jd_processing_progress
       },
       message: 'JD processing queued successfully. Job is now locked - JD file, text, and compliance cannot be changed.'
     });
@@ -110,6 +116,11 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Update job resume processing status
+    job.resume_processing_status = 'processing';
+    job.resume_processing_progress = 0;
+    await job.save();
+
     // Prepare resume job data
     const resumeJobsData = resumes.map(resume => {
       // Compute file path from job_id and filename (relative to uploads/)
@@ -123,6 +134,15 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
       };
     });
 
+    // Update all resumes to processing status
+    await Resume.updateMany(
+      { job_id: jobId },
+      { 
+        overall_processing_status: 'processing',
+        processing_progress: 0
+      }
+    );
+
     // Always use Flow for parallel processing
     const flowResult = await QueueService.addResumeGroupFlow(
       {
@@ -134,6 +154,19 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
     );
 
     if (!flowResult.success) {
+      // Reset status on failure
+      job.resume_processing_status = 'failed';
+      job.resume_processing_error = flowResult.error || 'Failed to create resume processing flow';
+      await job.save();
+      
+      await Resume.updateMany(
+        { job_id: jobId },
+        { 
+          overall_processing_status: 'failed',
+          processing_error: flowResult.error || 'Failed to create resume processing flow'
+        }
+      );
+      
       res.status(500).json({
         success: false,
         error: flowResult.error || 'Failed to create resume processing flow'
@@ -141,13 +174,20 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Save the parent job ID
+    if (!job.bullmq_jobs) job.bullmq_jobs = {};
+    job.bullmq_jobs.resume_processing_parent_job_id = flowResult.parentJobId;
+    await job.save();
+
     res.json({
       success: true,
       data: {
         job_id: jobId,
         parent_job_id: flowResult.parentJobId,
         total_resumes: resumes.length,
-        children_count: flowResult.childrenCount
+        children_count: flowResult.childrenCount,
+        resume_processing_status: job.resume_processing_status,
+        resume_processing_progress: job.resume_processing_progress
       },
       message: `${resumes.length} resumes queued for parallel processing via Flow`
     });

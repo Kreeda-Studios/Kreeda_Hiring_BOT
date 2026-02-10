@@ -1,4 +1,24 @@
 services:
+  # Nginx Reverse Proxy - Single entry point for both frontend and backend
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: kreeda-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"  # Single port for Tailscale funnel
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - kreeda-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   mongodb:
     image: mongo:7.0
     container_name: kreeda-mongo
@@ -43,8 +63,7 @@ services:
       dockerfile: Dockerfile
     container_name: kreeda-backend
     restart: unless-stopped
-    ports:
-      - "3001:3001"
+    # No external port mapping - nginx handles routing
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -75,14 +94,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_API_URL=/api  # Use relative URL since nginx handles routing
     container_name: kreeda-frontend
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    # No external port mapping - nginx handles routing
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: /api  # Relative URL for nginx routing
     depends_on:
       backend:
         condition: service_healthy

@@ -87,6 +87,78 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// GET /api/jobs/:id/status - Get job processing status and resume status
+router.get('/:id/status', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findById(req.params.id).select(
+      'title status locked jd_processing_status jd_processing_progress jd_processing_error ' +
+      'resume_processing_status resume_processing_progress resume_processing_error bullmq_jobs'
+    );
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        error: 'Job not found'
+      });
+      return;
+    }
+
+    // Get resume statistics
+    const resumes = await Resume.find({ job_id: req.params.id }).select(
+      'filename original_name overall_processing_status processing_progress processing_error bullmq_job_id'
+    );
+
+    const resumeStats = {
+      total_resumes: resumes.length,
+      processing_count: resumes.filter(r => r.overall_processing_status === 'processing').length,
+      completed_count: resumes.filter(r => r.overall_processing_status === 'success').length,
+      failed_count: resumes.filter(r => r.overall_processing_status === 'failed').length,
+    };
+
+    const statusData = {
+      job: {
+        id: job._id,
+        title: job.title,
+        status: job.status,
+        locked: job.locked,
+        jd_processing: {
+          status: job.jd_processing_status,
+          progress: job.jd_processing_progress || 0,
+          error: job.jd_processing_error,
+          job_id: job.bullmq_jobs?.jd_processing_job_id
+        },
+        resume_processing: {
+          status: job.resume_processing_status,
+          progress: job.resume_processing_progress || 0,
+          error: job.resume_processing_error,
+          parent_job_id: job.bullmq_jobs?.resume_processing_parent_job_id,
+          ...resumeStats
+        }
+      },
+      resumes: resumes.map(resume => ({
+        id: resume._id,
+        filename: resume.filename,
+        original_name: resume.original_name,
+        status: resume.overall_processing_status,
+        progress: resume.processing_progress || 0,
+        error: resume.processing_error,
+        job_id: resume.bullmq_job_id
+      }))
+    };
+
+    res.json({
+      success: true,
+      data: statusData
+    });
+  } catch (error) {
+    console.error('Error fetching job status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch job status'
+    });
+  }
+});
+
 // POST /api/jobs - Create new job
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -383,6 +455,15 @@ router.post('/:id/upload-resumes', resumeUpload.array('resumes', 500), async (re
       return;
     }
 
+    // Prevent upload if resume processing is in progress
+    if (job.resume_processing_status === 'processing') {
+      res.status(400).json({
+        success: false,
+        error: 'Cannot upload resumes while resume processing is in progress. Please wait for current processing to complete.'
+      });
+      return;
+    }
+
     const uploadedResumes = [];
 
     // Create resume records
@@ -391,10 +472,11 @@ router.post('/:id/upload-resumes', resumeUpload.array('resumes', 500), async (re
         filename: file.filename,
         original_name: file.originalname,
         job_id: jobId,
+        overall_processing_status: 'pending',
+        processing_progress: 0,
         extraction_status: 'pending',
         parsing_status: 'pending',
-        embedding_status: 'pending',
-        processing_status: 'pending'
+        embedding_status: 'pending'
       });
 
       await resume.save();

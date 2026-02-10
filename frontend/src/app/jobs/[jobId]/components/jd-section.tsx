@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { FileText, Loader2, CheckCircle2, FileUp, Play, AlertTriangle } from "lucide-react";
 import type { Job } from "@/lib/types";
 import { processingAPI, jobsAPI, resumeGroupsAPI } from "@/lib/api";
+import { useJobStatus } from "@/hooks/useJobStatus";
 
 interface ProgressUpdate {
   stage: string;
@@ -26,6 +27,9 @@ interface JDSectionProps {
 }
 
 export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
+  // Use status hook for real-time tracking
+  const { statusData, isJDProcessingInProgress, canStartJDProcessing, refetch: refetchStatus } = useJobStatus(jobId);
+  
   const [isLocked, setIsLocked] = useState(job.locked || false);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
 
@@ -53,10 +57,20 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Update locked state when job changes
+  // Update locked state when job or status changes
   useEffect(() => {
-    setIsLocked(job.locked || false);
-  }, [job.locked]);
+    const locked = job.locked || statusData?.job.locked || false;
+    setIsLocked(locked);
+  }, [job.locked, statusData?.job.locked]);
+
+  // Update processing state based on status
+  useEffect(() => {
+    const processing = isJDProcessingInProgress();
+    setIsProcessing(processing);
+    if (processing && !showProcessingStatus) {
+      setShowProcessingStatus(true);
+    }
+  }, [isJDProcessingInProgress, showProcessingStatus]);
 
   // Subscribe to SSE progress updates
   useEffect(() => {
@@ -274,6 +288,11 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
       }
       
       // SSE subscription will handle the rest via useEffect
+      
+      // Refresh status after short delay to get updated BullMQ job ID
+      setTimeout(() => {
+        refetchStatus();
+      }, 1000);
     } catch (error) {
       console.error('❌ [Process] Error:', error);
       setUploadError(error instanceof Error ? error.message : 'Failed to process JD');
@@ -430,7 +449,7 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
         <div>
           <Button
             onClick={handleProcessClick}
-            disabled={isLocked || (!jd_pdf_filename && !jdText) || isProcessing}
+            disabled={!canStartJDProcessing() || (!jd_pdf_filename && !jdText) || isProcessing}
             className="w-full"
           >
             {isProcessing ? (
@@ -438,9 +457,23 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
             ) : (
               <Play className="mr-2 h-4 w-4" />
             )}
-            {isProcessing ? 'Processing JD...' : isLocked ? 'Job Locked' : 'Process JD'}
+            {isProcessing ? 'Processing JD...' : isLocked ? 'JD Processed' : 'Process JD'}
           </Button>
-          {isLocked && (
+          
+          {/* Status Messages */}
+          {statusData?.job.jd_processing.status === 'success' && (
+            <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              JD processing completed successfully. Job is now locked.
+            </p>
+          )}
+          {statusData?.job.jd_processing.status === 'failed' && (
+            <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              JD processing failed: {statusData.job.jd_processing.error}
+            </p>
+          )}
+          {isLocked && !statusData?.job.jd_processing.status && (
             <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
               Job is locked. JD has been processed and cannot be modified.

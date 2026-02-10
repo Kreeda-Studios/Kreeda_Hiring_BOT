@@ -254,6 +254,22 @@ export interface IJob extends Document {
   status: 'draft' | 'active' | 'completed' | 'archived';
   locked: boolean;
 
+  // JD Processing Status
+  jd_processing_status: 'pending' | 'processing' | 'success' | 'failed';
+  jd_processing_error?: string;
+  jd_processing_progress?: number; // 0-100
+  
+  // Resume Processing Status
+  resume_processing_status: 'pending' | 'processing' | 'success' | 'failed';
+  resume_processing_error?: string;
+  resume_processing_progress?: number; // 0-100
+  
+  // BullMQ Job Tracking
+  bullmq_jobs?: {
+    jd_processing_job_id?: string;
+    resume_processing_parent_job_id?: string;
+  };
+
   jd_pdf_filename?: string;
   jd_text?: string;
   filter_requirements?: IFilterRequirementStructured;
@@ -288,6 +304,44 @@ const jobSchema = new Schema<IJob>({
   locked: {
     type: Boolean,
     default: false
+  },
+  
+  // JD Processing Status
+  jd_processing_status: {
+    type: String,
+    enum: ['pending', 'processing', 'success', 'failed'],
+    default: 'pending'
+  },
+  jd_processing_error: {
+    type: String
+  },
+  jd_processing_progress: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
+  
+  // Resume Processing Status
+  resume_processing_status: {
+    type: String,
+    enum: ['pending', 'processing', 'success', 'failed'],
+    default: 'pending'
+  },
+  resume_processing_error: {
+    type: String
+  },
+  resume_processing_progress: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
+  
+  // BullMQ Job Tracking
+  bullmq_jobs: {
+    jd_processing_job_id: String,
+    resume_processing_parent_job_id: String
   },
   jd_pdf_filename: {
     type: String

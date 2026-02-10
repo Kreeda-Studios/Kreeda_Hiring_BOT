@@ -112,14 +112,6 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Process Button */}
-          <Button asChild>
-            <Link href={`/jobs/${jobId}/process`}>
-              <Play className="h-4 w-4 mr-2" />
-              Start Processing
-            </Link>
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon">

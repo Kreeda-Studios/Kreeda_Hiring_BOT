@@ -233,21 +233,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              {rankings.length === 0 && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleProcessRanking}
-                  disabled={processing}
-                >
-                  {processing ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Trophy className="h-4 w-4 mr-2" />
-                  )}
-                  {processing ? 'Processing...' : 'Process Ranking'}
-                </Button>
-              )}
               <Button 
                 variant="outline" 
                 size="sm"

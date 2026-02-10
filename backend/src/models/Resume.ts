@@ -143,6 +143,11 @@ export interface IResume extends Document {
   raw_text?: string;
   
   // Processing status
+  overall_processing_status: 'pending' | 'processing' | 'success' | 'failed';
+  processing_progress?: number; // 0-100
+  processing_error?: string;
+  bullmq_job_id?: string; // Individual resume processing job ID
+  
   extraction_status: 'pending' | 'success' | 'failed';
   parsing_status: 'pending' | 'success' | 'failed';
   embedding_status: 'pending' | 'success' | 'failed';
@@ -209,6 +214,26 @@ const resumeSchema = new Schema<IResume>({
   },
   
   // Processing status fields
+  overall_processing_status: {
+    type: String,
+    enum: ['pending', 'processing', 'success', 'failed'],
+    default: 'pending',
+    index: true
+  },
+  processing_progress: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
+  processing_error: {
+    type: String
+  },
+  bullmq_job_id: {
+    type: String,
+    index: true
+  },
+  
   extraction_status: {
     type: String,
     enum: ['pending', 'success', 'failed'],
