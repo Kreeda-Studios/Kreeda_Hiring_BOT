@@ -72,21 +72,12 @@ def log_skipped(pdf_path):
         existing_skipped.append(skipped_entry)
         
         # Save back
-        # #region agent log
-        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-            log.write(json.dumps({"sessionId":"debug-session","runId":"file-router","hypothesisId":"G","location":"file_router.py:74","message":"Writing skipped PDF to Skipped.json","data":{"pdf":pdf_name,"total_entries":len(existing_skipped)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-        # #endregion
+
         with open(SKIPPED_JSON, "w", encoding="utf-8") as f:
             json.dump(existing_skipped, f, indent=2)
-        # #region agent log
-        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-            log.write(json.dumps({"sessionId":"debug-session","runId":"file-router","hypothesisId":"G","location":"file_router.py:76","message":"Successfully wrote to Skipped.json","data":{"file":str(SKIPPED_JSON)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-        # #endregion
+
     except Exception as e:
-        # #region agent log
-        with open(".cursor/debug.log", "a", encoding="utf-8") as log:
-            log.write(json.dumps({"sessionId":"debug-session","runId":"file-router","hypothesisId":"G","location":"file_router.py:78","message":"Error writing to Skipped.json","data":{"error":str(e)},"timestamp":int(datetime.now().timestamp()*1000)})+"\n")
-        # #endregion
+
         # Don't fail if logging to Skipped.json fails
         print(f"⚠️ Could not log to Skipped.json: {e}")
 
@@ -103,4 +94,3 @@ def route_pdf(pdf_path, save_dir, original_name=None):
         print(f"⚠️ Skipped (image-based or non-text PDF): {os.path.basename(pdf_path)}")
         log_skipped(pdf_path)
         return None
-

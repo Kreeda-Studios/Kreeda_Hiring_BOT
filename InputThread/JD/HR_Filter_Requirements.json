@@ -1,7 +1,14 @@
 {
   "mandatory_compliances": {
-    "raw_prompt": "",
-    "structured": {}
+    "raw_prompt": "Experience 1 to 4 years",
+    "structured": {
+      "experience": {
+        "type": "numeric",
+        "specified": true,
+        "min": 1,
+        "max": 4
+      }
+    }
   },
   "soft_compliances": {
     "raw_prompt": "",
