@@ -214,7 +214,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
 
     try {
       // Use chunked upload for better memory management
-      const BATCH_SIZE = 25; // Upload 25 files at a time
+      const BATCH_SIZE = 5; // Upload 5 files at a time
       const batches: File[][] = [];
       
       // Split files into batches
@@ -455,7 +455,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
               <div className="space-y-1">
                 <h4 className="font-medium">Bulk Upload Resume PDFs</h4>
                 <p className="text-sm text-muted-foreground">
-                  Select multiple PDF files - uploads in batches of 25 for optimal performance
+                  Select multiple PDF files - uploads in batches of 5 for optimal performance
                 </p>
               </div>
               <div className="flex items-center gap-2">
