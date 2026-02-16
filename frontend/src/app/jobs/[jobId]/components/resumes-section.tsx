@@ -51,6 +51,15 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Batch upload state
+  const [uploadProgress, setUploadProgress] = useState<{
+    currentBatch: number;
+    totalBatches: number;
+    uploadedCount: number;
+    totalFiles: number;
+    failedCount: number;
+  } | null>(null);
+
   // Progress tracking - initialize with resume count
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingPhase, setProcessingPhase] = useState<string>('not_started');
@@ -199,37 +208,89 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
       setError(`Only PDF files are allowed. ${pdfFiles.length} valid PDF files selected, ${files.length - pdfFiles.length} files skipped.`);
     }
 
-    // Show info for large uploads
-    if (pdfFiles.length > 50) {
-      console.log(`📤 [Bulk Upload] Processing ${pdfFiles.length} resumes - this may take a moment...`);
-    }
-
     setUploading(true);
     setError(null);
     setUploadSuccess(null);
 
     try {
-      console.log('📤 [Upload] Uploading to job ID:', jobId);
-      const response = await jobsAPI.uploadResumes(jobId, pdfFiles);
+      // Use chunked upload for better memory management
+      const BATCH_SIZE = 25; // Upload 25 files at a time
+      const batches: File[][] = [];
       
-      if (response.success) {
-        const uploadCount = pdfFiles.length;
-        if (uploadCount > 100) {
-          setUploadSuccess(`🎉 Successfully uploaded ${uploadCount} resumes! Large batch processing initiated.`);
-        } else {
-          setUploadSuccess(`Successfully uploaded ${uploadCount} resume(s)`);
+      // Split files into batches
+      for (let i = 0; i < pdfFiles.length; i += BATCH_SIZE) {
+        batches.push(pdfFiles.slice(i, i + BATCH_SIZE));
+      }
+
+      console.log(`📤 [Chunked Upload] Uploading ${pdfFiles.length} files in ${batches.length} batches`);
+
+      let totalUploaded = 0;
+      let totalFailed = 0;
+
+      // Upload batches sequentially
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        
+        // Update progress
+        setUploadProgress({
+          currentBatch: i + 1,
+          totalBatches: batches.length,
+          uploadedCount: totalUploaded,
+          totalFiles: pdfFiles.length,
+          failedCount: totalFailed
+        });
+
+        try {
+          console.log(`📤 [Batch ${i + 1}/${batches.length}] Uploading ${batch.length} files...`);
+          const response = await jobsAPI.uploadResumes(jobId, batch);
+          
+          if (response.success) {
+            totalUploaded += batch.length;
+            console.log(`✅ [Batch ${i + 1}/${batches.length}] Success: ${batch.length} files uploaded`);
+          } else {
+            totalFailed += batch.length;
+            console.error(`❌ [Batch ${i + 1}/${batches.length}] Failed:`, response);
+          }
+        } catch (batchError) {
+          totalFailed += batch.length;
+          console.error(`❌ [Batch ${i + 1}/${batches.length}] Error:`, batchError);
         }
-        // Refresh the resume list and status
+
+        // Small delay between batches to prevent overwhelming the server
+        if (i < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      // Final progress update
+      setUploadProgress({
+        currentBatch: batches.length,
+        totalBatches: batches.length,
+        uploadedCount: totalUploaded,
+        totalFiles: pdfFiles.length,
+        failedCount: totalFailed
+      });
+
+      // Show results
+      if (totalFailed === 0) {
+        setUploadSuccess(`🎉 Successfully uploaded all ${totalUploaded} resume(s)!`);
+      } else if (totalUploaded > 0) {
+        setUploadSuccess(`⚠️ Uploaded ${totalUploaded} resume(s), ${totalFailed} failed. Please retry failed files.`);
+      } else {
+        setError(`Failed to upload ${totalFailed} resume(s). Please try again.`);
+      }
+
+      // Refresh the resume list and status
+      if (totalUploaded > 0) {
         await fetchResumes();
         refetchStatus();
-      } else {
-        setError("Upload failed");
       }
     } catch (error) {
       console.error("Upload error:", error);
       setError(error instanceof Error ? error.message : "Upload failed");
     } finally {
       setUploading(false);
+      setUploadProgress(null);
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -307,6 +368,33 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
         </Alert>
       )}
 
+      {/* Upload Progress */}
+      {uploadProgress && (
+        <Card className="border-blue-500/50 bg-blue-50">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                <span className="font-semibold text-base text-blue-900">
+                  Uploading Resumes... (Batch {uploadProgress.currentBatch}/{uploadProgress.totalBatches})
+                </span>
+              </div>
+              <span className="font-bold text-lg text-blue-900 tabular-nums">
+                {uploadProgress.uploadedCount}/{uploadProgress.totalFiles}
+              </span>
+            </div>
+            <Progress 
+              value={(uploadProgress.uploadedCount / uploadProgress.totalFiles) * 100} 
+              className="h-2.5" 
+            />
+            <div className="flex justify-between text-sm text-blue-800">
+              <span>Current batch: {uploadProgress.currentBatch} of {uploadProgress.totalBatches}</span>
+              <span>Uploaded: {uploadProgress.uploadedCount} | Failed: {uploadProgress.failedCount}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Resume Processing Progress Bar - Top Position */}
       {resumes.length > 0 && (
         <Card className={processingProgress === 100 ? 'border-green-500/50 bg-green-500/10' : processing ? 'border-primary/50 bg-primary/10' : 'border-muted'}>
@@ -367,7 +455,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
               <div className="space-y-1">
                 <h4 className="font-medium">Bulk Upload Resume PDFs</h4>
                 <p className="text-sm text-muted-foreground">
-                  Select multiple PDF files (supports hundreds at once)
+                  Select multiple PDF files - uploads in batches of 25 for optimal performance
                 </p>
               </div>
               <div className="flex items-center gap-2">
