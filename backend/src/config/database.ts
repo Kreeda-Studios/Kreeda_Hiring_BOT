@@ -9,7 +9,7 @@ interface DatabaseConfig {
 }
 
 const config: DatabaseConfig = {
-  uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/kreeda_hiring_bot',
+  uri: process.env.MONGODB_URI!,
   options: {
     // Connection options
   }

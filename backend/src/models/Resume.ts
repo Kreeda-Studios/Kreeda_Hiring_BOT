@@ -1,19 +1,13 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 /**
- * Resume Model - Stores parsed resume data and scores
- * 
- * Core fields:
- * - resume_id (auto-generated _id)
- * - job_id (reference to Job)
- * - filename, original_name (file info)
- * - raw_text (extracted text from PDF)
- * - status fields (extraction_status, parsing_status, embedding_status)
- * - parsed_content (structured resume data from AI parser)
- * - resume_embedding (6-section embeddings for semantic scoring)
- * - scores (keyword, semantic, project, composite scores)
- * - timestamps
+ * Resume Model - Standardized structure with separate schemas
+ * Stores parsed resume data and scores
  */
+
+// ==========================================
+// INTERFACE DEFINITIONS
+// ==========================================
 
 interface IContact {
   email: string;
@@ -132,63 +126,182 @@ interface IParsedContent {
   meta?: IMeta;
 }
 
-export interface IResume extends Document {
+interface IResumeEmbedding {
+  model?: string;
+  dimension?: number;
+  profile?: number[][];
+  skills?: number[][];
+  projects?: number[][];
+  responsibilities?: number[][];
+  education?: number[][];
+  overall?: number[][];
+}
 
+interface IScores {
+  project_score?: number;
+  keyword_score?: number;
+  semantic_score?: number;
+  composite_score?: number;
+}
+
+export interface IResume extends Document {
   // File information
   filename: string;
   original_name: string;
   job_id: mongoose.Types.ObjectId;
-  
-  // Extracted text
-  raw_text?: string;
+  candidate_name: string;
   
   // Processing status
-  overall_processing_status: 'pending' | 'processing' | 'success' | 'failed';
+  status: 'draft' | 'started' | 'completed' | 'failed';
   processing_progress?: number; // 0-100
   processing_error?: string;
   bullmq_job_id?: string; // Individual resume processing job ID
-  
-  extraction_status: 'pending' | 'success' | 'failed';
-  parsing_status: 'pending' | 'success' | 'failed';
-  embedding_status: 'pending' | 'success' | 'failed';
   
   // AI Parser output - structured according to b_ai_parser.py PARSE_FUNCTION
   parsed_content?: IParsedContent;
   
   // Resume embeddings for semantic scoring (6 sections from d_embedding_generator.py)
-  // Each section contains array of sentence embeddings (2D: [[emb1], [emb2], ...])
-  resume_embedding?: {
-    model?: string;
-    dimension?: number;
-    profile?: number[][];
-    skills?: number[][];
-    projects?: number[][];
-    responsibilities?: number[][];
-    education?: number[][];
-    overall?: number[][];
-  };
+  resume_embedding?: IResumeEmbedding;
   
   // Scoring results
-  scores?: {
-    hard_requirements?: {
-      meets_all_requirements?: boolean;
-      compliance_score?: number;
-      requirements_met?: string[];
-      requirements_missing?: string[];
-      filter_reason?: string;
-    };
-    project_score?: number;
-    keyword_score?: number;
-    semantic_score?: number;
-    composite_score?: number;
-    scoring_status?: 'pending' | 'success' | 'failed';
-    scored_at?: Date;
-  };
+  scores?: IScores;
+  
+  // Hard requirements compliance (main field, not under scores)
+  hard_requirements_met?: boolean;
   
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
 }
+
+
+// ==========================================
+// SCHEMA DEFINITIONS
+// ==========================================
+
+// Parsed Content Schema
+const parsedContentSchema = new Schema({
+  candidate_id: { type: String, required: true },
+  name: { type: String, required: true },
+  role_claim: String,
+  years_experience: Number,
+  location: String,
+  contact: {
+    email: { type: String, required: true },
+    phone: String,
+    profile: String
+  },
+  domain_tags: [String],
+  profile_keywords_line: { type: String, required: true },
+  canonical_skills: {
+    programming: [String],
+    ml_ai: [String],
+    frontend: [String],
+    backend: [String],
+    testing: [String],
+    databases: [String],
+    cloud: [String],
+    infra: [String],
+    devtools: [String],
+    methodologies: [String]
+  },
+  inferred_skills: [{
+    skill: String,
+    confidence: Number,
+    provenance: [String]
+  }],
+  skill_proficiency: [{
+    skill: String,
+    level: String,
+    years_last_used: Number,
+    provenance: [String]
+  }],
+  projects: [{
+    name: String,
+    duration_start: String,
+    duration_end: String,
+    role: String,
+    domain: String,
+    tech_keywords: [String],
+    approach: String,
+    impact_metrics: Schema.Types.Mixed,
+    primary_skills: [String],
+    metrics: {
+      difficulty: Number,
+      novelty: Number,
+      skill_relevance: Number,
+      complexity: Number,
+      technical_depth: Number,
+      domain_relevance: Number,
+      execution_quality: Number
+    }
+  }],
+  experience_entries: [{
+    company: String,
+    title: String,
+    period_start: String,
+    period_end: String,
+    responsibilities_keywords: [String],
+    achievements: [String],
+    primary_tech: [String],
+    provenance_spans: [{
+      start: Number,
+      end: Number,
+      text: String
+    }]
+  }],
+  education: [{
+    degree: String,
+    field: String,
+    institution: String,
+    year: String
+  }],
+  ats_boost_line: { type: String, required: true },
+  embedding_hints: {
+    profile_embed: String,
+    projects_embed: String,
+    skills_embed: String
+  },
+  explainability: {
+    top_matched_sentences: [String],
+    top_matched_keywords: [String]
+  },
+  meta: {
+    raw_text_length: Number,
+    keyword_occurrences: Schema.Types.Mixed,
+    last_updated: String
+  }
+}, { _id: false });
+
+// Resume Embedding Schema
+const resumeEmbeddingSchema = new Schema({
+  model: {
+    type: String,
+    default: 'text-embedding-3-small'
+  },
+  dimension: {
+    type: Number,
+    default: 1536
+  },
+  profile: [[Number]],
+  skills: [[Number]],
+  projects: [[Number]],
+  responsibilities: [[Number]],
+  education: [[Number]],
+  overall: [[Number]]
+}, { _id: false });
+
+// Scores Schema
+const scoresSchema = new Schema({
+  project_score: Number,
+  keyword_score: Number,
+  semantic_score: Number,
+  composite_score: Number
+}, { _id: false });
+
+// ==========================================
+// MAIN RESUME SCHEMA
+// ==========================================
 
 const resumeSchema = new Schema<IResume>({
   // File information
@@ -207,18 +320,17 @@ const resumeSchema = new Schema<IResume>({
     required: true,
     index: true
   },
-  
-  // Extracted text from PDF
-  raw_text: {
-    type: String
+  candidate_name: {
+    type: String,
+    required: false,
+    index: true
   },
   
-  // Processing status fields
-  overall_processing_status: {
+  // Processing status
+  status: {
     type: String,
-    enum: ['pending', 'processing', 'success', 'failed'],
-    default: 'pending',
-    index: true
+    enum: ['draft', 'started', 'completed', 'failed'],
+    default: 'draft'
   },
   processing_progress: {
     type: Number,
@@ -226,189 +338,33 @@ const resumeSchema = new Schema<IResume>({
     max: 100,
     default: 0
   },
-  processing_error: {
-    type: String
-  },
+  processing_error: String,
   bullmq_job_id: {
     type: String,
     index: true
   },
   
-  extraction_status: {
-    type: String,
-    enum: ['pending', 'success', 'failed'],
-    default: 'pending',
-    index: true
-  },
-  parsing_status: {
-    type: String,
-    enum: ['pending', 'success', 'failed'],
-    default: 'pending',
-    index: true
-  },
-  embedding_status: {
-    type: String,
-    enum: ['pending', 'success', 'failed'],
-    default: 'pending',
+  // Hard requirements compliance (main field)
+  hard_requirements_met: {
+    type: Boolean,
     index: true
   },
   
-  parsed_content: {
-    candidate_id: {
-      type: String
-    },
-    name: {
-      type: String
-    },
-    role_claim: String,
-    years_experience: Number,
-    location: String,
-    contact: {
-      email: {
-        type: String
-      },
-      phone: String,
-      profile: String
-    },
-    domain_tags: [String],
-    profile_keywords_line: {
-      type: String
-    },
-    canonical_skills: {
-      programming: [String],
-      ml_ai: [String],
-      frontend: [String],
-      backend: [String],
-      testing: [String],
-      databases: [String],
-      cloud: [String],
-      infra: [String],
-      devtools: [String],
-      methodologies: [String]
-    },
-    inferred_skills: [{
-      skill: String,
-      confidence: Number,
-      provenance: [String]
-    }],
-    skill_proficiency: [{
-      skill: String,
-      level: String,
-      years_last_used: Number,
-      provenance: [String]
-    }],
-    projects: [{
-      name: String,
-      duration_start: String,
-      duration_end: String,
-      role: String,
-      domain: String,
-      tech_keywords: [String],
-      approach: String,
-      impact_metrics: Schema.Types.Mixed,
-      primary_skills: [String],
-      metrics: {
-        difficulty: Number,
-        novelty: Number,
-        skill_relevance: Number,
-        complexity: Number,
-        technical_depth: Number,
-        domain_relevance: Number,
-        execution_quality: Number
-      }
-    }],
-    experience_entries: [{
-      company: String,
-      title: String,
-      period_start: String,
-      period_end: String,
-      responsibilities_keywords: [String],
-      achievements: [String],
-      primary_tech: [String],
-      provenance_spans: [{
-        start: Number,
-        end: Number,
-        text: String
-      }]
-    }],
-    education: [{
-      degree: String,
-      field: String,
-      institution: String,
-      year: String
-    }],
-    ats_boost_line: {
-      type: String
-    },
-    embedding_hints: {
-      profile_embed: String,
-      projects_embed: String,
-      skills_embed: String
-    },
-    explainability: {
-      top_matched_sentences: [String],
-      top_matched_keywords: [String]
-    },
-    meta: {
-      raw_text_length: Number,
-      keyword_occurrences: Schema.Types.Mixed,
-      last_updated: String
-    }
-  },
-  
-  // Resume embeddings (6 sections for semantic scoring)
-  // Each section is 2D array: [[emb1], [emb2], ...] for multiple sentences
-  resume_embedding: {
-    model: {
-      type: String,
-      default: 'text-embedding-3-small'
-    },
-    dimension: {
-      type: Number,
-      default: 1536
-    },
-    profile: [[Number]],
-    skills: [[Number]],
-    projects: [[Number]],
-    responsibilities: [[Number]],
-    education: [[Number]],
-    overall: [[Number]]
-  },
-  
-  // Scoring results
-  scores: {
-    hard_requirements: {
-      meets_all_requirements: Boolean,
-      compliance_score: Number,
-      requirements_met: [String],
-      requirements_missing: [String],
-      filter_reason: String
-    },
-    project_score: Number,
-    keyword_score: Number,
-    semantic_score: Number,
-    composite_score: Number,
-    scoring_status: {
-      type: String,
-      enum: ['pending', 'success', 'failed'],
-      default: 'pending'
-    },
-    scored_at: Date
-  }
+  // Structured data (clean sub-schemas)
+  parsed_content: parsedContentSchema,
+  resume_embedding: resumeEmbeddingSchema,
+  scores: scoresSchema
 }, {
   timestamps: true
 });
 
-// Indexes for efficient queries
-resumeSchema.index({ job_id: 1, parsing_status: 1 });
-resumeSchema.index({ job_id: 1, 'scores.scoring_status': 1 });
-resumeSchema.index({ 'parsed_content.name': 1 });
-resumeSchema.index({ 'parsed_content.contact_info.email': 1 });
-
-// Virtual for candidate name (extracted from parsed_content)
-resumeSchema.virtual('candidate_name').get(function() {
-  return this.parsed_content?.name || this.original_name || 'Unknown';
-});
+// Add indexes for better query performance
+resumeSchema.index({ job_id: 1, status: 1 });
+resumeSchema.index({ job_id: 1, hard_requirements_met: 1 });
+resumeSchema.index({ candidate_name: 1 });
+resumeSchema.index({ 'parsed_content.contact.email': 1 });
+resumeSchema.index({ bullmq_job_id: 1 });
+resumeSchema.index({ createdAt: -1 });
 
 // Virtual for candidate email
 resumeSchema.virtual('candidate_email').get(function() {

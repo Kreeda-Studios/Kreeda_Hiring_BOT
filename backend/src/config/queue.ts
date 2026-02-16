@@ -2,11 +2,21 @@ import { Queue, QueueOptions, QueueEvents, FlowProducer } from 'bullmq';
 import IORedis from 'ioredis';
 import { sseService } from '../services/sseService';
 
+// Validate required Redis environment variables
+const requiredRedisEnvVars = ['REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD'];
+const missingRedisEnvVars = requiredRedisEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingRedisEnvVars.length > 0) {
+  console.error(`❌ Missing required Redis environment variables: ${missingRedisEnvVars.join(', ')}`);
+  console.error('❌ Please ensure all Redis variables are set in your .env file');
+  process.exit(1);
+}
+
 // Redis connection configuration
 const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD || 'password123',
+  host: process.env.REDIS_HOST!,
+  port: parseInt(process.env.REDIS_PORT!),
+  password: process.env.REDIS_PASSWORD!,
   maxRetriesPerRequest: null,
   retryDelayOnFailover: 100,
 };
@@ -18,8 +28,8 @@ export const redisConnection = new IORedis(redisConfig);
 const queueOptions: QueueOptions = {
   connection: redisConnection,
   defaultJobOptions: {
-    removeOnComplete: 100, // Keep last 100 completed jobs
-    removeOnFail: 100,     // Keep last 100 failed jobs
+    removeOnComplete: 1000, // Keep last 1000 completed jobs
+    removeOnFail: 1000,     // Keep last 1000 failed jobs
     attempts: 1,           // No retries
   },
 };
@@ -114,6 +124,55 @@ resumeQueueEvents.on('progress', ({ jobId, data }: any) => {
         sseService.sendProgress(actualJobId, data);
       }
     }).catch(err => console.error(`❌ Failed to get resume job:`, err));
+  }
+});
+
+// Listen for parent Flow job completion
+resumeQueueEvents.on('completed', async ({ jobId }: any) => {
+  try {
+    const job = await resumeProcessingQueue.getJob(jobId);
+    
+    // Check if this is a parent flow job
+    if (job && job.name === 'process-resume-group') {
+      const dbJobId = (job.data as any).jobId;
+      console.log(`🎉 Parent Flow job ${jobId} completed for job ${dbJobId}`);
+      
+      // Import dynamically to avoid circular dependency
+      const { Job } = await import('../models');
+      const dbJob = await Job.findById(dbJobId);
+      
+      if (dbJob && dbJob.status === 'resume_processing_started') {
+        console.log(`✅ Updating job ${dbJobId} status to resume_processing_completed`);
+        dbJob.status = 'resume_processing_completed';
+        await dbJob.save();
+        console.log(`✅ Job ${dbJobId} status updated successfully`);
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Failed to handle parent job completion:`, error);
+  }
+});
+
+resumeQueueEvents.on('failed', async ({ jobId, failedReason }: any) => {
+  try {
+    const job = await resumeProcessingQueue.getJob(jobId);
+    
+    // Check if this is a parent flow job
+    if (job && job.name === 'process-resume-group') {
+      const dbJobId = (job.data as any).jobId;
+      console.log(`❌ Parent Flow job ${jobId} failed for job ${dbJobId}:`, failedReason);
+      
+      const { Job } = await import('../models');
+      const dbJob = await Job.findById(dbJobId);
+      
+      if (dbJob) {
+        console.log(`⚠️ Updating job ${dbJobId} status to resume_processing_failed`);
+        dbJob.status = 'resume_processing_failed';
+        await dbJob.save();
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Failed to handle parent job failure:`, error);
   }
 });
 

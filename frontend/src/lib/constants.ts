@@ -8,6 +8,47 @@ export const JOB_STATUS_CONFIG = {
     color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
     icon: "circle",
   },
+  jd_processing_started: {
+    label: "JD Processing",
+    color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    icon: "loader",
+  },
+  jd_processing_failed: {
+    label: "JD Failed",
+    color: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+    icon: "x-circle",
+  },
+  jd_processing_completed: {
+    label: "JD Ready",
+    color: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+    icon: "check-circle",
+  },
+  resume_processing_started: {
+    label: "Processing Resumes",
+    color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    icon: "loader",
+  },
+  resume_processing_failed: {
+    label: "Resume Processing Failed",
+    color: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+    icon: "x-circle",
+  },
+  resume_processing_completed: {
+    label: "Resumes Processed",
+    color: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+    icon: "check-circle",
+  },
+  ranking_started: {
+    label: "Ranking",
+    color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+    icon: "bar-chart",
+  },
+  ranking_completed: {
+    label: "Completed",
+    color: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+    icon: "check-circle",
+  },
+  // Legacy statuses
   active: {
     label: "Active",
     color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
@@ -41,6 +82,10 @@ export const RESUME_STATUS_CONFIG = {
   failed: {
     label: "Failed",
     color: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  },
+  filtered: {
+    label: "Filtered Out",
+    color: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
   },
 } as const;
 

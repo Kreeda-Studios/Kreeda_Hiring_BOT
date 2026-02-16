@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { EmptyState, ComplianceBadge } from "@/components/common";
 import { SCORE_COLORS, getScoreColor } from "@/lib/constants";
-import { processingAPI } from "@/lib/api";
+import { processingAPI, resumesAPI } from "@/lib/api";
 import {
   Trophy,
   Search,
@@ -156,7 +156,11 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     }
   };
 
-  const filteredRankings = rankings
+  // Separate candidates into filtered (hard requirements failed) and valid rankings
+  const validRankings = rankings.filter(candidate => candidate.final_score > 0.0 || candidate.is_compliant);
+  const filteredOutCandidates = rankings.filter(candidate => candidate.final_score === 0.0 && !candidate.is_compliant);
+
+  const filteredRankings = validRankings
     .filter((candidate) => {
       const matchesSearch = candidate.candidate_name
         .toLowerCase()
@@ -229,7 +233,13 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 Final Scores & Rankings
               </CardTitle>
               <CardDescription>
-                Showing {scores.length} scored candidates from Score API (Job ID: {jobId})
+                Showing {validRankings.length} ranked candidates
+                {filteredOutCandidates.length > 0 && (
+                  <span className="text-orange-600">
+                    {' '}• {filteredOutCandidates.length} filtered out
+                  </span>
+                )}
+                {' '}from Score API (Job ID: {jobId})
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -361,7 +371,12 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                         <ComplianceBadge isCompliant={candidate.is_compliant} />
                       </TableCell> */}
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => resumesAPI.openResume(candidate.resume_id)}
+                          title="View Resume"
+                        >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                       </TableCell>
@@ -373,6 +388,63 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Filtered Out Candidates Section */}
+      {filteredOutCandidates.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5 text-orange-500" />
+              Filtered Out Candidates
+            </CardTitle>
+            <CardDescription>
+              {filteredOutCandidates.length} candidate{filteredOutCandidates.length !== 1 ? 's' : ''} were filtered out due to not meeting mandatory compliance requirements.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Candidate</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOutCandidates.map((candidate) => (
+                    <TableRow key={candidate.resume_id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                            Filtered
+                          </Badge>
+                          <span className="font-medium">{candidate.candidate_name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          Does not meet mandatory compliance requirements
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => resumesAPI.openResume(candidate.resume_id)}
+                          title="View Resume"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

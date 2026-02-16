@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -43,8 +43,14 @@ export const jobsAPI = {
     });
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'JD upload failed' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        errorMessage = 'JD upload failed';
+      }
+      throw new Error(errorMessage);
     }
     
     return response.json();
@@ -52,16 +58,27 @@ export const jobsAPI = {
 
   uploadResumes: async (jobId: string, files: File[]) => {
     const formData = new FormData();
-    files.forEach(file => formData.append('resumes', file));
+    formData.append('job_id', jobId);
     
-    const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/upload-resumes`, {
+    // Append all files with the same field name 'resumes'
+    files.forEach(file => {
+      formData.append('resumes', file);
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/resumes/upload`, {
       method: 'POST',
       body: formData,
     });
-    
+  
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Resume upload failed' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        errorMessage = 'Resume upload failed';
+      }
+      throw new Error(errorMessage);
     }
     
     return response.json();
@@ -141,6 +158,13 @@ export const resumesAPI = {
   
   delete: (id: string) =>
     fetchAPI<{ success: boolean; message: string }>(`/resumes/${id}`, { method: 'DELETE' }),
+
+  getDownloadUrl: (id: string) => `${API_BASE_URL}/resumes/${id}/download`,
+
+  openResume: (id: string) => {
+    const url = `${API_BASE_URL}/resumes/${id}/download`;
+    window.open(url, '_blank');
+  },
 };
 
 // Processing API

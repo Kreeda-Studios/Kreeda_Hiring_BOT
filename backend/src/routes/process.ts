@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Job, Resume } from '../models';
 import { QueueService } from '../services/queueService';
+import { isOperationAllowed, getNextStatus } from '../utils/jobStatus';
 
 const router = Router();
 
@@ -26,6 +27,16 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
       });
       return;
     }
+
+    // Check if JD processing is allowed based on status level
+    const operationCheck = isOperationAllowed(job.status, 'JD_PROCESSING');
+    if (!operationCheck.allowed) {
+      res.status(400).json({
+        success: false,
+        error: operationCheck.reason
+      });
+      return;
+    }
     
     // Check if either JD text or JD PDF filename is present
     if (!job.jd_pdf_filename && !job.jd_text) {
@@ -36,11 +47,9 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Lock the job before processing
+    // Lock the job and update status before processing
     job.locked = true;
-    job.status = 'active';
-    job.jd_processing_status = 'processing';
-    job.jd_processing_progress = 0;
+    job.status = getNextStatus(job.status, 'JD_PROCESSING_START');
     await job.save();
 
     // Only pass jobId to the queue
@@ -54,8 +63,7 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
       // Unlock and reset status if queue failed
       job.locked = false;
       job.status = 'draft';
-      job.jd_processing_status = 'failed';
-      job.jd_processing_error = queueResult.error || 'Failed to queue JD processing';
+      job.status = 'jd_processing_failed';
       await job.save();
       
       res.status(500).json({
@@ -77,8 +85,8 @@ router.post('/jd/:jobId', async (req: Request, res: Response): Promise<void> => 
         jd_job_id: queueResult.jobId,
         status: job.status,
         locked: job.locked,
-        jd_processing_status: job.jd_processing_status,
-        jd_processing_progress: job.jd_processing_progress
+        jd_processing_status: job.status,
+        jd_processing_progress: 0
       },
       message: 'JD processing queued successfully. Job is now locked - JD file, text, and compliance cannot be changed.'
     });
@@ -105,6 +113,16 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Check if resume processing is allowed based on status level
+    const operationCheck = isOperationAllowed(job.status, 'RESUME_PROCESSING');
+    if (!operationCheck.allowed) {
+      res.status(400).json({
+        success: false,
+        error: operationCheck.reason
+      });
+      return;
+    }
+
     // Check if job has resumes
     const resumes = await Resume.find({ job_id: jobId });
 
@@ -117,8 +135,7 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
     }
 
     // Update job resume processing status
-    job.resume_processing_status = 'processing';
-    job.resume_processing_progress = 0;
+    job.status = 'resume_processing_started';
     await job.save();
 
     // Prepare resume job data
@@ -133,6 +150,10 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
         filePath: filePath
       };
     });
+
+    // Update job status to resume processing started
+    job.status = getNextStatus(job.status, 'RESUME_PROCESSING_START');
+    await job.save();
 
     // Update all resumes to processing status
     await Resume.updateMany(
@@ -155,8 +176,7 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
 
     if (!flowResult.success) {
       // Reset status on failure
-      job.resume_processing_status = 'failed';
-      job.resume_processing_error = flowResult.error || 'Failed to create resume processing flow';
+      job.status = 'resume_processing_failed';
       await job.save();
       
       await Resume.updateMany(
@@ -174,9 +194,13 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Save the parent job ID
+    // Save the parent job ID and total count
     if (!job.bullmq_jobs) job.bullmq_jobs = {};
     job.bullmq_jobs.resume_processing_parent_job_id = flowResult.parentJobId;
+    
+    if (!job.processing_totals) job.processing_totals = {};
+    job.processing_totals.total_resumes = resumes.length;
+    
     await job.save();
 
     res.json({
@@ -186,8 +210,8 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
         parent_job_id: flowResult.parentJobId,
         total_resumes: resumes.length,
         children_count: flowResult.childrenCount,
-        resume_processing_status: job.resume_processing_status,
-        resume_processing_progress: job.resume_processing_progress
+        resume_processing_status: job.status,
+        resume_processing_progress: 0
       },
       message: `${resumes.length} resumes queued for parallel processing via Flow`
     });
@@ -200,12 +224,13 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
   }
 });
 
-// POST /ranking/:jobId - Process ranking with batching (30 scores per batch)
+// POST /ranking/:jobId - Process ranking for completed resumes with hard requirements met
 router.post('/ranking/:jobId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { jobId } = req.params;
 
-    const job = await Job.findById(jobId).populate('resume_groups');
+    // Validate job exists
+    const job = await Job.findById(jobId);
     if (!job) {
       res.status(404).json({
         success: false,
@@ -214,71 +239,86 @@ router.post('/ranking/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Check if job has resumes with scores
-    const resumes = await Resume.find({ 
-      job_id: jobId, 
-      'scores.scoring_status': 'success' 
-    });
+    // Get all completed resumes with hard requirements met
+    const resumes = await Resume.find({
+      job_id: jobId,
+      status: 'completed',
+      hard_requirements_met: true
+    }).select('_id scores');
 
     if (resumes.length === 0) {
       res.status(400).json({
         success: false,
-        error: 'No scored resumes found for this job'
+        error: 'No completed resumes with hard requirements met found for this job'
       });
       return;
     }
 
-    // Get all scores for this job (we need the actual scores, not just resumes)
-    const { ScoreResult } = await import('../models');
-    const allScores = await ScoreResult.find({ job_id: jobId }).populate('resume_id', 'candidate_name filename');
+    // Calculate min/max scores for keyword and semantic
+    let minKeywordScore = Infinity;
+    let maxKeywordScore = -Infinity;
+    let minSemanticScore = Infinity;
+    let maxSemanticScore = -Infinity;
 
-    if (allScores.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'No scores found for this job. Please run resume processing first.'
-      });
-      return;
-    }
-
-    console.log(`📊 Found ${allScores.length} scores for job ${jobId}`);
-
-    // Batch scores into groups of 30
-    const BATCH_SIZE = 30;
-    const batches: any[][] = [];
-    
-    for (let i = 0; i < allScores.length; i += BATCH_SIZE) {
-      const batch = allScores.slice(i, i + BATCH_SIZE);
-      batches.push(batch);
-    }
-
-    console.log(`📦 Created ${batches.length} batches of scores (${BATCH_SIZE} scores per batch)`);
-
-    // Create ranking job data for each batch
-    const rankingBatches = batches.map((batch, index) => ({
-      jobId,
-      resumeGroupId: jobId, // Use jobId as identifier
-      scoreResults: batch.map(score => score._id.toString()),
-      // Add ranking criteria that can be used for LLM re-ranking
-      rankingCriteria: {
-        enable_llm_rerank: false, // Set to true when we want LLM re-ranking
-        filter_requirements: {
-          structured: {}  // This would come from job requirements in future
-        },
-        specified_fields: [] // Fields specified by HR for compliance
+    resumes.forEach(resume => {
+      if (resume.scores?.keyword_score !== undefined && resume.scores.keyword_score !== null) {
+        minKeywordScore = Math.min(minKeywordScore, resume.scores.keyword_score);
+        maxKeywordScore = Math.max(maxKeywordScore, resume.scores.keyword_score);
       }
+      if (resume.scores?.semantic_score !== undefined && resume.scores.semantic_score !== null) {
+        minSemanticScore = Math.min(minSemanticScore, resume.scores.semantic_score);
+        maxSemanticScore = Math.max(maxSemanticScore, resume.scores.semantic_score);
+      }
+    });
+
+    // Handle case where no scores were found
+    if (!isFinite(minKeywordScore)) {
+      minKeywordScore = 0;
+      maxKeywordScore = 0;
+    }
+    if (!isFinite(minSemanticScore)) {
+      minSemanticScore = 0;
+      maxSemanticScore = 0;
+    }
+
+    // Batch resume IDs into groups of 30
+    const BATCH_SIZE = 30;
+    const resumeIds = resumes.map(r => r._id.toString());
+    const batches: string[][] = [];
+    
+    for (let i = 0; i < resumeIds.length; i += BATCH_SIZE) {
+      batches.push(resumeIds.slice(i, i + BATCH_SIZE));
+    }
+
+    // Prepare ranking job data for each batch
+    const rankingBatches = batches.map(batch => ({
+      jobId: jobId,
+      resumeIds: batch,
+      minKeywordScore,
+      maxKeywordScore,
+      minSemanticScore,
+      maxSemanticScore
     }));
 
-    // Create parent flow job data
-    const parentData = {
-      jobId,
-      totalScores: allScores.length,
-      totalBatches: batches.length
-    };
+    // Update job status to ranking started
+    job.status = getNextStatus(job.status, 'RANKING_START');
+    await job.save();
 
-    // Create ranking flow
-    const flowResult = await QueueService.addRankingFlow(parentData, rankingBatches);
+    // Create ranking flow with batches
+    const flowResult = await QueueService.addRankingFlow(
+      {
+        jobId: jobId,
+        totalScores: resumeIds.length,
+        totalBatches: batches.length
+      },
+      rankingBatches as any // Type assertion since we're passing custom fields
+    );
 
     if (!flowResult.success) {
+      // Reset status on failure
+      job.status = 'ranking_failed';
+      await job.save();
+      
       res.status(500).json({
         success: false,
         error: flowResult.error || 'Failed to create ranking flow'
@@ -286,16 +326,36 @@ router.post('/ranking/:jobId', async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Save the ranking parent job ID and total batch count
+    if (!job.bullmq_jobs) job.bullmq_jobs = {};
+    job.bullmq_jobs.ranking_parent_job_id = flowResult.parentJobId;
+    
+    if (!job.processing_totals) job.processing_totals = {};
+    job.processing_totals.total_ranking_batches = batches.length;
+    
+    await job.save();
+
     res.json({
       success: true,
       data: {
         job_id: jobId,
         parent_job_id: flowResult.parentJobId,
-        total_scores: allScores.length,
-        batch_count: batches.length,
-        batch_size: BATCH_SIZE
+        total_resumes: resumeIds.length,
+        total_batches: batches.length,
+        batch_size: BATCH_SIZE,
+        score_ranges: {
+          keyword: {
+            min: minKeywordScore,
+            max: maxKeywordScore
+          },
+          semantic: {
+            min: minSemanticScore,
+            max: maxSemanticScore
+          }
+        },
+        ranking_status: job.status
       },
-      message: `${allScores.length} scores queued for ranking in ${batches.length} batches via Flow`
+      message: `${resumeIds.length} resumes queued for ranking in ${batches.length} batches`
     });
   } catch (error) {
     console.error('Error processing ranking:', error);

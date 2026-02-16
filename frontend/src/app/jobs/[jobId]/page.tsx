@@ -140,11 +140,6 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
             <span className="hidden sm:inline">Resumes</span>
             <span className="sm:hidden">Resumes</span>
           </TabsTrigger>
-          {/* <TabsTrigger value="progress" className="gap-2">
-            <Activity className="h-4 w-4" />
-            <span className="hidden sm:inline">Progress</span>
-            <span className="sm:hidden">Progress</span>
-          </TabsTrigger> */}
           <TabsTrigger value="results" className="gap-2">
             <Trophy className="h-4 w-4" />
             <span className="hidden sm:inline">Results</span>
@@ -159,10 +154,6 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
         <TabsContent value="resumes">
           <ResumesSection jobId={jobId} />
         </TabsContent>
-{/* 
-        <TabsContent value="progress">
-          <ProgressSection jobId={jobId} />
-        </TabsContent> */}
 
         <TabsContent value="results">
           <ResultsSection jobId={jobId} />

@@ -48,8 +48,9 @@ export class QueueService {
         data: parentData,
         opts: {
           // Parent job options
-          removeOnComplete: 100,
-          removeOnFail: 100,  // Keep last 100 failed jobs
+          removeOnComplete: 1000,
+          removeOnFail: 1000,  // Keep last 100 failed jobs
+          ignoreDependencyOnFailure: true,  // Allow parent to run even if some children fail
         },
         children: resumes.map((resumeData, index) => ({
           name: 'process-resume',
@@ -96,8 +97,9 @@ export class QueueService {
         data: parentData,
         opts: {
           // Parent job options
-          removeOnComplete: 100,
-          removeOnFail: 100,  // Keep last 100 failed jobs
+          removeOnComplete: 1000,
+          removeOnFail: 1000,  // Keep last 100 failed jobs
+          ignoreDependencyOnFailure: true,  // Allow parent to run even if some batches fail
         },
         children: rankingBatches.map((batchData, index) => ({
           name: 'calculate-ranking',
@@ -136,6 +138,114 @@ export class QueueService {
     } catch (error) {
       console.error('Error adding ranking job:', error);
       return { success: false, error: 'Failed to queue ranking job' };
+    }
+  }
+
+  // Get JD Processing Job by ID
+  static async getJDProcessingJob(jobId: string) {
+    try {
+      const job = await queues.jdProcessing.getJob(jobId);
+      return job;
+    } catch (error) {
+      console.error('Error getting JD processing job:', error);
+      return null;
+    }
+  }
+
+  // Get Resume Flow Progress - using queue counts instead of individual job fetching
+  static async getResumeFlowProgress(parentJobId: string, totalResumes: number) {
+    try {
+      const parentJob = await queues.resumeProcessing.getJob(parentJobId);
+      
+      if (!parentJob) {
+        return { 
+          success: false, 
+          error: 'Parent job not found' 
+        };
+      }
+
+      // Get queue counts efficiently
+      const counts = await queues.resumeProcessing.getJobCounts('waiting', 'active', 'delayed');
+      
+      // Calculate completed: total - (waiting + active + delayed)
+      // Note: We use the stored total instead of counting completed jobs
+      const waiting = counts.waiting || 0;
+      const active = counts.active || 0;
+      const delayed = counts.delayed || 0;
+      const completed = Math.max(0, totalResumes - waiting - active - delayed);
+
+      console.log(`📊 Resume Queue Stats: Total=${totalResumes}, Waiting=${waiting}, Active=${active}, Delayed=${delayed}, Completed=${completed}`);
+
+      const parentState = await parentJob.getState();
+
+      return {
+        success: true,
+        stats: {
+          total: totalResumes,
+          completed,
+          failed: 0, // We'll track failures separately if needed
+          active,
+          waiting,
+          delayed,
+          state: parentState,
+          parentState: parentState,
+          parentProgress: parentJob.progress
+        }
+      };
+    } catch (error) {
+      console.error('Error getting resume flow progress:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to get flow progress' 
+      };
+    }
+  }
+
+  // Get Ranking Flow Progress - using queue counts instead of individual job fetching
+  static async getRankingFlowProgress(parentJobId: string, totalBatches: number) {
+    try {
+      const parentJob = await queues.ranking.getJob(parentJobId);
+      
+      if (!parentJob) {
+        return { 
+          success: false, 
+          error: 'Parent job not found' 
+        };
+      }
+
+      // Get queue counts efficiently
+      const counts = await queues.ranking.getJobCounts('waiting', 'active', 'delayed');
+      
+      // Calculate completed: total - (waiting + active + delayed)
+      const waiting = counts.waiting || 0;
+      const active = counts.active || 0;
+      const delayed = counts.delayed || 0;
+      const completed = Math.max(0, totalBatches - waiting - active - delayed);
+
+      console.log(`📊 Ranking Queue Stats: Total=${totalBatches}, Waiting=${waiting}, Active=${active}, Delayed=${delayed}, Completed=${completed}`);
+
+      const parentState = await parentJob.getState();
+
+      return {
+        success: true,
+        stats: {
+          total: totalBatches,
+          completed,
+          failed: 0, // Track failures separately if needed
+          active,
+          waiting,
+          delayed,
+          state: parentState,
+          parentState: parentState,
+          parentProgress: parentJob.progress
+        }
+      };
+    } catch (error) {
+      console.error('Error getting ranking flow progress:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to get ranking flow progress' 
+      };
     }
   }
 }

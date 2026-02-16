@@ -28,6 +28,20 @@ const JobStatusIcons = {
 
 export function JobStatusBadge({ status, className }: JobStatusBadgeProps) {
   const config = JOB_STATUS_CONFIG[status as keyof typeof JOB_STATUS_CONFIG];
+  
+  // Fallback for unknown statuses
+  if (!config) {
+    return (
+      <Badge
+        variant="secondary"
+        className={cn("gap-1.5 font-medium", className)}
+      >
+        <Circle className="h-3.5 w-3.5" />
+        {status}
+      </Badge>
+    );
+  }
+  
   const Icon = JobStatusIcons[config.icon as keyof typeof JobStatusIcons];
 
   return (

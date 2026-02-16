@@ -93,30 +93,15 @@ def clean_resume_text(text: str) -> str:
     return text.strip()
 
 
-def validate_resume_text(text: str) -> bool:
-    """Simple validation - check if text looks like a resume"""
-    if not text or len(text) < 100:
-        return False
-    
-    # Check for common resume indicators
-    resume_indicators = [
-        r'\b(?:experience|education|skills|projects|work)\b',
-        r'\b(?:email|phone|contact)\b',
-        r'\b(?:university|college|degree)\b'
-    ]
-    
-    indicators_found = 0
-    for pattern in resume_indicators:
-        if re.search(pattern, text, re.IGNORECASE):
-            indicators_found += 1
-    
-    return indicators_found >= 2
-
-
 def process_resume_file(file_path: str) -> Dict[str, Any]:
     """
     Main function to extract text from resume PDF file
     Returns single result - success/failure with text
+    
+    OLD LOGIC (NO VALIDATION):
+    - Only check if PDF has extractable text
+    - No content validation - just extract whatever text exists
+    - Skip only if it's image-based PDF
     """
     try:
         file_path = Path(file_path)
@@ -147,14 +132,7 @@ def process_resume_file(file_path: str) -> Dict[str, Any]:
         # Clean the extracted text
         cleaned_text = clean_resume_text(result['text'])
         
-        # Validate text quality
-        if not validate_resume_text(cleaned_text):
-            return {
-                'success': False,
-                'error': 'Extracted text does not appear to be a valid resume',
-                'text': ''
-            }
-        
+        # NO VALIDATION - just return extracted text (matching old logic)
         return {
             'success': True,
             'text': cleaned_text,

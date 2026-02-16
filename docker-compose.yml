@@ -1,5 +1,4 @@
 services:
-  # Nginx Reverse Proxy - Single entry point for both frontend and backend
   nginx:
     build:
       context: ./nginx
@@ -7,7 +6,7 @@ services:
     container_name: kreeda-nginx
     restart: unless-stopped
     ports:
-      - "80:80"  # Single port for Tailscale funnel
+      - "80:80"
     depends_on:
       - backend
       - frontend
@@ -63,7 +62,6 @@ services:
       dockerfile: Dockerfile
     container_name: kreeda-backend
     restart: unless-stopped
-    # No external port mapping - nginx handles routing
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -72,6 +70,10 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: password123
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JWT_SECRET: your-secret-jwt-key-change-in-production
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5001
+      UPLOAD_PATH: ./uploads
+      MAX_FILE_SIZE: 10485760
     volumes:
       - ./uploads:/app/uploads
 
@@ -97,10 +99,9 @@ services:
         - NEXT_PUBLIC_API_URL=/api  # Use relative URL since nginx handles routing
     container_name: kreeda-frontend
     restart: unless-stopped
-    # No external port mapping - nginx handles routing
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: /api  # Relative URL for nginx routing
+      NEXT_PUBLIC_API_URL: /api
     depends_on:
       backend:
         condition: service_healthy

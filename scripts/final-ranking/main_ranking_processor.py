@@ -4,6 +4,8 @@ Final Ranking Processor with LLM Re-ranking
 
 Implements exact same logic as the old archive FinalRanking.py:
 - Processes batches of 30 candidates
+- Normalizes keyword and semantic scores using min/max from BullMQ job
+- Recalculates final scores using composite scorer
 - Uses OpenAI GPT-4o-mini for LLM re-ranking
 - Validates compliance and re-ranks based on all scores
 - Returns detailed ranking results with compliance breakdown
@@ -18,6 +20,7 @@ from pathlib import Path
 
 # Add current directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent / 'resume-processing'))
 
 try:
     from openai import OpenAI
@@ -26,6 +29,19 @@ except ImportError:
     sys.exit(1)
 
 import requests
+
+# Import composite scorer
+try:
+    from h_composite_scorer import calculate_composite_score
+except ImportError:
+    print("⚠️ Composite scorer not found. Using fallback.")
+    def calculate_composite_score(project, keyword, semantic):
+        return {
+            'success': True,
+            'final_score': (project.get('overall_score', 0) * 0.35 + 
+                          keyword.get('overall_score', 0) * 0.30 + 
+                          semantic.get('overall_semantic_score', 0) * 0.35)
+        }
 
 # Constants from old archive
 RE_RANK_BATCH_SIZE = 30  # Batch size for LLM re-ranking
@@ -36,11 +52,104 @@ BACKEND_API_URL = os.getenv('BACKEND_API_URL', 'http://localhost:3001/api')
 BACKEND_API_KEY = os.getenv('BACKEND_API_KEY', '')
 
 
+def normalize_score(score: float, min_score: float, max_score: float) -> float:
+    """
+    Normalize a score to 0-1 range using min-max normalization.
+    
+    Args:
+        score: The score to normalize
+        min_score: Minimum score in the dataset
+        max_score: Maximum score in the dataset
+        
+    Returns:
+        Normalized score between 0 and 1
+    """
+    if max_score == min_score:
+        # All scores are the same, return 0.5 as neutral
+        return 0.5
+    
+    normalized = (score - min_score) / (max_score - min_score)
+    # Clamp to [0, 1] range
+    return max(0.0, min(1.0, normalized))
+
+
+def get_resumes_batch_via_api(resume_ids: List[str]) -> List[Dict]:
+    """
+    Get resume data for a batch of resume IDs via backend API
+    
+    API endpoint: POST /api/updates/resumes/batch
+    """
+    try:
+        headers = {'Content-Type': 'application/json'}
+        if BACKEND_API_KEY:
+            headers['Authorization'] = f'Bearer {BACKEND_API_KEY}'
+        
+        response = requests.post(
+            f'{BACKEND_API_URL}/updates/resumes/batch',
+            headers=headers,
+            json={'resume_ids': resume_ids},
+            timeout=30
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        if not result.get('success'):
+            print(f"❌ API error: {result.get('error', 'Unknown error')}")
+            return []
+        
+        resumes = result.get('data', [])
+        print(f"✅ Fetched {len(resumes)} resumes via batch API")
+        return resumes
+        
+    except Exception as e:
+        print(f"❌ Error getting resumes in batch via API: {e}")
+        return []
+
+
+def update_scores_batch_via_api(updates: List[Dict[str, Any]]) -> bool:
+    """
+    Update scores for multiple resumes via backend API
+    
+    API endpoint: POST /api/updates/resume/scores/batch
+    
+    Args:
+        updates: List of {resume_id, scores} dicts
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        headers = {'Content-Type': 'application/json'}
+        if BACKEND_API_KEY:
+            headers['Authorization'] = f'Bearer {BACKEND_API_KEY}'
+        
+        response = requests.post(
+            f'{BACKEND_API_URL}/updates/resume/scores/batch',
+            headers=headers,
+            json={'updates': updates},
+            timeout=30
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        if not result.get('success'):
+            print(f"❌ Batch update failed: {result.get('error', 'Unknown error')}")
+            return False
+        
+        updated_count = result.get('data', {}).get('updated_count', 0)
+        print(f"✅ Updated {updated_count} resume scores via batch API")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error updating scores in batch via API: {e}")
+        return False
+
+
 def get_candidate_scores_via_api(job_id: str) -> List[Dict]:
     """
     Collect all candidate scores for ranking via backend API
     
-    API endpoint: GET /api/updates/scores/{jobId}
+    API endpoint: GET /api/scores/resumes/{jobId}
     """
     try:
         headers = {}
@@ -48,7 +157,7 @@ def get_candidate_scores_via_api(job_id: str) -> List[Dict]:
             headers['Authorization'] = f'Bearer {BACKEND_API_KEY}'
         
         response = requests.get(
-            f'{BACKEND_API_URL}/updates/scores/{job_id}',
+            f'{BACKEND_API_URL}/scores/resumes/{job_id}',
             headers=headers,
             timeout=30
         )
@@ -447,7 +556,11 @@ def llm_re_rank_candidates(candidates: List[dict], filter_requirements: dict, sp
 
 def process_ranking_batch(
     job_id: str,
-    score_result_ids: List[str],
+    resume_ids: List[str],
+    min_keyword_score: float = 0.0,
+    max_keyword_score: float = 1.0,
+    min_semantic_score: float = 0.0,
+    max_semantic_score: float = 1.0,
     batch_index: int = 1,
     total_batches: int = 1,
     ranking_criteria: dict = None
@@ -456,9 +569,20 @@ def process_ranking_batch(
     Process a single batch of ranking (up to 30 candidates).
     This is called by the BullMQ consumer for each batch job.
     
+    Steps:
+    1. Get resume data for the batch
+    2. Normalize keyword and semantic scores using provided min/max
+    3. Recalculate final scores using composite scorer
+    4. Update scores in database
+    5. Apply LLM re-ranking if enabled
+    
     Args:
         job_id: MongoDB job ID
-        score_result_ids: List of ScoreResult IDs for this batch
+        resume_ids: List of resume IDs for this batch
+        min_keyword_score: Minimum keyword score in the full dataset
+        max_keyword_score: Maximum keyword score in the full dataset
+        min_semantic_score: Minimum semantic score in the full dataset
+        max_semantic_score: Maximum semantic score in the full dataset
         batch_index: Which batch this is (1-based)
         total_batches: Total number of batches
         ranking_criteria: Ranking criteria from job trigger
@@ -474,35 +598,118 @@ def process_ranking_batch(
     }
     """
     
+    print(f"\n{'='*80}")
     print(f"🏆 Processing ranking batch {batch_index}/{total_batches} for job {job_id}")
-    print(f"   - Score result IDs: {len(score_result_ids)}")
+    print(f"{'='*80}")
+    print(f"   - Resume IDs: {len(resume_ids)}")
+    print(f"   - Keyword score range: [{min_keyword_score:.3f}, {max_keyword_score:.3f}]")
+    print(f"   - Semantic score range: [{min_semantic_score:.3f}, {max_semantic_score:.3f}]")
     
     try:
-        # Get candidates for this batch using the score IDs
-        # For now, get all candidates and filter - in production, optimize this
-        all_candidates = get_candidate_scores_via_api(job_id)
+        # Step 1: Get resume data for this batch
+        print(f"\n📥 Step 1: Fetching resume data for batch...")
+        resumes = get_resumes_batch_via_api(resume_ids)
         
-        if not all_candidates:
+        if not resumes:
             return {
                 'success': False,
                 'job_id': job_id,
                 'batch_index': batch_index,
                 'total_batches': total_batches,
-                'error': 'No candidates found for ranking'
+                'error': 'No resumes found for this batch'
             }
         
-        # Filter candidates to only those in this batch (by score_result_ids)
-        # For now, just take the appropriate slice based on batch_index
-        # In production, filter by actual score_result_ids
-        batch_size = len(all_candidates) // total_batches
-        start_idx = (batch_index - 1) * batch_size
-        end_idx = start_idx + batch_size if batch_index < total_batches else len(all_candidates)
+        print(f"   ✅ Fetched {len(resumes)} resumes")
         
-        batch_candidates = all_candidates[start_idx:end_idx]
+        # Step 2: Normalize scores and recalculate final scores
+        print(f"\n🔄 Step 2: Normalizing scores and recalculating final scores...")
         
-        print(f"   - Processing {len(batch_candidates)} candidates in this batch")
+        updates = []
+        normalized_count = 0
         
-        # Apply LLM re-ranking if criteria provided
+        for resume in resumes:
+            resume_id = str(resume.get('_id'))
+            scores = resume.get('scores', {})
+            
+            # Get current scores
+            keyword_score = scores.get('keyword_score', 0.0)
+            semantic_score = scores.get('semantic_score', 0.0)
+            project_score = scores.get('project_score', 0.0)
+            
+            # Normalize keyword and semantic scores
+            normalized_keyword = normalize_score(keyword_score, min_keyword_score, max_keyword_score)
+            normalized_semantic = normalize_score(semantic_score, min_semantic_score, max_semantic_score)
+            
+            print(f"   - Resume {resume_id[:8]}...")
+            print(f"     Keyword: {keyword_score:.3f} -> {normalized_keyword:.3f}")
+            print(f"     Semantic: {semantic_score:.3f} -> {normalized_semantic:.3f}")
+            
+            # Recalculate final score using composite scorer
+            composite_result = calculate_composite_score(
+                project_score_result={'overall_score': project_score},
+                keyword_score_result={'overall_score': normalized_keyword},
+                semantic_score_result={'overall_semantic_score': normalized_semantic}
+            )
+            
+            if composite_result.get('success'):
+                final_score = composite_result.get('final_score', 0.0)
+                print(f"     Final: {final_score:.3f}")
+                
+                # Update scores
+                new_scores = {
+                    'project_score': project_score,
+                    'keyword_score': normalized_keyword,
+                    'semantic_score': normalized_semantic,
+                    'composite_score': final_score
+                }
+                
+                updates.append({
+                    'resume_id': resume_id,
+                    'scores': new_scores
+                })
+                
+                # Update resume object for later use
+                resume['scores'] = new_scores
+                normalized_count += 1
+            else:
+                print(f"     ⚠️ Composite scoring failed: {composite_result.get('error')}")
+        
+        print(f"   ✅ Normalized and recalculated {normalized_count} resume scores")
+        
+        # Step 3: Update scores in database
+        print(f"\n💾 Step 3: Updating scores in database...")
+        
+        if updates:
+            update_success = update_scores_batch_via_api(updates)
+            if not update_success:
+                print(f"   ⚠️ Failed to update scores in database")
+        else:
+            print(f"   ⚠️ No scores to update")
+        
+        # Step 4: Prepare candidate data for ranking
+        print(f"\n📊 Step 4: Preparing candidate data for ranking...")
+        
+        candidates = []
+        for resume in resumes:
+            resume_id = str(resume.get('_id'))
+            scores = resume.get('scores', {})
+            parsed_content = resume.get('parsed_content', {})
+            
+            candidates.append({
+                'candidate_id': resume_id,
+                'name': parsed_content.get('name', resume.get('candidate_name', 'Unknown')),
+                'job_id': str(resume.get('job_id')),
+                'Keyword_Score': scores.get('keyword_score', 0.0),
+                'Semantic_Score': scores.get('semantic_score', 0.0),
+                'project_aggregate': scores.get('project_score', 0.0),
+                'Final_Score': scores.get('composite_score', 0.0),
+                'hard_requirements_met': resume.get('hard_requirements_met', False),
+                'score_breakdown': {}
+            })
+        
+        # Step 5: Apply LLM re-ranking if enabled
+        print(f"\n🤖 Step 5: Ranking candidates...")
+        
         if ranking_criteria and ranking_criteria.get('enable_llm_rerank', False):
             filter_requirements = ranking_criteria.get('filter_requirements', {})
             specified_fields = set(ranking_criteria.get('specified_fields', []))
@@ -510,7 +717,7 @@ def process_ranking_batch(
             print(f"   - Applying LLM re-ranking with {len(specified_fields)} specified fields")
             
             ranked_candidates = llm_re_rank_candidates(
-                batch_candidates, 
+                candidates, 
                 filter_requirements, 
                 specified_fields
             )
@@ -518,7 +725,7 @@ def process_ranking_batch(
             # Basic ranking by Final_Score
             print(f"   - Applying basic score-based ranking")
             ranked_candidates = sorted(
-                batch_candidates, 
+                candidates, 
                 key=lambda x: x.get('Final_Score', 0), 
                 reverse=True
             )
@@ -536,16 +743,19 @@ def process_ranking_batch(
             ]
         
         batch_summary = {
-            'total_candidates': len(batch_candidates),
+            'total_candidates': len(candidates),
             'ranked_candidates': len(ranked_candidates),
             'avg_score': sum(r.get('re_rank_score', 0) for r in ranked_candidates) / len(ranked_candidates) if ranked_candidates else 0,
-            'candidates_meeting_requirements': sum(1 for r in ranked_candidates if r.get('meets_requirements', False))
+            'candidates_meeting_requirements': sum(1 for r in ranked_candidates if r.get('meets_requirements', False)),
+            'normalized_scores': normalized_count
         }
         
-        print(f"✅ Batch {batch_index}/{total_batches} completed:")
+        print(f"\n✅ Batch {batch_index}/{total_batches} completed:")
         print(f"   - Ranked {len(ranked_candidates)} candidates")
         print(f"   - Average score: {batch_summary['avg_score']:.3f}")
         print(f"   - Meeting requirements: {batch_summary['candidates_meeting_requirements']}")
+        print(f"   - Normalized scores: {batch_summary['normalized_scores']}")
+        print(f"{'='*80}\n")
         
         return {
             'success': True,
@@ -558,6 +768,8 @@ def process_ranking_batch(
         
     except Exception as e:
         print(f"❌ Ranking batch {batch_index}/{total_batches} failed for job {job_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             'success': False,
             'job_id': job_id,
@@ -570,7 +782,11 @@ def process_ranking_batch(
 def process_final_ranking(
     job_id: str,
     batch_identifier: str = None,
-    score_result_ids: List[str] = None,
+    resume_ids: List[str] = None,
+    min_keyword_score: float = 0.0,
+    max_keyword_score: float = 1.0,
+    min_semantic_score: float = 0.0,
+    max_semantic_score: float = 1.0,
     batch_index: int = 1,
     total_batches: int = 1,
     ranking_criteria: dict = None
@@ -582,24 +798,39 @@ def process_final_ranking(
     This function is called by the BullMQ consumer with job data.
     """
     
-    # If score_result_ids provided, process as batch
-    if score_result_ids:
+    # If resume_ids provided, process as batch
+    if resume_ids:
         return process_ranking_batch(
             job_id=job_id,
-            score_result_ids=score_result_ids,
+            resume_ids=resume_ids,
+            min_keyword_score=min_keyword_score,
+            max_keyword_score=max_keyword_score,
+            min_semantic_score=min_semantic_score,
+            max_semantic_score=max_semantic_score,
             batch_index=batch_index,
             total_batches=total_batches,
             ranking_criteria=ranking_criteria
         )
     
-    # Fallback: process all candidates for the job
-    return process_ranking_batch(
-        job_id=job_id,
-        score_result_ids=[],
-        batch_index=1,
-        total_batches=1,
-        ranking_criteria=ranking_criteria
-    )
+    # Fallback: process with score_result_ids if provided (legacy)
+    score_result_ids = ranking_criteria.get('score_result_ids', []) if ranking_criteria else []
+    if score_result_ids:
+        return process_ranking_batch(
+            job_id=job_id,
+            resume_ids=score_result_ids,  # Treat as resume IDs
+            min_keyword_score=min_keyword_score,
+            max_keyword_score=max_keyword_score,
+            min_semantic_score=min_semantic_score,
+            max_semantic_score=max_semantic_score,
+            batch_index=batch_index,
+            total_batches=total_batches,
+            ranking_criteria=ranking_criteria
+        )
+    
+    return {
+        'success': False,
+        'error': 'No resume_ids or score_result_ids provided'
+    }
 
 
 if __name__ == "__main__":

@@ -33,9 +33,22 @@ class ResumeProcessingError(Exception):
     pass
 
 
-def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None):
+def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None, hard_requirements_met: bool = None):
     """Update resume processing status in database"""
     try:
+        if status in ['success', 'failed']:
+            payload = {
+                'resume_id': resume_id,
+                'success': status == 'success',
+                'processing_progress': progress,
+                'error': error
+            }
+            if hard_requirements_met is not None:
+                payload['hard_requirements_met'] = hard_requirements_met
+            
+            api.post("/updates/resume/status/single", data=payload)
+            return
+
         payload = {
             'overall_processing_status': status
         }
@@ -213,8 +226,49 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         hard_req_result = check_hard_requirements(parsed_resume, jd_data)
         if not hard_req_result.get('success'):
             hard_req_result = {'meets_all_requirements': True, 'compliance_score': 1.0}
-        logger.progress(f"Hard req: {'✅ Met' if hard_req_result.get('meets_all_requirements') else '❌ Not met'}")
+        
+        meets_hard_requirements = hard_req_result.get('meets_all_requirements', True)
+        logger.progress(f"Hard req: {'✅ Met' if meets_hard_requirements else '❌ Not met'}")
         await tracker.update(65, "scoring", "Hard requirements checked")
+        
+        # If hard requirements not met, skip further processing and save failed result
+        if not meets_hard_requirements:
+            logger.progress("❌ Hard requirements not met - skipping further processing")
+            await tracker.update(95, "saving_scores", "Saving failed compliance scores to database")
+            
+            # Save failed compliance scores
+            api.post("/updates/resume/scores", data={
+                'resume_id': resume_id,
+                'scores': {
+                    'hard_requirements': {
+                        'meets_all_requirements': False,
+                        'compliance_score': hard_req_result.get('compliance_score', 0.0),
+                        'requirements_met': hard_req_result.get('requirements_met', []),
+                        'requirements_missing': hard_req_result.get('requirements_missing', []),
+                        'filter_reason': hard_req_result.get('filter_reason')
+                    },
+                    'project_score': 0.0,
+                    'keyword_score': 0.0,
+                    'semantic_score': 0.0,
+                    'composite_score': 0.0
+                }
+            })
+            
+            # Update resume status to completed with hard_requirements_met=False
+            update_resume_status(resume_id, 'success', 100, hard_requirements_met=False)
+            
+            logger.complete(f"Completed: Hard requirements not met - Score 0.00")
+            await tracker.update(100, "complete", "Job completed - Hard requirements not met")
+            
+            return {
+                'success': True,
+                'score': 0.0,
+                'hard_requirements_passed': False,
+                'filter_reason': hard_req_result.get('filter_reason', 'Does not meet mandatory compliance requirements'),
+                'message': 'Resume does not meet mandatory compliance requirements'
+            }
+        
+        # Continue with regular scoring if hard requirements are met
         
         # Project scoring
         project_result = calculate_project_scores(parsed_resume, jd_data)
@@ -279,10 +333,11 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
             }
         })
         
-        api.post("/updates/resume/status", data={'resume_id': resume_id, 'status': 'completed'})
+        # NOTE: Do NOT update job status here - only individual resume status
+        # Parent job will update job status when ALL resumes complete
         
-        # Update resume status to success
-        update_resume_status(resume_id, 'success', 100)
+        # Update resume status to success with hard_requirements_met=True
+        update_resume_status(resume_id, 'success', 100, hard_requirements_met=True)
         
         logger.complete(f"Completed: Score {final_score:.2f}")
         await tracker.complete(summary={
@@ -302,7 +357,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
     except APIError as e:
         error_msg = f"API error: {e.message}"
         logger.fail(error_msg)
-        api.post("/updates/resume/status", data={'resume_id': resume_id, 'status': 'failed'})
+        # NOTE: Do NOT update job status - only individual resume status
         update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(error_msg, "APIError", "processing")
         return {'success': False, 'error': error_msg, 'final_score': 0.0}
@@ -312,7 +367,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         error_msg = f"{type(e).__name__}: {str(e)}"
         logger.fail(error_msg)
         print(f"📋 Full error traceback:\n{error_traceback}")
-        api.post("/updates/resume/status", data={'resume_id': resume_id, 'status': 'failed'})
+        # NOTE: Do NOT update job status - only individual resume status
         update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(str(e), type(e).__name__, "processing")
         return {'success': False, 'error': str(e), 'final_score': 0.0}

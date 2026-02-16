@@ -205,7 +205,7 @@ async def process_jd_complete(job) -> dict:
             logger.progress("Embeddings saved to database")
             await tracker.update(95, "saving_embeddings", "Embeddings saved successfully")
         
-        api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'completed'})
+        api.post("/updates/jd/status", data={'job_id': job_id, 'success': True})
         
         # Update status to success
         update_job_status(job_id, 'success', 100)
@@ -226,7 +226,7 @@ async def process_jd_complete(job) -> dict:
     except APIError as e:
         logger.fail(f"API error: {e.message}")
         error_msg = f"API error: {e.message}"
-        api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'failed'})
+        api.post("/updates/jd/status", data={'job_id': job_id, 'success': False, 'error': error_msg})
         update_job_status(job_id, 'failed', error=error_msg)
         return {
             'success': False,
@@ -240,7 +240,7 @@ async def process_jd_complete(job) -> dict:
         error_msg = f"{type(e).__name__}: {str(e)}"
         logger.fail(error_msg)
         print(f"📋 Full error traceback:\n{error_traceback}")
-        api.post("/updates/jd/status", data={'job_id': job_id, 'status': 'failed'})
+        api.post("/updates/jd/status", data={'job_id': job_id, 'success': False, 'error': error_msg})
         update_job_status(job_id, 'failed', error=error_msg)
         return {
             'success': False,

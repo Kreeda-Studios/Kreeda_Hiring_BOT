@@ -31,10 +31,15 @@ export interface ScoringJobData {
 
 export interface RankingJobData {
   jobId: string;
-  resumeGroupId: string;
-  scoreResults: string[]; // Array of scoreResult IDs
+  resumeIds?: string[]; // Array of resume IDs to rank (for batch processing)
+  resumeGroupId?: string; // Legacy field for compatibility
+  scoreResults?: string[]; // Array of scoreResult IDs (legacy)
   batchIndex?: number; // Which batch this is (1, 2, 3...)
   totalBatches?: number; // Total number of batches
+  minKeywordScore?: number; // Minimum keyword score in the dataset
+  maxKeywordScore?: number; // Maximum keyword score in the dataset
+  minSemanticScore?: number; // Minimum semantic score in the dataset
+  maxSemanticScore?: number; // Maximum semantic score in the dataset
   rankingCriteria?: {
     // Legacy weights for compatibility
     weightKeyword?: number;

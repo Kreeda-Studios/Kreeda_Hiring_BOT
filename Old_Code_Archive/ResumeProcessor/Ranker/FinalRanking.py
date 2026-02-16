@@ -63,7 +63,7 @@ FIELD_MAPPING = {
 }
 
 # LLM prompt for parsing HR raw requirements into structured format
-REQUIREMENT_PARSER_PROMPT = """You are a requirement parser for HR hiring. Convert raw HR requirement text into a structured JSON format.
+REQUIREMENT_PrARSER_PROMPT = """You are a requirement parser for HR hiring. Convert raw HR requirement text into a structured JSON format.
 
 TASK: Parse HR's requirement text and identify ALL requirement types mentioned, creating dynamic fields for each.
 
@@ -399,13 +399,6 @@ def check_location_compliance(candidate: dict, resume_json: dict, requirement: s
     }
 
 
-    return {
-        "meets": meets,
-        "requirement": requirement,
-        "candidate_value": resume_json.get("location", ""),
-        "match_quality": match_quality,
-        "details": details
-    }
 
 
 def get_resume_field_value(resume_json: dict, field_name: str):

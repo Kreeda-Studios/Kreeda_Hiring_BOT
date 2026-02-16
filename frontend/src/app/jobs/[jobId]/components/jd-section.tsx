@@ -50,12 +50,10 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
   const hasJDPDF = !!job.jd_pdf_filename;
   const hasJDText = !!job.jd_text;
 
-  const [showProcessingStatus, setShowProcessingStatus] = useState(false);
-  
-  // SSE Progress tracking
-  const [progressData, setProgressData] = useState<ProgressUpdate | null>(null);
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  // Progress tracking
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingMessage, setProcessingMessage] = useState("");
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update locked state when job or status changes
   useEffect(() => {
@@ -63,98 +61,73 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
     setIsLocked(locked);
   }, [job.locked, statusData?.job.locked]);
 
-  // Update processing state based on status
+  // Update processing state and progress based on status
   useEffect(() => {
     const processing = isJDProcessingInProgress();
+    const currentStatus = statusData?.job.status || job.status;
     setIsProcessing(processing);
-    if (processing && !showProcessingStatus) {
-      setShowProcessingStatus(true);
+    
+    // Set progress based on job status
+    if (currentStatus === 'jd_processing_completed' || 
+        currentStatus === 'resume_processing_started' ||
+        currentStatus === 'resume_processing_completed' ||
+        currentStatus === 'resume_processing_failed' ||
+        currentStatus === 'ranking_started' ||
+        currentStatus === 'ranking_completed') {
+      // JD already completed - show 100%
+      setProcessingProgress(100);
+      setProcessingMessage("JD Processing Complete");
+    } else if (processing) {
+      // Currently processing - start polling
+      if (!progressIntervalRef.current) {
+        fetchProgress();
+        progressIntervalRef.current = setInterval(fetchProgress, 3000);
+      }
+    } else if (currentStatus === 'draft') {
+      // Not started yet
+      setProcessingProgress(0);
+      setProcessingMessage("Ready to process");
     }
-  }, [isJDProcessingInProgress, showProcessingStatus]);
+    
+    // Stop polling when processing completes
+    if (!processing && progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  }, [isJDProcessingInProgress, statusData?.job.status, job.status]);
 
-  // Subscribe to SSE progress updates
+  // Cleanup interval on unmount
   useEffect(() => {
-    if (!isProcessing || !jobId) return;
-
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-    const sseUrl = `${API_BASE_URL}/sse/jobs/${jobId}/progress`;
-    
-    console.log('📡 [SSE] Subscribing to SSE:', sseUrl);
-    console.log('📡 [SSE] Job ID:', jobId);
-    
-    const eventSource = new EventSource(sseUrl);
-    eventSourceRef.current = eventSource;
-    
-    eventSource.onopen = () => {
-      console.log('✅ [SSE] Connection opened successfully');
-      setIsSubscribed(true);
-    };
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('📨 [SSE] Message received:', {
-          type: data.type,
-          stage: data.stage,
-          percent: data.percent,
-          message: data.message,
-          timestamp: data.timestamp,
-          fullData: data
-        });
-        
-        if (data.type === 'progress') {
-          console.log(`📊 [SSE] Progress update: ${data.percent}% - ${data.stage}: ${data.message}`);
-          setProgressData({
-            stage: data.stage,
-            percent: data.percent,
-            message: data.message,
-            timestamp: data.timestamp
-          });
-        } else if (data.type === 'complete') {
-          console.log('✅ [SSE] Processing complete:', data);
-          setIsProcessing(false);
-          setShowProcessingStatus(true);
-          
-          // Reload job data
-          if (onJobUpdate) {
-            console.log('🔄 [SSE] Reloading job data...');
-            jobsAPI.getById(jobId).then(response => {
-              if (response.success) {
-                console.log('✅ [SSE] Job data reloaded successfully');
-                onJobUpdate(response.data);
-                setIsLocked(response.data.locked || false);
-              }
-            });
-          }
-          
-          // Close SSE connection
-          console.log('🔌 [SSE] Closing connection');
-          eventSource.close();
-          setIsSubscribed(false);
-        } else if (data.type === 'connection') {
-          console.log('🔗 [SSE] Connection confirmed:', data.message);
-        }
-      } catch (error) {
-        console.error('❌ [SSE] Error parsing message:', error, event.data);
-      }
-    };
-    
-    eventSource.onerror = (error) => {
-      console.error('❌ [SSE] Connection error:', error);
-      console.log('🔌 [SSE] Closing connection due to error');
-      eventSource.close();
-      setIsSubscribed(false);
-    };
-    
-    // Cleanup on unmount
     return () => {
-      console.log('🧹 [SSE] Cleanup: closing connection');
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        setIsSubscribed(false);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
       }
     };
-  }, [isProcessing, jobId, onJobUpdate]);
+  }, []);
+
+  const fetchProgress = async () => {
+    try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
+      const response = await fetch(`${API_BASE_URL}/progress/jd/${jobId}`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setProcessingProgress(result.data.progress || 0);
+        setProcessingMessage(result.data.progress_details?.message || result.data.state || "Processing...");
+        
+        // If completed, stop polling
+        if (result.data.state === 'completed' || result.data.state === 'failed') {
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+          }
+          refetchStatus(); // Refresh job status
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch JD progress:', error);
+    }
+  };
 
   // PDF upload handler
   const handlePDFUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,8 +192,8 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
     console.log('🚀 [Process] Starting JD processing...');
     setShowWarningDialog(false);
     setIsProcessing(true);
-    setProgressData(null); // Reset progress
-    setShowProcessingStatus(true);
+    setProcessingProgress(0); // Reset progress
+    setProcessingMessage("Starting JD processing...");
     
     try {
       // Save JD and compliance data first
@@ -250,7 +223,7 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
           // Attach the resume group to the job using PATCH
           console.log('🔗 [Process] Attaching resume group to job...');
           try {
-            const patchResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/jobs/${jobId}`, {
+            const patchResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL!}/jobs/${jobId}`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json'
@@ -297,12 +270,40 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
       console.error('❌ [Process] Error:', error);
       setUploadError(error instanceof Error ? error.message : 'Failed to process JD');
       setIsProcessing(false);
-      setShowProcessingStatus(false);
+      setProcessingProgress(0);
+      setProcessingMessage("");
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* JD Processing Progress - Top Position */}
+      {(hasJDPDF || hasJDText) && (
+        <Card className={processingProgress === 100 ? 'border-green-500/50 bg-green-500/10' : isProcessing ? 'border-primary/50 bg-primary/10' : 'border-muted'}>
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                {processingProgress === 100 ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                ) : isProcessing ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                ) : (
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                )}
+                <span className="font-semibold text-base">
+                  {processingProgress === 100 ? 'JD Processing Complete' : isProcessing ? 'Processing Job Description' : 'JD Processing Status'}
+                </span>
+              </div>
+              <span className="font-bold text-lg tabular-nums">{processingProgress}%</span>
+            </div>
+            <Progress value={processingProgress} className="h-2.5" />
+            {processingMessage && (
+              <p className="text-sm text-muted-foreground">{processingMessage}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* JD PDF Section */}
       <Card>
         <CardHeader>
@@ -446,7 +447,8 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
         </CardContent>
       </Card>
 
-        <div>
+      <Card>
+        <CardContent className="pt-6">
           <Button
             onClick={handleProcessClick}
             disabled={!canStartJDProcessing() || (!jd_pdf_filename && !jdText) || isProcessing}
@@ -461,19 +463,19 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
           </Button>
           
           {/* Status Messages */}
-          {statusData?.job.jd_processing.status === 'success' && (
+          {statusData?.job.status === 'jd_processing_completed' && (
             <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" />
               JD processing completed successfully. Job is now locked.
             </p>
           )}
-          {statusData?.job.jd_processing.status === 'failed' && (
+          {statusData?.job.status === 'jd_processing_failed' && (
             <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
-              JD processing failed: {statusData.job.jd_processing.error}
+              JD processing failed. Please try again.
             </p>
           )}
-          {isLocked && !statusData?.job.jd_processing.status && (
+          {isLocked && statusData?.job.status === 'jd_processing_completed' && (
             <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
               Job is locked. JD has been processed and cannot be modified.
@@ -484,80 +486,8 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
               <span className="text-red-500 font-medium">Note:</span> Please upload a JD PDF or enter JD text before processing.
             </p>
           )}
-        </div>
-      
-      {/* Real-time Processing Progress */}
-      {isProcessing && progressData && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-              Processing Job Description
-            </CardTitle>
-            <CardDescription>
-              {isSubscribed ? (
-                <span className="flex items-center gap-2 text-green-600">
-                  <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  Live updates connected
-                </span>
-              ) : (
-                <span className="text-gray-500">Connecting to live updates...</span>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium capitalize">{progressData.stage.replace(/_/g, ' ')}</span>
-                <span className="text-muted-foreground">{progressData.percent}%</span>
-              </div>
-              <Progress value={progressData.percent} className="h-2" />
-              <p className="text-sm text-muted-foreground">{progressData.message}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Current Stage</p>
-                <p className="text-sm font-medium capitalize">{progressData.stage.replace(/_/g, ' ')}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Last Update</p>
-                <p className="text-sm font-medium">
-                  {new Date(progressData.timestamp).toLocaleTimeString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Processing Status - hidden initially, can be shown by setting showProcessingStatus */}
-      {showProcessingStatus && !isProcessing && (hasJDPDF || hasJDText) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              Processing Complete
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className={`h-3 w-3 rounded-full ${
-                  job.status === 'active' ? 'bg-green-500' : 
-                  job.status === 'draft' ? 'bg-yellow-500' : 'bg-gray-300'
-                }`} />
-                <span className="text-sm font-medium">
-                  {job.status === 'active' ? 'JD Processing Complete' :
-                   job.status === 'draft' ? 'Ready for Processing' : 'Pending'}
-                </span>
-              </div>
-              <Badge variant={job.status === 'active' ? 'default' : 'secondary'}>
-                {job.status}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        </CardContent>
+      </Card>
       
       {/* Warning Dialog before processing */}
       <AlertDialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>

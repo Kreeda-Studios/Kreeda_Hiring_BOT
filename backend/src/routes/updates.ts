@@ -6,15 +6,17 @@
  * POST /api/updates/jd/parsed             - Save JD analysis data from AI parser
  * POST /api/updates/jd/embeddings         - Save JD embeddings from embedding service
  * POST /api/updates/jd/compliance         - Save JD compliance filter requirements
- * POST /api/updates/jd/status             - Update JD processing status (success/failed)
+ * POST /api/updates/jd/status             - Update JD processing status (success/failed) with job_id, success boolean
  * POST /api/updates/resume/parsed         - Save resume parsed content from AI parser
  * POST /api/updates/resume/embeddings     - Save resume embeddings from embedding service
  * POST /api/updates/resume/scores         - Save resume scores (keyword, semantic, project, composite)
- * POST /api/updates/resume/status         - Update resume processing status (success/failed)
+ * POST /api/updates/resume/status         - Update resume processing status (success/failed) with job_id, success boolean
+ * POST /api/updates/resume/status/single  - Update single resume processing status (completed/failed) with resume_id, success boolean
  */
 
 import { Router, Request, Response } from 'express';
 import { Job, Resume } from '../models';
+import { getNextStatus } from '../utils/jobStatus';
 
 const router = Router();
 
@@ -188,15 +190,18 @@ router.post('/resume/scores', async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Extract hard_requirements_met from scores if present
+    const hard_requirements_met = scores.hard_requirements?.meets_all_requirements;
+
+    const updatePayload: Record<string, any> = { scores };
+    
+    if (hard_requirements_met !== undefined) {
+      updatePayload.hard_requirements_met = hard_requirements_met;
+    }
+
     const resume = await Resume.findByIdAndUpdate(
       resume_id,
-      { 
-        scores: {
-          ...scores,
-          scoring_status: 'success',
-          scored_at: new Date()
-        }
-      },
+      updatePayload,
       { new: true }
     );
 
@@ -214,25 +219,38 @@ router.post('/resume/scores', async (req: Request, res: Response): Promise<void>
 
 router.post('/jd/status', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { job_id, status } = req.body;
+    const { job_id, success, error } = req.body;
 
-    if (!job_id || !status) {
-      res.status(400).json({ success: false, error: 'job_id and status are required' });
+    if (!job_id || success === undefined) {
+      res.status(400).json({ success: false, error: 'job_id and success (boolean) are required' });
       return;
     }
 
-    const job = await Job.findByIdAndUpdate(
-      job_id,
-      { processing_status: status },
-      { new: true }
-    );
-
+    const job = await Job.findById(job_id);
     if (!job) {
       res.status(404).json({ success: false, error: 'Job not found' });
       return;
     }
 
-    res.json({ success: true, data: { job_id, status } });
+    // Update job status based on success/failure
+    if (success) {
+      job.status = getNextStatus(job.status, 'JD_PROCESSING_COMPLETE');
+    } else {
+      job.status = getNextStatus(job.status, 'JD_PROCESSING_FAIL');
+      job.locked = false; // Unlock job to allow retry on failure
+    }
+
+    await job.save();
+
+    res.json({ 
+      success: true, 
+      data: { 
+        job_id, 
+        status: job.status,
+        locked: job.locked,
+        message: success ? 'JD processing completed successfully' : 'JD processing failed'
+      } 
+    });
   } catch (error) {
     console.error('Error updating JD status:', error);
     res.status(500).json({ success: false, error: 'Failed to update JD status' });
@@ -241,28 +259,216 @@ router.post('/jd/status', async (req: Request, res: Response): Promise<void> => 
 
 router.post('/resume/status', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { resume_id, status } = req.body;
+    const { job_id, success, error } = req.body;
 
-    if (!resume_id || !status) {
-      res.status(400).json({ success: false, error: 'resume_id and status are required' });
+    if (!job_id || success === undefined) {
+      res.status(400).json({ success: false, error: 'job_id and success (boolean) are required' });
       return;
     }
 
-    const resume = await Resume.findByIdAndUpdate(
-      resume_id,
-      { processing_status: status },
-      { new: true }
-    );
+    const job = await Job.findById(job_id);
+    if (!job) {
+      res.status(404).json({ success: false, error: 'Job not found' });
+      return;
+    }
+
+    // Update job status based on success/failure
+    if (success) {
+      job.status = getNextStatus(job.status, 'RESUME_PROCESSING_COMPLETE');
+      
+      // Update all resumes to completed status
+      await Resume.updateMany(
+        { job_id: job_id },
+        { 
+          status: 'completed',
+          overall_processing_status: 'completed',
+          processing_progress: 100
+        }
+      );
+    } else {
+      job.status = getNextStatus(job.status, 'RESUME_PROCESSING_FAIL');
+      
+      // Update resumes to failed status
+      await Resume.updateMany(
+        { job_id: job_id },
+        { 
+          status: 'failed',
+          overall_processing_status: 'failed',
+          processing_error: error || 'Resume processing failed'
+        }
+      );
+    }
+
+    await job.save();
+
+    res.json({ 
+      success: true, 
+      data: { 
+        job_id, 
+        status: job.status,
+        message: success ? 'Resume processing completed successfully' : 'Resume processing failed'
+      } 
+    });
+  } catch (error) {
+    console.error('Error updating resume status:', error);
+    res.status(500).json({ success: false, error: 'Failed to update resume status' });
+  }
+});
+
+router.post('/resume/status/single', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { resume_id, success, error, processing_progress, hard_requirements_met } = req.body;
+
+    if (!resume_id || success === undefined) {
+      res.status(400).json({ success: false, error: 'resume_id and success (boolean) are required' });
+      return;
+    }
+
+    const updatePayload: Record<string, any> = success
+      ? {
+          status: 'completed',
+          processing_progress: processing_progress ?? 100,
+          processing_error: undefined
+        }
+      : {
+          status: 'failed',
+          processing_error: error || 'Resume processing failed'
+        };
+
+    // Set hard_requirements_met if provided
+    if (hard_requirements_met !== undefined) {
+      updatePayload.hard_requirements_met = hard_requirements_met;
+    }
+
+    const resume = await Resume.findByIdAndUpdate(resume_id, updatePayload, { new: true });
 
     if (!resume) {
       res.status(404).json({ success: false, error: 'Resume not found' });
       return;
     }
 
-    res.json({ success: true, data: { resume_id, status } });
+    res.json({
+      success: true,
+      data: {
+        resume_id,
+        status: resume.status,
+        message: success ? 'Resume status updated to completed' : 'Resume status updated to failed'
+      }
+    });
   } catch (error) {
-    console.error('Error updating resume status:', error);
-    res.status(500).json({ success: false, error: 'Failed to update resume status' });
+    console.error('Error updating single resume status:', error);
+    res.status(500).json({ success: false, error: 'Failed to update single resume status' });
+  }
+});
+
+// POST /api/updates/resume/scores/batch - Update scores for multiple resumes
+router.post('/resume/scores/batch', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { updates } = req.body;
+
+    if (!updates || !Array.isArray(updates)) {
+      res.status(400).json({ success: false, error: 'updates array is required' });
+      return;
+    }
+
+    // Validate updates format
+    for (const update of updates) {
+      if (!update.resume_id || !update.scores) {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Each update must have resume_id and scores' 
+        });
+        return;
+      }
+    }
+
+    // Bulk update all resumes
+    const bulkOps = updates.map(update => ({
+      updateOne: {
+        filter: { _id: update.resume_id },
+        update: { 
+          $set: { 
+            scores: update.scores 
+          } 
+        }
+      }
+    }));
+
+    const result = await Resume.bulkWrite(bulkOps);
+
+    res.json({ 
+      success: true, 
+      data: { 
+        updated_count: result.modifiedCount,
+        matched_count: result.matchedCount
+      } 
+    });
+  } catch (error) {
+    console.error('Error updating resume scores in batch:', error);
+    res.status(500).json({ success: false, error: 'Failed to update resume scores in batch' });
+  }
+});
+
+// POST /api/updates/resumes/batch - Get resume data for multiple resume IDs
+router.post('/resumes/batch', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { resume_ids } = req.body;
+
+    if (!resume_ids || !Array.isArray(resume_ids)) {
+      res.status(400).json({ success: false, error: 'resume_ids array is required' });
+      return;
+    }
+
+    const resumes = await Resume.find({
+      _id: { $in: resume_ids }
+    }).select('_id job_id filename candidate_name scores hard_requirements_met parsed_content');
+
+    res.json({ 
+      success: true, 
+      data: resumes,
+      count: resumes.length 
+    });
+  } catch (error) {
+    console.error('Error fetching resumes in batch:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch resumes in batch' });
+  }
+});
+
+router.post('/ranking/status', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { job_id, success, error } = req.body;
+
+    if (!job_id || success === undefined) {
+      res.status(400).json({ success: false, error: 'job_id and success (boolean) are required' });
+      return;
+    }
+
+    const job = await Job.findById(job_id);
+    if (!job) {
+      res.status(404).json({ success: false, error: 'Job not found' });
+      return;
+    }
+
+    // Update job status based on success/failure
+    if (success) {
+      job.status = getNextStatus(job.status, 'RANKING_COMPLETE');
+    } else {
+      job.status = getNextStatus(job.status, 'RANKING_FAIL');
+    }
+
+    await job.save();
+
+    res.json({ 
+      success: true, 
+      data: { 
+        job_id, 
+        status: job.status,
+        message: success ? 'Ranking completed successfully' : 'Ranking failed'
+      } 
+    });
+  } catch (error) {
+    console.error('Error updating ranking status:', error);
+    res.status(500).json({ success: false, error: 'Failed to update ranking status' });
   }
 });
 

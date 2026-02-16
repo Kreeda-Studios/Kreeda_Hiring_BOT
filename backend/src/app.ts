@@ -14,8 +14,7 @@ import resumeRoutes from './routes/resumes';
 import processRoutes from './routes/process';
 import scoresRoutes from './routes/scores';
 import updatesRoutes from './routes/updates';
-import statusRoutes from './routes/status';
-import sseRoutes from './routes/sse';
+import progressRoutes from './routes/progress';
 
 // Import queue health check
 import { checkQueueHealth } from './config/queue';
@@ -82,12 +81,10 @@ class App {
     // API routes
     this.app.use('/api/jobs', jobRoutes);
     this.app.use('/api/resumes', resumeRoutes);
-    this.app.use('/api/procesS', processRoutes);
+    this.app.use('/api/process', processRoutes);
     this.app.use('/api/scores', scoresRoutes);
-    this.app.use('/api/status', statusRoutes);
-    this.app.use('/api/sse', sseRoutes);
     this.app.use('/api/updates', updatesRoutes);
-
+    this.app.use('/api/progress', progressRoutes);
     // 404 handler
     this.app.use('*', (req, res) => {
       res.status(404).json({

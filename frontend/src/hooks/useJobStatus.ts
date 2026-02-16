@@ -1,41 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 
-interface JobProcessingStatus {
-  id: string;
+interface Job {
+  _id: string;
   title: string;
-  status: 'draft' | 'active' | 'completed' | 'archived';
+  description?: string;
+  status: string;
   locked: boolean;
-  jd_processing: {
-    status: 'pending' | 'processing' | 'success' | 'failed';
-    progress: number;
-    error?: string;
-    job_id?: string;
-  };
-  resume_processing: {
-    status: 'pending' | 'processing' | 'success' | 'failed';
-    progress: number;
-    error?: string;
-    parent_job_id?: string;
-    total_resumes: number;
-    processing_count: number;
-    completed_count: number;
-    failed_count: number;
-  };
+  jd_file_path?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface ResumeProcessingStatus {
-  id: string;
+interface Resume {
+  _id: string;
   filename: string;
   original_name: string;
-  status: 'pending' | 'processing' | 'success' | 'failed';
-  progress: number;
-  error?: string;
-  job_id?: string;
+  status: string;
+  job_id: string;
 }
 
 interface JobStatusData {
-  job: JobProcessingStatus;
-  resumes: ResumeProcessingStatus[];
+  job: Job;
+  resumes: Resume[];
+  resumeCount: number;
 }
 
 export function useJobStatus(jobId: string) {
@@ -50,19 +37,29 @@ export function useJobStatus(jobId: string) {
       setLoading(true);
       setError(null);
 
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/status`);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch job status');
+      // Fetch job and resumes in parallel
+      const [jobResponse, resumesResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/jobs/${jobId}`),
+        fetch(`${API_BASE_URL}/resumes?job_id=${jobId}`)
+      ]);
+      
+      if (!jobResponse.ok) {
+        throw new Error('Failed to fetch job');
       }
       
-      const result = await response.json();
+      const jobResult = await jobResponse.json();
+      const resumesResult = resumesResponse.ok ? await resumesResponse.json() : { data: [], count: 0 };
       
-      if (result.success) {
-        setStatusData(result.data);
+      if (jobResult.success) {
+        setStatusData({
+          job: jobResult.data,
+          resumes: resumesResult.data || [],
+          resumeCount: resumesResult.count || 0
+        });
       } else {
-        throw new Error(result.error || 'Failed to fetch job status');
+        throw new Error(jobResult.error || 'Failed to fetch job');
       }
     } catch (err) {
       console.error('Failed to fetch job status:', err);
@@ -76,13 +73,15 @@ export function useJobStatus(jobId: string) {
     fetchStatus();
   }, [fetchStatus]);
 
-  // Utility functions
+  // Utility functions based on actual job status
   const isJDProcessingInProgress = () => {
-    return statusData?.job.jd_processing.status === 'processing';
+    const status = statusData?.job.status;
+    return status === 'jd_processing_started';
   };
 
   const isResumeProcessingInProgress = () => {
-    return statusData?.job.resume_processing.status === 'processing';
+    const status = statusData?.job.status;
+    return status === 'resume_processing_started';
   };
 
   const canUploadResumes = () => {
@@ -90,14 +89,17 @@ export function useJobStatus(jobId: string) {
   };
 
   const canStartJDProcessing = () => {
-    return !statusData?.job.locked && statusData?.job.jd_processing.status !== 'processing';
+    const status = statusData?.job.status;
+    return !statusData?.job.locked && status !== 'jd_processing_started';
   };
 
   const canStartResumeProcessing = () => {
+    const status = statusData?.job.status;
+    const hasResumes = (statusData?.resumeCount || 0) > 0;
+    
     return statusData?.job.locked && 
-           statusData?.job.jd_processing.status === 'success' &&
-           statusData?.job.resume_processing.status !== 'processing' &&
-           statusData?.job.resume_processing.total_resumes > 0;
+           status === 'jd_processing_completed' &&
+           hasResumes;
   };
 
   return {

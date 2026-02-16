@@ -22,6 +22,15 @@ export interface ScoreResult {
 
 export type JobStatus = 
   | "draft"
+  | "jd_processing_started"
+  | "jd_processing_failed"
+  | "jd_processing_completed"
+  | "resume_processing_started"
+  | "resume_processing_failed"
+  | "resume_processing_completed"
+  | "ranking_started"
+  | "ranking_completed"
+  // Legacy statuses
   | "active" 
   | "completed" 
   | "archived";
@@ -85,7 +94,7 @@ export interface CreateJobData {
 
 // ==================== RESUME TYPES ====================
 
-export type ResumeStatus = "pending" | "processing" | "complete" | "failed";
+export type ResumeStatus = "pending" | "processing" | "complete" | "failed" | "filtered";
 
 export interface Resume {
   _id: string;
@@ -106,6 +115,12 @@ export interface Resume {
   updatedAt?: string;
   processed_at?: string;
   error_message?: string;
+  scores?: {
+    hard_requirements?: {
+      meets_all_requirements: boolean;
+      filter_reason?: string;
+    };
+  };
 }
 
 export interface ParsedResume {

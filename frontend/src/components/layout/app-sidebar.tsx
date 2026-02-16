@@ -62,7 +62,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 flex h-screen flex-col border-r bg-card transition-all duration-300",
-          collapsed ? "w-[68px]" : "w-[280px]"
+          collapsed ? "w-17" : "w-70"
         )}
       >
         {/* Logo */}
