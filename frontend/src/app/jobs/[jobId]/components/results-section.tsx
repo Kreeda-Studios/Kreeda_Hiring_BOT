@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -47,6 +48,13 @@ interface ScoreData {
     filename: string;
     candidate_name?: string;
   };
+  contact?: {
+    email?: string;
+    phone?: string;
+    profile?: string;
+  };
+  location?: string;
+  years_experience?: number;
   project_score: number;
   keyword_score: number;
   semantic_score: number;
@@ -82,6 +90,10 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("final_score");
   const [filterCompliant, setFilterCompliant] = useState<"all" | "compliant" | "non-compliant">("all");
+  
+  // Selection state
+  const [selectedResumes, setSelectedResumes] = useState<Set<string>>(new Set());
+  const [downloadingBulk, setDownloadingBulk] = useState(false);
 
   // Convert scores to rankings for display
   const convertScoresToRankings = (scoreData: ScoreData[]): RankedCandidate[] => {
@@ -93,6 +105,11 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
         candidate_name: score.resume_id.candidate_name || 
                        score.resume_id.filename?.replace(/\.(pdf|doc|docx)$/i, '') || 
                        `Candidate ${index + 1}`,
+        email: score.contact?.email || '',
+        phone: score.contact?.phone || '',
+        profile: score.contact?.profile || '',
+        location: score.location || '',
+        years_experience: score.years_experience || 0,
         final_score: score.final_score,
         keyword_score: score.keyword_score,
         semantic_score: score.semantic_score,
@@ -181,6 +198,69 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
       return 0;
     });
 
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedResumes.size === filteredRankings.length && filteredRankings.length > 0) {
+      setSelectedResumes(new Set());
+    } else {
+      setSelectedResumes(new Set(filteredRankings.map(r => r.resume_id)));
+    }
+  };
+
+  const toggleSelectResume = (resumeId: string) => {
+    const newSelection = new Set(selectedResumes);
+    if (newSelection.has(resumeId)) {
+      newSelection.delete(resumeId);
+    } else {
+      newSelection.add(resumeId);
+    }
+    setSelectedResumes(newSelection);
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedResumes.size === 0) {
+      alert('Please select resumes to download');
+      return;
+    }
+
+    setDownloadingBulk(true);
+    try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
+      const response = await fetch(`${API_BASE_URL}/resumes/bulk-download`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resumeIds: Array.from(selectedResumes)
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download resumes');
+      }
+
+      // Get the blob and download it
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `resumes-${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      // Clear selection after download
+      setSelectedResumes(new Set());
+    } catch (error) {
+      console.error('Error downloading resumes:', error);
+      alert('Failed to download resumes. Please try again.');
+    } finally {
+      setDownloadingBulk(false);
+    }
+  };
+
 
   const handleExportCSV = () => {
     if (filteredRankings.length === 0) {
@@ -188,16 +268,18 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
       return;
     }
     
-    const headers = ['Rank', 'Name', 'Final Score', 'Keyword', 'Semantic', 'Project', 'Compliant', 'Group'];
+    // CSV with contact details first, then scores
+    const headers = ['Rank', 'Name', 'Phone', 'Email', 'Profile/LinkedIn', 'Final Score', 'Keyword', 'Semantic', 'Project'];
     const rows = filteredRankings.map(r => [
       r.rank,
       r.candidate_name,
+      r.phone || '',
+      r.email || '',
+      r.profile || '',
       r.final_score.toFixed(1),
       r.keyword_score.toFixed(1),
       r.semantic_score.toFixed(1),
-      r.project_score.toFixed(1),
-      r.is_compliant ? 'Yes' : 'No',
-      r.group_name || 'N/A'
+      r.project_score.toFixed(1)
     ]);
     
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -252,6 +334,21 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
+              {selectedResumes.size > 0 && (
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={handleBulkDownload}
+                  disabled={downloadingBulk}
+                >
+                  {downloadingBulk ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Download Selected ({selectedResumes.size})
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleExportCSV}>
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
@@ -316,19 +413,34 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedResumes.size === filteredRankings.length && filteredRankings.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead className="w-16">Rank</TableHead>
                     <TableHead>Candidate</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead className="text-right">Final</TableHead>
                     <TableHead className="text-right">Keyword</TableHead>
                     <TableHead className="text-right">Semantic</TableHead>
                     <TableHead className="text-right">Project</TableHead>
-                    {/* <TableHead className="text-center">Status</TableHead> */}
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredRankings.map((candidate) => (
                     <TableRow key={candidate.resume_id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedResumes.has(candidate.resume_id)}
+                          onCheckedChange={() => toggleSelectResume(candidate.resume_id)}
+                          aria-label={`Select ${candidate.candidate_name}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {candidate.rank <= 3 && (
@@ -344,8 +456,23 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                       <TableCell>
                         <div>
                           <p className="font-medium">{candidate.candidate_name}</p>
-                          <p className="text-xs text-muted-foreground">{candidate.group_name}</p>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {candidate.email ? (
+                          <a href={`mailto:${candidate.email}`} className="text-sm text-blue-600 hover:underline">
+                            {candidate.email}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">N/A</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {candidate.phone ? (
+                          <span className="text-sm">{candidate.phone}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">N/A</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <span className={`font-bold ${getScoreColor(candidate.final_score / 100)}`}>

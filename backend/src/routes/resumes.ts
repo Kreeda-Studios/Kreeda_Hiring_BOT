@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import archiver from 'archiver';
 import { Resume, Job } from '../models';
 import config from '../config';
 import { isOperationAllowed } from '../utils/jobStatus';
@@ -128,6 +129,82 @@ router.get('/:id/download', async (req: Request, res: Response): Promise<void> =
       success: false,
       error: 'Failed to download resume'
     });
+  }
+});
+
+// POST /api/resumes/bulk-download - Download multiple resumes as ZIP
+router.post('/bulk-download', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { resumeIds } = req.body;
+
+    if (!resumeIds || !Array.isArray(resumeIds) || resumeIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'Resume IDs array is required'
+      });
+      return;
+    }
+
+    // Fetch all resumes
+    const resumes = await Resume.find({ _id: { $in: resumeIds } });
+
+    if (resumes.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: 'No resumes found'
+      });
+      return;
+    }
+
+    // Create ZIP archive
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    // Set response headers
+    const timestamp = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="resumes-${timestamp}.zip"`);
+
+    // Pipe archive to response
+    archive.pipe(res);
+
+    // Add each resume file to the archive
+    let addedCount = 0;
+    for (const resume of resumes) {
+      const filePath = path.join('/app', config.uploadPath, resume.job_id.toString(), 'resumes', resume.filename);
+      
+      if (fs.existsSync(filePath)) {
+        const candidateName = (resume.parsed_content as any)?.name || resume.filename.replace(/\.(pdf|doc|docx)$/i, '');
+        const sanitizedName = candidateName.replace(/[^a-z0-9_-]/gi, '_');
+        const ext = path.extname(resume.filename);
+        const filename = `${sanitizedName}${ext}`;
+        
+        archive.file(filePath, { name: filename });
+        addedCount++;
+      } else {
+        console.warn(`File not found: ${filePath}`);
+      }
+    }
+
+    if (addedCount === 0) {
+      res.status(404).json({
+        success: false,
+        error: 'No resume files found on disk'
+      });
+      return;
+    }
+
+    // Finalize the archive
+    await archive.finalize();
+    
+    console.log(`✅ Bulk download: ${addedCount} resumes zipped successfully`);
+  } catch (error) {
+    console.error('Error during bulk download:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to create resume archive'
+      });
+    }
   }
 });
 

@@ -11,8 +11,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/ioredis": "^4.28.10",
     "@types/socket.io-client": "^1.4.36",
+    "archiver": "^7.0.1",
     "bullmq": "^5.67.2",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.6",

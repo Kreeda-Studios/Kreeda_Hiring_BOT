@@ -17,26 +17,39 @@ router.get('/resumes/:jobId', async (req: Request, res: Response) => {
       .sort({ 'scores.composite_score': -1 });
     
     // Transform to match frontend expectation
-    const scoresData = resumes.map((resume, index) => ({
-      _id: resume._id,
-      job_id: jobId,
-      resume_id: {
+    const scoresData = resumes.map((resume, index) => {
+      const parsedContent = resume.parsed_content as any;
+      
+      return {
         _id: resume._id,
-        filename: resume.filename,
-        candidate_name: (resume.parsed_content as any)?.name || resume.filename
-      },
-      project_score: resume.scores?.project_score || 0,
-      keyword_score: resume.scores?.keyword_score || 0,
-      semantic_score: resume.scores?.semantic_score || 0,
-      final_score: resume.scores?.composite_score || 0,
-      recalculated_llm_score: resume.scores?.composite_score || 0,
-      hard_requirements_met: resume.hard_requirements_met || false,
-      rank: index + 1,
-      adjusted_score: resume.scores?.composite_score || 0,
-      score_breakdown: {},
-      createdAt: resume.createdAt,
-      updatedAt: resume.updatedAt
-    }));
+        job_id: jobId,
+        resume_id: {
+          _id: resume._id,
+          filename: resume.filename,
+          candidate_name: parsedContent?.name || resume.filename
+        },
+        // Contact details
+        contact: {
+          email: parsedContent?.contact?.email || '',
+          phone: parsedContent?.contact?.phone || '',
+          profile: parsedContent?.contact?.profile || '', // LinkedIn/GitHub/Portfolio
+        },
+        location: parsedContent?.location || '',
+        years_experience: parsedContent?.years_experience || 0,
+        // Scores
+        project_score: resume.scores?.project_score || 0,
+        keyword_score: resume.scores?.keyword_score || 0,
+        semantic_score: resume.scores?.semantic_score || 0,
+        final_score: resume.scores?.composite_score || 0,
+        recalculated_llm_score: resume.scores?.composite_score || 0,
+        hard_requirements_met: resume.hard_requirements_met || false,
+        rank: index + 1,
+        adjusted_score: resume.scores?.composite_score || 0,
+        score_breakdown: {},
+        createdAt: resume.createdAt,
+        updatedAt: resume.updatedAt
+      };
+    });
     
     res.json({
       success: true,

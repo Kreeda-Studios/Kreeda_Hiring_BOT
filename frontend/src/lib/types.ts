@@ -177,6 +177,11 @@ export interface RankedCandidate {
   rank: number;
   candidate_name: string;
   name?: string;
+  email?: string;
+  phone?: string;
+  profile?: string;
+  location?: string;
+  years_experience?: number;
   final_score: number;
   keyword_score: number;
   semantic_score: number;
