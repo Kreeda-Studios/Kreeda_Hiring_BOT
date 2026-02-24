@@ -1,0 +1,55 @@
+# Kreeda Hiring Bot - .gitignore
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.docker
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.Python
+venv/
+ENV/
+.venv
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Uploaded files (optional - comment out if you want to track them)
+Uploaded_Resumes/*
+!Uploaded_Resumes/.gitkeep
+
+# Docker volumes
+mongodb_data/
+redis_data/
+
+# Testing
+coverage/
+.pytest_cache/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

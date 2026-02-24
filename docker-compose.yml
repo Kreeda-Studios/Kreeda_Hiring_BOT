@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Next.js Frontend & Backend API
+  nextjs:
+    build:
+      context: ./FullStack
+      dockerfile: Dockerfile
+    container_name: kreeda-nextjs
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongodb:27017/kreeda_hiring
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=resumes
+    volumes:
+      - ./FullStack:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - mongodb
+      - redis
+      - minio
+    networks:
+      - kreeda-network
+    command: npm run dev
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: kreeda-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=kreeda_hiring
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - kreeda-network
+    restart: unless-stopped
+
+  # Redis for Caching & Job Queue
+  redis:
+    image: redis:7-alpine
+    container_name: kreeda-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kreeda-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    container_name: kreeda-minio
+    ports:
+      - "9000:9000"      # API
+      - "9001:9001"      # Console UI
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    networks:
+      - kreeda-network
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+
+networks:
+  kreeda-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+  minio_data:
