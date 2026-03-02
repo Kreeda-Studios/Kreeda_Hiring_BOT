@@ -1,0 +1,187 @@
+{
+  "Profile": {
+    "Name": "AJOY PRASAD",
+    "Contact": "+91-9382107895",
+    "Email": "ajoyprasad2002217@gmail.com",
+    "Linkedin": "https://www.linkedin.com/in/ajoy-prasad-6bb687290",
+    "Github": "https://github.com/acrobyte007",
+    "Leetcode": null,
+    "HackerRank": null,
+    "Location": "India - West Bengal - Malda"
+  },
+  "Domain": "AIML",
+  "Confidence": 0.92,
+  "Skills": {
+    "Provided": [
+      "Python",
+      "C++",
+      "Python Development",
+      "Natural Language Processing",
+      "Machine Learning",
+      "Deep Learning",
+      "Generative AI",
+      "Optical Character Recognition",
+      "LangChain",
+      "LangGraph",
+      "Large Language Model APIs",
+      "Pinecone",
+      "PostgreSQL",
+      "AWS S3 Bucket",
+      "Git",
+      "FastAPI",
+      "RESTful APIs",
+      "JSON Web Token Authentication",
+      "Google Auth",
+      "AWS SES",
+      "Scikit-learn",
+      "TensorFlow",
+      "Hugging Face",
+      "OpenCV",
+      "NLTK",
+      "spaCy"
+    ],
+    "Inferred": [
+      "Sentence-BERT",
+      "Faiss",
+      "Chroma",
+      "Mistral API",
+      "Convolutional Neural Network",
+      "Channel Separation",
+      "SE blocks"
+    ]
+  },
+  "Experience": {
+    "Total Full-Time Experience": 4,
+    "Total Internship Experience in months": 0,
+    "Details": [
+      {
+        "company": "Gravitas AI",
+        "role": "AI Engineer",
+        "start": "1st July 2025",
+        "end": "4th November 2025",
+        "employment_type": "Full Time",
+        "skills_used": [
+          "Retrieval-Augmented Generation",
+          "Optical Character Recognition",
+          "Web scraping",
+          "Inline citations",
+          "Pinecone",
+          "API Gateway",
+          "JSON Web Token Authentication",
+          "AWS SES",
+          "AWS S3 Bucket",
+          "PostgreSQL",
+          "Semantic Retrieval"
+        ],
+        "impact": [
+          "Developed a multilingual (Hindi + English) document-based RAG chatbot with OCR, web-scraped inputs, inline\ncitations, and Pinecone-based semantic retrieval.",
+          "Implemented local serverless setup with API Gateway, JWT authentication, and AWS SES for secure access.",
+          "Managed document storage on S3 and user data (profiles, chats, messages, plans, subscriptions, usage limits)\nusing PostgreSQL."
+        ]
+      }
+    ]
+  },
+  "Projects": [
+    {
+      "title": "AI Interview Assistant",
+      "domain": null,
+      "skills_used": [
+        "FastAPI",
+        "LangGraph"
+      ],
+      "demo_link": null,
+      "code_link": "https://github.com/acrobyte007/Agentic_AI",
+      "metric_ai": {
+        "difficulty": 6,
+        "complexity": 5,
+        "domain_relevance": 8
+      }
+    },
+    {
+      "title": "Satellite Image Classification",
+      "domain": null,
+      "skills_used": [
+        "Convolutional Neural Network",
+        "Channel Separation",
+        "SE blocks"
+      ],
+      "demo_link": null,
+      "code_link": "https://github.com/acrobyte007/Optimiezed-CNN",
+      "metric_ai": {
+        "difficulty": 7,
+        "complexity": 7,
+        "domain_relevance": 8
+      }
+    },
+    {
+      "title": "RAG Based PDF Query System",
+      "domain": null,
+      "skills_used": [
+        "LangChain",
+        "Sentence-BERT",
+        "Faiss",
+        "Chroma",
+        "Mistral API",
+        "FastAPI",
+        "Python"
+      ],
+      "demo_link": null,
+      "code_link": "https://github.com/acrobyte007/PDF_Query",
+      "metric_ai": {
+        "difficulty": 8,
+        "complexity": 8,
+        "domain_relevance": 9
+      }
+    }
+  ],
+  "Educations": [
+    {
+      "start": null,
+      "end": "June 2025",
+      "college": "National Institute of Technology Bhopal (NIT Bhopal)",
+      "degree": "M.Tech in Artificial Intelligence (CSE)",
+      "department": "CSE",
+      "grade": "CGPA:6.82"
+    },
+    {
+      "start": null,
+      "end": "June 2022",
+      "college": "St. Mary’s Technical Campus Kolkata",
+      "degree": "B.Tech in Mechanical Engineering",
+      "department": "Mechanical Engineering",
+      "grade": "CGPA: 8.32"
+    }
+  ],
+  "Certifications": [],
+  "Publications": [],
+  "Achievements": [
+    "Qualified GATE with score of 496"
+  ],
+  "Processed Date": "2026-03-02",
+  "RawText": "AJOY PRASAD\nIndia - West Bengal - Malda ⋄+91-9382107895 ⋄ajoyprasad2002217@gmail.com ⋄linkedin ⋄github\nSUMMARY\nAI Developer with strong mathematical foundations, experienced in multilingual LLM apps and RAG pipelines.\nSkilled in FastAPI, LangChain, Pinecone, PostgreSQL\nEDUCATION\nM.Tech in Artificial Intelligence (CSE), National Institute of Technology Bhopal (NIT Bhopal)\nJune 2025\nCGPA:6.82\nB.Tech in Mechanical Engineering, St. Mary’s Technical Campus Kolkata\nJune 2022\nCGPA: 8.32\nSKILLS\nProgramming Languages\nPython, C++\nSpecializations\nPython Development, NLP, Machine Learning, Deep Learning,\nGenerative AI, OCR\nRAG & Agentic AI Framework\nLangChain, LangGraph, LLM APIs\nDatabases & Storage\nPinecone (Vector Database), PostgreSQL,AWS S3 Bucket\nTools and Platforms\nGit, FastAPI, RESTful APIs, JWT Authentication, Google Auth, AWS SES\nLibraries\nScikit-learn, TensorFlow, Huggingface, OpenCV, NLTK, Spacy\nEXPERIENCE\nAI Engineer — Gravitas AI\n1st July 2025 – 4th November 2025\n• Developed a multilingual (Hindi + English) document-based RAG chatbot with OCR, web-scraped inputs, inline\ncitations, and Pinecone-based semantic retrieval.\n• Implemented local serverless setup with API Gateway, JWT authentication, and AWS SES for secure access.\n• Managed document storage on S3 and user data (profiles, chats, messages, plans, subscriptions, usage limits)\nusing PostgreSQL.\nSELF PROJECTS\nAI Interview Assistant\nMay 2025\nGitHub\n• FastAPI app that analyzes resumes and generates summaries with tailored interview questions using a Lang-\nGraph workflow for experience, education, and insights extraction.\nSatellite Image Classification\nOctober 2024\nGitHub\n• Developed lightweight CNN models with 94% accuracy and 30% fewer parameters, optimized for real-time use\non low-resource platforms using channel separation and SE blocks.\nRAG Based PDF Query System\nMarch 2024\nGitHub\n• Built a Question Answering system using LangChain with project-based PDF text extraction, semantic search\nvia SBERT embeddings and Faiss, and answer generation through the Mistral API. Incorporated efficient text\nchunking.\n• Tools & Technology: Python, SBERT, Chroma, Mistral API, FastAPI\nACHIEVEMENTS\nQualified GATE with score of 496",
+  "MetaData": {
+    "Word Count": 279,
+    "Word Frequency": {
+      "ai": 6,
+      "github": 4,
+      "rag": 4,
+      "fastapi": 4,
+      "based": 4,
+      "using": 4,
+      "langchain": 3,
+      "pinecone": 3,
+      "postgresql": 3,
+      "python": 3,
+      "aws": 3,
+      "api": 3,
+      "multilingual": 2,
+      "llm": 2,
+      "education": 2,
+      "tech": 2,
+      "technology": 2,
+      "bhopal": 2,
+      "june": 2,
+      "cgpa": 2
+    }
+  }
+}

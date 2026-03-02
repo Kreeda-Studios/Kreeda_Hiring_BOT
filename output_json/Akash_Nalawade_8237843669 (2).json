@@ -1,0 +1,239 @@
+{
+  "Profile": {
+    "Name": "Akash Nalawade",
+    "Contact": "+91 8237843669",
+    "Email": "akashnalawade2003@gmail.com",
+    "Linkedin": "https://www.linkedin.com/in/akash-nalawade-20aan",
+    "Github": "https://github.com/akash200314",
+    "Leetcode": null,
+    "HackerRank": null,
+    "Location": "Pune, Maharashtra"
+  },
+  "Domain": "AIML",
+  "Confidence": 0.9,
+  "Skills": {
+    "Provided": [
+      "Machine Learning",
+      "Deep Learning",
+      "Extract, Transform, Load",
+      "Data Analysis",
+      "A/B Testing",
+      "Python",
+      "Structured Query Language",
+      "TensorFlow",
+      "PyTorch",
+      "OpenCV",
+      "Scikit-learn",
+      "Pandas",
+      "NumPy",
+      "Amazon Web Services",
+      "Google Cloud Platform",
+      "Oracle Cloud",
+      "Linux",
+      "Power BI",
+      "Tableau",
+      "Matplotlib",
+      "Seaborn",
+      "Agile Methodologies",
+      "Software Development Life Cycle",
+      "Team Leadership",
+      "Communication"
+    ],
+    "Inferred": [
+      "XGBoost",
+      "Random Forest",
+      "Logistic Regression",
+      "Feature Selection",
+      "Feature Engineering",
+      "Cross-validation",
+      "Hyperparameter Tuning",
+      "Data Balancing",
+      "Exploratory Data Analysis",
+      "Predictive Modeling",
+      "Model Deployment",
+      "Model Monitoring",
+      "Scalable Pipelines",
+      "Microsoft Excel",
+      "ETL pipelines",
+      "Generative Artificial Intelligence",
+      "Oracle Cloud Infrastructure"
+    ]
+  },
+  "Experience": {
+    "Total Full-Time Experience": 0,
+    "Total Internship Experience in months": 6,
+    "Details": [
+      {
+        "company": "Main Flow",
+        "role": "Data Science Intern",
+        "start": "Feb 2025",
+        "end": "May 2025",
+        "employment_type": "Intern",
+        "skills_used": [
+          "Machine Learning",
+          "Python",
+          "Amazon Web Services",
+          "Scalable Pipelines",
+          "Model Deployment",
+          "Model Monitoring"
+        ],
+        "impact": [
+          "Developed and deployed real-time ML models for internal analytics.",
+          "Implemented scalable pipelines using Python and AWS, improving automation efficiency by 12%.",
+          "Collaborated with engineering teams to enhance model deployment and monitoring."
+        ]
+      },
+      {
+        "company": "Unified Mentor",
+        "role": "Data Analyst Intern",
+        "start": "Oct 2024",
+        "end": "Nov 2024",
+        "employment_type": "Intern",
+        "skills_used": [
+          "Predictive Modeling",
+          "Feature Engineering",
+          "Data Cleaning",
+          "Model Evaluation",
+          "Python",
+          "Power BI"
+        ],
+        "impact": [
+          "Assisted in predictive modeling projects focused on customer segmentation and retention.",
+          "Performed feature engineering, data cleaning, and model evaluation using Python.",
+          "Created visualization dashboards using Power BI for business performance tracking."
+        ]
+      }
+    ]
+  },
+  "Projects": [
+    {
+      "title": "Customer Churn Prediction using ML Pipelines",
+      "domain": null,
+      "skills_used": [
+        "Scikit-learn",
+        "XGBoost",
+        "Feature Selection",
+        "Cross-validation",
+        "Power BI"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 7,
+        "complexity": 7,
+        "domain_relevance": 9
+      }
+    },
+    {
+      "title": "Superstore Sales & Profit Prediction using Machine Learning",
+      "domain": null,
+      "skills_used": [
+        "Scikit-learn",
+        "Random Forest",
+        "Pandas",
+        "Matplotlib",
+        "Microsoft Excel"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 5,
+        "complexity": 5,
+        "domain_relevance": 8
+      }
+    },
+    {
+      "title": "Student Pass & Fail Analysis using Machine Learning",
+      "domain": null,
+      "skills_used": [
+        "Logistic Regression",
+        "Exploratory Data Analysis",
+        "Hyperparameter Tuning",
+        "Data Balancing"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 4,
+        "complexity": 4,
+        "domain_relevance": 8
+      }
+    }
+  ],
+  "Educations": [
+    {
+      "start": null,
+      "end": "2025",
+      "college": "Dr. Babasaheb Ambedkar Technological University, Chhatrapati Sambhaji Nagar, Maharashtra",
+      "degree": "B.Tech",
+      "department": "Computer Science Engineering",
+      "grade": null
+    }
+  ],
+  "Certifications": [
+    {
+      "title": "IBM: Enterprise Data Science in Practice",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "IBM: Getting Started with Enterprise Data Science",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "AWS: AWS Academy Cloud Foundations",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "AWS: AWS Academy Cloud Architecting",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Google: Introduction to Generative AI",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Oracle: Oracle Cloud Infrastructure 2025 Certified Data Science Professional",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "IBM Skills Network: Data Analysis with Python",
+      "url": null,
+      "skills": []
+    }
+  ],
+  "Publications": [],
+  "Achievements": [],
+  "Processed Date": "2026-03-02",
+  "RawText": "Akash Nalawade\n½ Pune, Maharashtra\nQ akashnalawade2003@gmail.com\nÓ +91 8237843669\n° linkedin\n github\n| kaggle\nProfessional Summary\nData Science and Data Analysis professional with expertise in Machine Learning, Advanced Excel, EDA\nand cloud. Experienced in Python, ETL, and ML frameworks such as TensorFlow, PyTorch, and OpenCV.\nStrong understanding of Agile methodologies . Skilled in leading small, cross-functional teams and delivering\nefficient, data-driven solutions.\nExperience\nData Science Intern - Main Flow\nFeb 2025 – May 2025\n• Developed and deployed real-time ML models for internal analytics.\n• Implemented scalable pipelines using Python and AWS, improving automation efficiency by 12%.\n• Collaborated with engineering teams to enhance model deployment and monitoring.\nData Analyst Intern - Unified Mentor\nOct 2024 – Nov 2024\n• Assisted in predictive modeling projects focused on customer segmentation and retention.\n• Performed feature engineering, data cleaning, and model evaluation using Python.\n• Created visualization dashboards using Power BI for business performance tracking.\nTechnical Skills\nCore Expertise: Machine Learning, Deep Learning, ETL, Data Analysis, A/B Tests\nLanguages & Tools: Python, SQL, TensorFlow, PyTorch, OpenCV, Scikit-learn, Pandas, NumPy\nCloud & Platforms: AWS, GCP, Oracle Cloud, Linux\nVisualization: Power BI, Tableau, Matplotlib, Seaborn\nProfessional Skills: Agile Methodologies, SDLC, Team Leadership, Communication\nProjects\nCustomer Churn Prediction using ML Pipelines\nAug 2025 – Sep 2025\n• Built an end-to-end churn prediction pipeline using Scikit-learn and XGBoost achieving 92% accuracy.\n• Applied feature selection and cross-validation to improve model generalization.\n• Created interactive dashboards in Power BI for churn visualization and insights.\nSuperstore Sales & Profit Prediction using Machine Learning\nMay 2025 – Jun 2025\n• Built a regression model using Scikit-learn to predict profit from sales and discount data.\n• Conducted EDA and preprocessing with Pandas, and visualized trends using Matplotlib.\n• Tuned Random Forest Regressor for accuracy and automated result export to Excel.\nStudent Pass & Fail Analysis using Machine Learning\nJan 2025 – Feb 2025\n• Developed a Logistic Regression model to classify students into pass/fail categories.\n• Performed EDA to identify key academic and behavioral factors influencing performance.\n• Improved prediction reliability through hyperparameter tuning and data balancing techniques.\nCertifications\n• IBM: Enterprise Data Science in Practice, Getting Started with Enterprise Data Science\n• AWS: AWS Academy Cloud Foundations, AWS Academy Cloud Architecting\n• Google: Introduction to Generative AI\n• Oracle: Oracle Cloud Infrastructure 2025 Certified Data Science Professional\n• IBM Skills Network: Data Analysis with Python\nEducation\nB.Tech in Computer Science Engineering\n2025\nDr. Babasaheb Ambedkar Technological University, Chhatrapati Sambhaji Nagar, Maharashtra",
+  "MetaData": {
+    "Word Count": 369,
+    "Word Frequency": {
+      "data": 13,
+      "using": 9,
+      "science": 6,
+      "cloud": 6,
+      "learning": 5,
+      "python": 5,
+      "aws": 5,
+      "model": 5,
+      "professional": 4,
+      "analysis": 4,
+      "machine": 4,
+      "prediction": 4,
+      "eda": 3,
+      "ml": 3,
+      "engineering": 3,
+      "visualization": 3,
+      "power": 3,
+      "bi": 3,
+      "skills": 3,
+      "scikit": 3
+    }
+  }
+}

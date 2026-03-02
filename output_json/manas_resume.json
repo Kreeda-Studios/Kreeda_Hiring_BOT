@@ -10,17 +10,17 @@
     "Location": null
   },
   "Domain": "AIML",
-  "Confidence": 0.88,
+  "Confidence": 0.9,
   "Skills": {
     "Provided": [
       "Python",
       "SQL",
-      "MongoDB Query Language",
+      "MongoDB Query Language (MQL)",
       "MongoDB",
       "PostgreSQL",
       "MySQL",
       "Snowflake",
-      "Amazon Web Services Relational Database Service",
+      "AWS RDS",
       "Vector Databases",
       "Feature Engineering",
       "Machine Learning",
@@ -30,7 +30,7 @@
       "Large Language Models",
       "Embeddings",
       "Fine-Tuning",
-      "Retrieval-Augmented Generation",
+      "Retrieval-Augmented Generation (RAG)",
       "FastAPI",
       "PyMuPDF",
       "SimpleTransformers",
@@ -51,22 +51,21 @@
       "DBeaver"
     ],
     "Inferred": [
-      "FAISS",
-      "Hugging Face Embeddings",
-      "sentence-transformers",
+      "Streamlit",
+      "FAISS Vector Database",
+      "Hugging Face",
+      "sentence-transformer",
+      "Groq API",
       "Mistral",
       "Mixtral",
-      "Groq API",
-      "Aviationstack",
-      "OpenTripMap",
+      "Aviationstack API",
+      "OpenTripMap API",
       "OAuth2",
-      "Google Calendar",
-      "Google Sheets",
-      "On-Premises Data Gateway"
+      "Google Calendar API"
     ]
   },
   "Experience": {
-    "Total Full-Time Experience": 28,
+    "Total Full-Time Experience": 29,
     "Total Internship Experience in months": 0,
     "Details": [
       {
@@ -81,13 +80,14 @@
           "Google Sheets",
           "PostgreSQL",
           "Microsoft Power BI",
+          "On-Premises Data Gateway",
           "Machine Learning"
         ],
         "impact": [
           "Managed and optimized 100+ collections and databases using MongoDB.",
-          "Designed and led the development of an AI Agent ecosystem for Kazam products and services, equipping them with autonomous tools that empowered users, reduced dependency on the support team, and improved issue resolution efficiency by 40%.",
-          "Automated cross-source data workflows by fetching data from MongoDB, Google Sheets, and PostgreSQL using Python scripts, transforming it in Power BI, and scheduling daily refreshes via On-Premises Data Gateway, significantly reducing manual effort.",
-          "Introduced and deployed ML algorithms to predict EV charging prices based on time-of-day and weekday usage patterns, enabling time-based pricing strategies that optimized charger utilization and increased revenue."
+          "Designed and led the development of an AI Agent ecosystem for Kazam products and services, reducing dependency on the support team and improving issue resolution efficiency by 40%.",
+          "Automated cross-source data workflows by fetching data from MongoDB, Google Sheets, and PostgreSQL using Python scripts, transforming it in Power BI, and scheduling daily refreshes via On-Premises Data Gateway.",
+          "Developed ML models to predict EV charging prices based on time-of-day and weekday usage patterns, enabling time-based pricing strategies that optimized charger utilization and increased revenue."
         ]
       },
       {
@@ -103,32 +103,30 @@
           "FastAPI",
           "Snowflake",
           "SQL",
-          "Microsoft Power BI",
           "Machine Learning"
         ],
         "impact": [
-          "Innovated and implemented a scalable benefits extraction solution for SBC, BenHi, and EOC files by leveraging PyMuPDF for content extraction, automating data annotation in Label Studio, fine-tuning models with SimpleTransformers library, and deploying them via FastAPI, achieving response times of <1 second.",
-          "Led the benefits extraction project, developing scripts to process large datasets and analyze benefits information. Successfully handled EOC files exceeding 250 pages and extracted 100+ benefit values in just 3 seconds, ensuring high efficiency and accuracy across multiple data sources.",
-          "Executed end-to-end data analysis by extracting and transforming datasets from Snowflake using SQL, and designed interactive visualizations on the company’s web platform, delivering actionable insights that directly supported decision-making.",
-          "Discovered and deployed an ML model that automatically predicted column names from data values, improving data standardization and reducing manual mapping efforts by 90%."
+          "Implemented a scalable benefits extraction solution for SBC, BenHi, and EOC files by leveraging PyMuPDF for content extraction, automating data annotation in Label Studio, fine-tuning models with SimpleTransformers, and deploying them via FastAPI with response times of <1 second.",
+          "Handled EOC files exceeding 250 pages and extracted 100+ benefit values in just 3 seconds.",
+          "Extracted and transformed datasets from Snowflake using SQL and designed interactive visualizations on the company’s web platform.",
+          "Deployed an ML model that automatically predicted column names from data values, reducing manual mapping efforts by 90%."
         ]
       }
     ]
   },
   "Projects": [
     {
-      "title": "Improved ChatBot | Dr. RML Avadh University",
+      "title": "Improved ChatBot",
       "domain": null,
       "skills_used": [
         "Streamlit",
-        "Conversational memory",
+        "conversational memory",
         "Hugging Face Embeddings",
-        "sentence-transformers",
-        "FAISS",
+        "sentence-transformer",
+        "FAISS Vector Database",
         "Mistral",
         "Mixtral",
-        "Groq API",
-        "Large Language Models"
+        "Groq API"
       ],
       "demo_link": "",
       "code_link": "https://github.com/1506manas/An-Improved-Chatbot-for-Dr.-RML-Avadh-University",
@@ -139,15 +137,15 @@
       }
     },
     {
-      "title": "Travel Planner Agent | AI-Powered Travel Automation Tool",
+      "title": "Travel Planner Agent",
       "domain": null,
       "skills_used": [
         "Aviationstack API",
         "OpenTripMap API",
-        "Google Calendar",
+        "Google Calendar API",
         "OAuth2",
         "API integration",
-        "Automation"
+        "automation"
       ],
       "demo_link": "",
       "code_link": "https://github.com/1506manas/Travel-Planner-Agent/",
@@ -163,7 +161,7 @@
       "start": "November 2020",
       "end": "August 2024",
       "college": "Dr. Rammanohar Lohia Avadh University",
-      "degree": "Bachelor of Technology",
+      "degree": "Bachelor of Technology in Computer Science and Engineering",
       "department": "Computer Science and Engineering",
       "grade": "CGPA: 8.4"
     }
@@ -171,7 +169,7 @@
   "Certifications": [],
   "Publications": [],
   "Achievements": [],
-  "Processed Date": "2026-02-26",
+  "Processed Date": "2026-03-02",
   "RawText": "Manas Barnwal\n +91-7054418401\nData Science Engineer\n# manasmbs15@gmail.com\n§ GitHub\nï LinkedIn\nExperience\nKazam\nApril 2025 – Present\nData Science Engineer\nBengaluru\n• Managed and optimized 100+ collections and databases using MongoDB.\n• Took the initiative to design and lead the development of an AI Agent ecosystem for Kazam products and services,\nequipping them with autonomous tools that empowered users, reduced dependency on the support team, and\nimproved issue resolution efficiency by 40%.\n• Automated cross-source data workflows by fetching data from MongoDB, Google Sheets, and PostgreSQL using\nPython scripts, transforming it in Power BI, and scheduling daily refreshes via On-Premises Data Gateway, signif-\nicantly reducing manual effort.\n• Introduced and deployed ML algorithms to predict Developed ML models to predict EV charging prices based on\ntime-of-day and weekday usage patterns, enabling time-based pricing strategies that optimized charger utilization\nand increased revenue.\nSimplify Healthcare\nOctober 2023 – April 2025\nData Engineer\nRemote\n• Innovated and implemented a scalable benefits extraction solution for SBC, BenHi, and EOC files by leveraging\nPyMuPDF for content extraction, automating data annotation in Label Studio, fine-tuning models with Simple-\nTransformers library, and deploying them via FastAPI, achieving response times of <1 second.\n• Led the benefits extraction project, developing scripts to process large datasets and analyze benefits information.\nSuccessfully handled EOC files exceeding 250 pages and extracted 100+ benefit values in just 3 seconds, ensuring\nhigh efficiency and accuracy across multiple data sources.\n• Executed end-to-end data analysis by extracting and transforming datasets from Snowflake using SQL, and designed\ninteractive visualizations on the company’s web platform, delivering actionable insights that directly supported\ndecision-making.\n• Discovered and deployed an ML model that automatically predicted column names from data values, improving\ndata standardization and reducing manual mapping efforts by 90%.\nProjects\nImproved ChatBot | Dr. RML Avadh University GitHub\n• Established a Streamlit-based educational chatbot that integrated conversational memory, enhancing student\nengagement and reducing query resolution times by 25% through efficient, context-aware responses.\n• Integrated Hugging Face Embeddings of sentence-transformer with FAISS Vector Database for fast and accurate\ndocument retrieval.\n• Leveraged open-source LLMs (Mistral/Mixtral) using Groq API for query understanding and response\ngeneration, ensuring scalability and cost-effectiveness.\nTravel Planner Agent | AI-Powered Travel Automation Tool GitHub\n• Integrated Aviationstack and OpenTripMap APIs in the AI travel planner, automating real-time flight data,\nhotel availability, and tourist attraction information, managing 5 API calls per generated itinerary.\n• Integrated external APIs (Aviationstack, OpenTripMap) to fetch real-time flight data, hotels, and tourist\nattractions based on user input.\n• Automated Google Calendar event creation with OAuth2 authentication, scheduling travel details and itineraries\ndirectly for users.\nTechnical Skills\nLanguages:\nPython, SQL, MongoDB Query Language (MQL)\nData Engineering Databases:\nMongoDB, PostgreSQL, MySQL, Snowflake, AWS RDS, Vector Databases\nMachine Learning AI: Feature Engineering, Machine Learning, Deep Learning, Natural Language Processing (NLP),\nGenerative AI, Large Language Models (LLMs), Embeddings, Fine-Tuning, Retrieval-Augmented Generation (RAG)\nFrameworks Tools:\nFastAPI, PyMuPDF, SimpleTransformers, Label Studio, Ollama, Datamorph, Jupyter\nNotebook, Google Colab, Visual Studio, Python IDLE\nData Analytics Visualization:\nData Analysis, Microsoft Power BI, MS Excel, Data Visualization, Reporting\nAutomation\nOther Tools:\nMySQL Workbench, DBeaver:\nEducation\nBachelor of Technology in Computer Science and Engineering\nNovember 2020 – August 2024\nDr. Rammanohar Lohia Avadh University\nCGPA: 8.4\nRelevant Courses\nPython\nSQL\nMongoDB\nData Science\nGenAI",
   "MetaData": {
     "Word Count": 524,

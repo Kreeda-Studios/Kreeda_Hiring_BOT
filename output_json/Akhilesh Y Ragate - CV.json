@@ -1,0 +1,303 @@
+{
+  "Profile": {
+    "Name": "Akhilesh Y Ragate",
+    "Contact": "+91-9686197113",
+    "Email": "akhileshragate@gmail.com",
+    "Linkedin": "https://www.linkedin.com/in/akhilesh-y-ragate-a80460242",
+    "Github": "https://github.com/Quantamaster",
+    "Leetcode": null,
+    "HackerRank": null,
+    "Location": "Bangalore, India"
+  },
+  "Domain": "AIML",
+  "Confidence": 0.92,
+  "Skills": {
+    "Provided": [
+      "Python",
+      "C",
+      "C++",
+      "Java",
+      "SQL",
+      "JavaScript",
+      "R",
+      "TensorFlow",
+      "Keras",
+      "Scikit-Learn",
+      "OpenCV",
+      "Convolutional Neural Network",
+      "YOLO",
+      "Segment Anything Model",
+      "XGBoost",
+      "Pandas",
+      "PySpark",
+      "Extract, Transform, Load (ETL/ELT)",
+      "Data Warehousing",
+      "AWS",
+      "Oracle Cloud",
+      "Docker",
+      "Power BI",
+      "FastAPI",
+      "Git",
+      "GCP",
+      "Android Studio",
+      "Hugging Face",
+      "ChromaDB",
+      "Supabase",
+      "Gemini API",
+      "AI Studio",
+      "MySQL",
+      "Oracle Database",
+      "PostgreSQL",
+      "Windows",
+      "Linux",
+      "Android",
+      "RTOS",
+      "Command Line Interface"
+    ],
+    "Inferred": [
+      "AWS S3",
+      "AWS Lambda",
+      "AWS Glue",
+      "AWS Athena",
+      "Parquet",
+      "Serverless ETL",
+      "RESTful APIs",
+      "Audio Signal Processing",
+      "Ultrasonic Signal Processing",
+      "Remote Sensing",
+      "Geospatial Visualization",
+      "Inference Pipelines",
+      "COCO dataset",
+      "Artificial Neural Network",
+      "Convolutional Neural Network - Long Short-Term Memory",
+      "Support Vector Machine",
+      "Random Forest",
+      "Logistic Regression",
+      "PHP",
+      "Non-Destructive Testing",
+      "Satellite Imagery Analysis",
+      "PDF report generation"
+    ]
+  },
+  "Experience": {
+    "Total Full-Time Experience": 0,
+    "Total Internship Experience in months": 0,
+    "Details": [
+      {
+        "company": "Planet Eye Infra AI (Mitcon Engineering)",
+        "role": "AIML & Applications Development Intern",
+        "start": null,
+        "end": null,
+        "employment_type": "Intern",
+        "skills_used": [
+          "Image processing",
+          "Audio processing",
+          "Remote sensing",
+          "Model deployment",
+          "Convolutional Neural Network",
+          "Convolutional Neural Network - Long Short-Term Memory",
+          "Audio feature engineering",
+          "Segment Anything Model",
+          "YOLO",
+          "Geospatial Visualization",
+          "Inference Pipelines",
+          "Acoustic and ultrasonic signal analysis"
+        ],
+        "impact": [
+          "Developed ML-driven satellite imagery analysis system to detect truck layby zones and deliver geospatial visualizations and deployable inference pipelines",
+          "Enabled early defect detection and reduced manual inspection effort through AI/ML-based NDT solution for detecting wall hollowness and internal defects",
+          "Improved traceability of field observations by overlaying masks, storing latitudinal and longitudinal data within PDF reports",
+          "Developed AI&ML solutions for highway infrastructure distress detection including pothole detection for web and mobile apps"
+        ]
+      },
+      {
+        "company": "Linkzie Technologies",
+        "role": "Python Data Engineer Trainee Intern",
+        "start": null,
+        "end": null,
+        "employment_type": "Intern",
+        "skills_used": [
+          "Python",
+          "SQL",
+          "AWS S3",
+          "AWS Lambda",
+          "AWS Glue",
+          "AWS Athena",
+          "Parquet",
+          "Serverless ETL",
+          "RESTful APIs",
+          "Data cleaning",
+          "Data transformation",
+          "Schema unification"
+        ],
+        "impact": [
+          "Built serverless ETL pipeline on AWS (S3, Lambda, Glue, Athena) for real-time charging station utilization and performance analytics",
+          "Prepared aggregated, partitioned datasets for dashboarding and predictive analytics using Athena and Parquet",
+          "Implemented ETL workflows and schema unification to enable centralized e-commerce product aggregation and API-driven analytics layer"
+        ]
+      }
+    ]
+  },
+  "Projects": [
+    {
+      "title": "Kidney Stone Detection — AI/ML( Tensorflow, Keras , CNN Neural network)",
+      "domain": "AI/ML",
+      "skills_used": [
+        "TensorFlow",
+        "Keras",
+        "Convolutional Neural Network"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 8,
+        "complexity": 7,
+        "domain_relevance": 10
+      }
+    },
+    {
+      "title": "Missile Guidance System—Digital Image Processing,Computer Vision,Neural Networks",
+      "domain": "Computer Vision",
+      "skills_used": [
+        "YOLO",
+        "COCO dataset",
+        "Artificial Neural Network",
+        "Python",
+        "OpenCV"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 7,
+        "complexity": 7,
+        "domain_relevance": 8
+      }
+    },
+    {
+      "title": "Stock Price Predictor— Machine Learning (SVM, Random Forest,Logistic Regression)",
+      "domain": "Machine Learning",
+      "skills_used": [
+        "Support Vector Machine",
+        "Random Forest",
+        "Logistic Regression"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 5,
+        "complexity": 5,
+        "domain_relevance": 6
+      }
+    },
+    {
+      "title": "Exam Preparation App — Android Application Development",
+      "domain": "Android Application Development",
+      "skills_used": [
+        "Android",
+        "Android Studio"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 4,
+        "complexity": 4,
+        "domain_relevance": 2
+      }
+    },
+    {
+      "title": "Online Voting System — Database Management Systems",
+      "domain": "Database Management Systems",
+      "skills_used": [
+        "PHP",
+        "SQL"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 3,
+        "complexity": 3,
+        "domain_relevance": 2
+      }
+    }
+  ],
+  "Educations": [
+    {
+      "start": "2020",
+      "end": "2024",
+      "college": "Don Bosco Institute of Technology",
+      "degree": "Bachelor of Engineering in Computer Science",
+      "department": "Specialization in (AI & ML)",
+      "grade": "CGPA-8.5"
+    }
+  ],
+  "Certifications": [
+    {
+      "title": "Oracle - Cloud Infrastructure 2025 Data Science Professional",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Oracle - Cloud Infrastructure 2025 Generative AI Professional",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Microsoft - Azure Fundamentals with Java Fundamentals",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Udemy - Quantum Computing",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Skill Nation – Data Analysis using AI",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Cisco Networking Academy - Python Essentials",
+      "url": null,
+      "skills": []
+    },
+    {
+      "title": "Responsible AI: Applying AI Principles with Google Cloud",
+      "url": null,
+      "skills": []
+    }
+  ],
+  "Publications": [],
+  "Achievements": [
+    "Computer Society of India (CSI) Member: Participated in technical workshops and events focused on emerging technologies",
+    "Completed 150+ coding challenges on LeetCode, HackerRank, and GeeksforGeeks",
+    "Participated in GenAI hackathons and technical quizzes (Tata Crucible, Hack GenAI, GUVI)"
+  ],
+  "Processed Date": "2026-03-02",
+  "RawText": "Akhilesh Y Ragate\n½ Bangalore, India\nR akhileshragate@gmail.com\nÓ +91-9686197113\n¯ linkedin.com/in/akhilesh-y-ragate\n github.com/Quantamaster\n Portfolio\nProfessional Summary\nAI/ML Engineer with a passion for pushing the limits of what can be done with AI. and hands-on experience in\ncomputer vision, audio signal analysis, remote sensing, and data engineering. Proven ability to build and deploy\nend-to-end AI systems using CNNs, YOLO, SAM, and cloud-based ETL pipelines. Strong problem-solving\nbackground with specialize in creating innovative solutions that leverage into emerging tech. .\nEducation\nDon Bosco Institute of Technology\nBangalore, India\nBachelor of Engineering in Computer Science Specialization in (AI & ML) CGPA-8.5\n2020 – 2024\nSkills\nProgramming: Python, C, C++, Java, SQL, JavaScript,R\nAI / ML: TensorFlow, Keras, Scikit-Learn, OpenCV, CNNs, YOLO,SAM,XGBoost\nData Engineering: Pandas, PySpark, ETL/ELT, Data Warehousing\nCloud & Tools:\nAWS, Oracle Cloud, Docker, PowerBI, FastAPI, Git ,GCP,Android Studio,Hugging\nFace,chroma DB , Supabase,Gemini Api,AI Studio\nDatabases: MySQL, Oracle DB, Postgresql\nOperating System: Windows, Linux, Android, RTOS, CLI\nExperience\nAIML & Applications Development Intern\nBangalore\nPlanet Eye Infra AI (Mitcon Engineering)\n– Working on AI/ML-based applications including image ,audio processing,remote sensing and model deployment.\n– Developing an ”ML-driven satellite imagery” analysis system to detect truck layby zones along highways, deliv-\nering geospatial visualizations and deployable inference pipelines.\n– Developed an”AI/ML-based NDT solution” for detecting wall hollowness and internal defects using acoustic\n& ultrasonic signals, leveraging CNN/CNN-LSTM models and advanced audio feature engineering;currently\ninvolved in Assessment Management.\n– Enabling early defect detection, reduced manual inspection effort, improved structural safety.\n– Asset Management project “NHIT Road Distress Detection ” states using AI&ML for detection of highway\ninfrastructure, mainly developed pothole distress detection using algorithms for web and mobile app.\n– Developed a application using the SAM model that achieved a 95% accuracy rate in detecting potholes, overlaying\nmasks and storing latitudinal and longitudinal within PDF reports,improving traceability of field observations.\nPython Data Engineer Trainee Intern\nBangalore\nLinkzie Technologies\n– Built data pipelines using Python, SQL, and cloud services.Project ”Real-Time Charging Station Utilization and\nPerformance Analytics.” Built a serverless ETL pipeline on AWS using S3, Lambda, Glue, Athena, and Parquet\n– Track utilization by location and time.Identify failure patterns or maintenance needs from error logs.Optimize grid\nload, session pricing, and user experience with near-real-time insights.Prepare aggregated, partitioned datasets\nfor dashboarding, predictive analytics, and reporting using Athena.\n– Implemented ETL workflows and optimized data processing.Project”E-commerce Product Data Aggregator and\nAnalyzer”,enabling centralized product aggregation and insightful analytics through RESTful APIs\n– Implemented data cleaning, transformation, and schema unification to handle heterogeneous vendor data for-\nmats.Enabled insightful analytics such as price comparison, availability tracking, and category-wise trends.Improved\ndata accessibility and decision-making by providing a scalable, API-driven analytics layer.\nProjects\nKidney Stone Detection — AI/ML( Tensorflow, Keras , CNN Neural network)\nMain Project\n– Developed a CNN-based model to detect kidney stones from medical images.\n– This project we use technique that is used to find out kidney stones from 5mm to 10inchs in diameter which is\nusing neural networks.\n– Implemented using TensorFlow and Keras for accurate classification.\nMissile Guidance System—Digital Image Processing,Computer Vision,Neural Networks\n– Implemented ANN-based object detection using YOLO and COCO datasets.\n– Performed missile detection on static images using Python and OpenCV.\n– Using Artificial Neural Networks (ANN) along with YOLO and COCO configuration (with Python) to perform\na missile detection on a static image.\nStock Price Predictor— Machine Learning (SVM, Random Forest,Logistic Regression)\n– Built ML models using historical stock market data.\n– Applied Logistic Regression, SVM, and Random Forest techniques. Technical Analysis by means of statistics\nsuch as past price and volume and apply on machine learning technique which develop a financial data predictor\nprogram.\n– This contains the datasets storing all historical stocks prices and data will be as input for training set model of\nthe program to provide precise stock price.\nExam Preparation App — Android Application Development\n– To develop a strategy-based exam preparation app on subject wise preparation methods and implement testing\nmethods to reduce inaccuracy by computerized schedule.\n– Automated Study Scheduling: Eliminates manual planning by generating computerized, subject-wise schedules,\nreducing human error and improving preparation consistency.\n– Scalable Architecture: Modular Android app design allows easy addition of new subjects, tests, and features .\nOnline Voting System — Database Management Systems\n– Developed a secure voting platform using PHP frontend and SQL backend.\n– To implement specific task as to vote a candidate from a list ,elect or determine the result by using PHP as\nFront-end and SQL as Back-end in Database management system.\nCertifications\nOracle - Cloud Infrastructure 2025 Data Science Professional\nOracle - Cloud Infrastructure 2025 Generative AI Professional\nMicrosoft - Azure Fundamentals with Java Fundamentals\nUdemy - Quantum Computing , Skill Nation – Data Analysis using AI\nCisco Networking Academy - Python Essentials\nResponsible AI: Applying AI Principles with Google Cloud\nLANGUAGES\nEnglish - Full Professional Proficiency\nMarathi - Full Professional Proficiency\nHindi - Full Professional Proficiency\nKannada - Full Professional Proficiency\nINTERESTS\nPlaying and watching Cricket , chess, and football; listening to music, blogs, content creation & tech podcasts.\nAchievements & Activities\n– Computer Society of India (CSI) Member: Participated in technical workshops and events focused\non emerging technologies, contributing to continuous learning and professional development.\n– Completed 150+ coding challenges on LeetCode, HackerRank, and GeeksforGeeks.\n– Participated in GenAI hackathons and technical quizzes (Tata Crucible, Hack GenAI, GUVI)",
+  "MetaData": {
+    "Word Count": 863,
+    "Word Frequency": {
+      "using": 17,
+      "ai": 15,
+      "data": 15,
+      "ml": 9,
+      "professional": 8,
+      "detection": 8,
+      "cloud": 7,
+      "based": 6,
+      "python": 6,
+      "by": 6,
+      "as": 6,
+      "engineering": 5,
+      "system": 5,
+      "developed": 5,
+      "project": 5,
+      "analytics": 5,
+      "bangalore": 4,
+      "computer": 4,
+      "analysis": 4,
+      "end": 4
+    }
+  }
+}

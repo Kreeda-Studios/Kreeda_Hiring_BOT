@@ -1,0 +1,277 @@
+{
+  "Profile": {
+    "Name": "Abhishek Patidar",
+    "Contact": "+91-7415874320",
+    "Email": "ababhi9644@gmail.com",
+    "Linkedin": "https://www.linkedin.com/in/abhishek-patidar-3aa22924b/",
+    "Github": "https://github.com/Abhishek1234567899",
+    "Leetcode": null,
+    "HackerRank": null,
+    "Location": null
+  },
+  "Domain": "AIML",
+  "Confidence": 0.9,
+  "Skills": {
+    "Provided": [
+      "Python",
+      "C",
+      "LaTeX",
+      "Exploratory Data Analysis",
+      "Feature Engineering",
+      "Data Visualization",
+      "Matplotlib",
+      "Seaborn",
+      "Power BI",
+      "Supervised Learning",
+      "Unsupervised Learning",
+      "Neural Networks",
+      "Convolutional Neural Network",
+      "Generative Adversarial Network",
+      "Recurrent Neural Network",
+      "Long Short-Term Memory",
+      "Transformers",
+      "Natural Language Processing",
+      "AWS",
+      "Docker",
+      "Hadoop",
+      "Spark",
+      "Git",
+      "Jupyter",
+      "MySQL",
+      "MongoDB",
+      "TensorFlow",
+      "Scikit-learn",
+      "Keras"
+    ],
+    "Inferred": [
+      "YOLOv8",
+      "YOLOv11",
+      "Deep SORT",
+      "ByteTrack",
+      "Torchreid",
+      "LangChain",
+      "LangGraph",
+      "Streamlit",
+      "FastAPI",
+      "Twilio",
+      "Pinecone",
+      "Llama 2",
+      "OpenAI GPT",
+      "Gemini AI",
+      "Claude",
+      "Groq",
+      "Ollama",
+      "MedGemma",
+      "BIDS framework",
+      "SkinGPT-4"
+    ]
+  },
+  "Experience": {
+    "Total Full-Time Experience": 9,
+    "Total Internship Experience in months": 7,
+    "Details": [
+      {
+        "company": "Dermatics India, Surat",
+        "role": "AI Engineer",
+        "start": "June 2025",
+        "end": "Present",
+        "employment_type": "Full Time",
+        "skills_used": [
+          "LLMs",
+          "Gemini AI",
+          "OpenAI GPT",
+          "SkinGPT-4",
+          "API failover handling",
+          "Facial photo analysis",
+          "Camera-based face capture",
+          "PDF export",
+          "Real-time e-commerce product recommendations"
+        ],
+        "impact": [
+          "Led the development of an AI-powered skincare recommendation system using LLMs including Gemini AI, OpenAI GPT, and a custom-trained SkinGPT-4 for facial skin analysis and skin condition detection.",
+          "Developed a multi-step pipeline incorporating product history, facial photo analysis, skincare goals, report generation, and chatbot interaction.",
+          "Implemented multi-LLM support with robust API failover handling, improving uptime.",
+          "Enhanced user experience via camera-based face capture, interactive chat UI, PDF export, and real-time e-commerce product recommendations."
+        ]
+      },
+      {
+        "company": "Cornerstone Solutions, Indore",
+        "role": "Data Scientist Intern",
+        "start": "Dec 2024",
+        "end": "May 2025",
+        "employment_type": "Intern",
+        "skills_used": [
+          "YOLOv8",
+          "YOLOv11",
+          "Deep SORT",
+          "ByteTrack",
+          "Torchreid",
+          "BIDS framework",
+          "Real-time computer vision"
+        ],
+        "impact": [
+          "Developed real-time computer vision solutions using YOLO models (v8, v11) and drone footage for construction site monitoring and retail, including worker/machinery detection, tracking, re-identification, and progress analysis.",
+          "Designed a Real-Time Multi-Camera Person Tracking and Re-Identification system integrating YOLO for person detection with Deep SORT and ByteTrack for multi-object tracking and Torchreid for person re-identification.",
+          "Built a real-time theft detection system using YOLOv11n, integrated with alert and alarm mechanisms.",
+          "Developed Real-Time Speed Monitoring using the BIDS framework integrated with YOLOv8.",
+          "Created plant health monitoring and road monitoring systems using YOLO variants for defect detection and classification."
+        ]
+      },
+      {
+        "company": "MacroCosmos Creations (MCC) Private Limited, Bangalore",
+        "role": "Data Scientist-1 Intern",
+        "start": "Oct 2024",
+        "end": "Dec 2024",
+        "employment_type": "Intern",
+        "skills_used": [
+          "Machine Learning",
+          "Data Analysis"
+        ],
+        "impact": [
+          "Conducted data analysis and developed a machine learning-based system to predict crop-specific irrigation needs by analyzing soil moisture, crop type, growth stage, and field conditions.",
+          "Leveraged advanced ML models to optimize water usage and support sustainable agricultural practices through data-driven decision-making."
+        ]
+      }
+    ]
+  },
+  "Projects": [
+    {
+      "title": "AI Agent Mental Health Therapist Assistant",
+      "domain": null,
+      "skills_used": [
+        "Google MedGemma LLM",
+        "Ollama",
+        "OpenAI GPT-4",
+        "Gemini flash",
+        "Claude",
+        "Groq",
+        "LangChain",
+        "LangGraph",
+        "Streamlit",
+        "FastAPI",
+        "Twilio",
+        "Location services"
+      ],
+      "demo_link": null,
+      "code_link": "https://github.com/Abhishek1234567899/Mental_health_ai_agent",
+      "metric_ai": {
+        "difficulty": 8,
+        "complexity": 8,
+        "domain_relevance": 9
+      }
+    },
+    {
+      "title": "Cardiovascular Health Prediction Using ML",
+      "domain": null,
+      "skills_used": [
+        "Logistic Regression",
+        "Decision Tree",
+        "KNN",
+        "Data Collection",
+        "Exploratory Data Analysis",
+        "Feature Engineering"
+      ],
+      "demo_link": "https://heart-health-predictor-g1k5.onrender.com",
+      "code_link": "https://github.com/Abhishek1234567899/Heart-Health-Predictor.git",
+      "metric_ai": {
+        "difficulty": 7,
+        "complexity": 6,
+        "domain_relevance": 8
+      }
+    },
+    {
+      "title": "NLP-Powered Text Synthesis & Summarization (Model Training & Fine-Tuning)",
+      "domain": null,
+      "skills_used": [
+        "Recurrent Neural Network",
+        "Long Short-Term Memory",
+        "PEGASUS",
+        "Model Fine-Tuning",
+        "Sequence Models"
+      ],
+      "demo_link": null,
+      "code_link": "https://github.com/Abhishek1234567899/End-to-end-NLP-Concise-Text-Synthesis-Project.git",
+      "metric_ai": {
+        "difficulty": 7,
+        "complexity": 7,
+        "domain_relevance": 9
+      }
+    },
+    {
+      "title": "Real World Medi-Consult Chatbot using Generative AI",
+      "domain": null,
+      "skills_used": [
+        "LangChain",
+        "Llama 2",
+        "Pinecone",
+        "Generative AI",
+        "Chatbot Development"
+      ],
+      "demo_link": null,
+      "code_link": "https://github.com/Abhishek1234567899/Medi-Consult-Chatbot-System--using-Llama-2.git",
+      "metric_ai": {
+        "difficulty": 8,
+        "complexity": 8,
+        "domain_relevance": 9
+      }
+    }
+  ],
+  "Educations": [
+    {
+      "start": "Aug. 2023",
+      "end": "May 2025",
+      "college": "Indian Institute of Information Technology (IIIT Lucknow)",
+      "degree": "Masters of Science in Data Science",
+      "department": "Data Science",
+      "grade": "8.85"
+    },
+    {
+      "start": "Aug 2020",
+      "end": "May 2023",
+      "college": "Shri Vaishnav Vidyapeeth Vishwavidyalaya (SVVV Indore)",
+      "degree": "Bachelor of Science in Mathematics (Hons)",
+      "department": "Mathematics",
+      "grade": "8.46"
+    }
+  ],
+  "Certifications": [
+    {
+      "title": "Full Stack Data Science Masters certification by iNeuron.ai (July 2023 – July 2024)",
+      "url": null,
+      "skills": []
+    }
+  ],
+  "Publications": [],
+  "Achievements": [
+    "Qualified in the Joint Admission Test for Masters (JAM) (2023).",
+    "Recipient of the Tata Capital Pankh Scholarship (2020-2023).",
+    "Recipient of HDFC Bank Parivartan’s ECSS Scholarship (2023-2025)."
+  ],
+  "Processed Date": "2026-03-02",
+  "RawText": "Abhishek Patidar\n# ababhi9644@gmail.com\n +91-7415874320\nï LinkedIn\n§ GitHub\nProfile\nAI/ML Engineer Specialist focused on AI-driven solutions. Post-graduate student at IIIT Lucknow\nspecializing in Data Science with expertise in ML, DL, CV, NLP, and Generative AI. Experienced in\ndeveloping real-time computer vision applications for monitoring and healthcare. Passionate about\nleveraging AI to solve real-world challenges.\nEducation\n• Indian Institute of Information Technology (IIIT Lucknow)\nLucknow\nMasters of Science in Data Science ; CGPA: 8.85\nAug. 2023 – May 2025\n• Shri Vaishnav Vidyapeeth Vishwavidyalaya, (SVVV Indore)\nIndore\nBachelor of Science in Mathematics (Hons); CGPA: 8.46\nAug 2020 – May 2023\nExperience\nAI Engineer Full time, Dermatics India, Surat\nJune 2025 – Present\nLed the development of an AI-powered skincare recommendation system using LLMs including\nGemini AI, OpenAI GPT, and a custom-trained SkinGPT-4 for facial skin analysis and skin condition\ndetection. Developed a multi-step pipeline incorporating product history, facial photo analysis, skincare\ngoals, report generation, and chatbot interaction.\nImplemented multi-LLM support with robust API failover handling, improving uptime. Enhanced user\nexperience via camera-based face capture, interactive chat UI, PDF export, and real-time e-commerce\nproduct recommendations. Website link\nData Scientist Intern, Cornerstone Solutions, Indore\nDec 2024–May 2025\nDeveloped real-time computer vision solutions using YOLO models (v8, v11) and drone footage for\nconstruction site monitoring and retail, including worker/machinery detection, tracking, re-identification,\nand progress analysis. Key projects include:\n• Real-Time Multi-Camera Person Tracking and Re-Identification: Designed a system to\ntrack individuals across multiple videos from different camera angles. Used YOLO for person\ndetection, integrated with Deep SORT and ByteTrack for robust multi-object tracking. Applied\nTorchreid for accurate person re-identification across video sources using unique identity assignment.\nDemo Video\n• Theft Detection in Retail Shops: Developed a real-time theft detection system using\nYOLOv11n, integrated with alert and alarm mechanisms. Demo Video 1\nDemo Video 2\n• Real-Time Speed Monitoring by BIDS: Developed a system to monitor vehicle speeds in\nreal-time using BIDS framework integrated with YOLOv8 for detection and tracking.\n• Plant Health Monitoring: Created a drone-based CV system to detect stressed vegetation near\nroad divergences. Demo Video\n• Real-Time Bhopal Road Monitoring System: Built a road condition monitoring system using\nYOLOv11 to detect and classify various defects such as potholes, cracks, edge damage, and faded lane\nmarkings. The system helped in visual analysis and prioritization of road maintenance operations.\nData Scientist-1 Intern, MacroCosmos Creations (MCC) Private Limited, Bangalore\nOct 2024–Dec 2024\nConducted data analysis and developed a machine learning-based system to predict crop-specific irrigation\nneeds by analyzing soil moisture, crop type, growth stage, and field conditions. Leveraged advanced ML\nmodels to optimize water usage and support sustainable agricultural practices through data-driven\ndecision-making.\nProjects\nAI Agent Mental Health Therapist Assistant\nProject: Demo Video\nGitHub: Project Link\n• Objective: Developed an AI-driven mental health assistant with agent-based workflows,\nproviding safe and accessible therapy-like interaction.\n• Approach: Built using Google MedGemma LLM, Ollama, and multi-API support\n(GPT-4,Gemini flash , Claude, Groq). Implemented an AI Agent architecture with LangChain\nand LangGraph for agentic reasoning. Designed a full-stack pipeline with Streamlit (frontend)\nand FastAPI (backend). Integrated AI Agent tools including Twilio for emergency calls, location\nservices, and professional support routing.\n• Impact: Delivered an intelligent AI agent capable of contextual Q&A, emergency handling, and\nprofessional escalation, improving mental health support accessibility and reliability.\nCardiovascular Health Prediction Using ML\nGitHub: Project Link\nLive : Web Application\n• Objective: Develop a framework to detect early heart disease from diverse health datasets.\n• Approach: Data collection, EDA, feature engineering, and models such as Logistic Regression,\nDecision Tree, and KNN, achieving Recall and F1 Scores of 90\nNLP-Powered Text Synthesis & Summarization (Model Training & Fine-Tuning)\n• Objective: Develop an NLP framework for automatic text synthesis and summarization of lengthy\nconversations and documents.\n• Approach: Implemented sequence models (RNN with LSTM) for generating concise summaries\nfrom large datasets, and fine-tuned the PEGASUS model on the Samsum dataset for conversation\nsummarization.\nGitHub: Project Link\nPEGASUS Summarize: Project Link\nReal World Medi-Consult Chatbot using Generative AI\nGitHub: Project Link\nProject: Demo Video\n• Objective: Develop an advanced medical chatbot to provide accurate responses to health-related\nqueries using the LLM.\n• Approach: Utilized LangChain, Llama 2, and Pinecone for efficient querying.\n• Real-world Application: Used in healthcare to assist patients with medical queries, provide\npreliminary diagnoses, and recommend treatments or further consultation, enhancing accessibility to\nmedical knowledge.\nTechnical Skills\nLanguages: Python, C, LaTeX; Data Science/ML/DL/NLP: EDA, feature engineering, data visualization\n(Matplotlib, Seaborn, Power BI); supervised/unsupervised learning; neural networks (CNNs, GANs, RNNs,\nLSTMs, transformers); Cloud: AWS, Docker; Big Data: Hadoop, Spark; Developer Tools: Git, Jupyter;\nDatabases: MySQL, MongoDB. Frameworks/Tools: TensorFlow, Scikit-learn, Keras.\nAchievements and Certifications\n– Qualified in the Joint Admission Test for Masters (JAM) (2023).\n– Full Stack Data Science Masters certification by iNeuron.ai (July 2023 – July 2024). Certificate Link\n– Recipient of the Tata Capital Pankh Scholarship (2020-2023) and HDFC Bank Parivartan’s ECSS\nScholarship (2023-2025) for academic excellence. Certificate Link",
+  "MetaData": {
+    "Word Count": 800,
+    "Word Frequency": {
+      "ai": 14,
+      "data": 11,
+      "real": 11,
+      "using": 10,
+      "time": 9,
+      "system": 9,
+      "link": 8,
+      "video": 7,
+      "health": 7,
+      "project": 7,
+      "science": 6,
+      "monitoring": 6,
+      "an": 6,
+      "detection": 6,
+      "developed": 6,
+      "demo": 6,
+      "github": 5,
+      "ml": 5,
+      "analysis": 5,
+      "multi": 5
+    }
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "Profile": {
+    "Name": "ABHISHHEK SINGH",
+    "Contact": "+91 7084593728",
+    "Email": "abhishheksinghsibbu@gmail.com",
+    "Linkedin": null,
+    "Github": null,
+    "Leetcode": null,
+    "HackerRank": null,
+    "Location": "Pune , Maharastra"
+  },
+  "Domain": "Full stack",
+  "Confidence": 0.7,
+  "Skills": {
+    "Provided": [
+      "HTML",
+      "CSS",
+      "Python",
+      "MySQL",
+      "JavaScript"
+    ],
+    "Inferred": [
+      "PHP",
+      "Structured Query Language"
+    ]
+  },
+  "Experience": {
+    "Total Full-Time Experience": 0,
+    "Total Internship Experience in months": 0,
+    "Details": []
+  },
+  "Projects": [
+    {
+      "title": "Coffee Shop Management",
+      "domain": null,
+      "skills_used": [
+        "PHP",
+        "HTML",
+        "CSS",
+        "SQL",
+        "JavaScript"
+      ],
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "difficulty": 3,
+        "complexity": 3,
+        "domain_relevance": 6
+      }
+    }
+  ],
+  "Educations": [
+    {
+      "start": "2016",
+      "end": "2019",
+      "college": "Technical Education & Research Institute P. G. College Ghazipur U.P",
+      "degree": "Advance Diploma in Computer Applications",
+      "department": null,
+      "grade": null
+    },
+    {
+      "start": null,
+      "end": null,
+      "college": null,
+      "degree": "Masters in Computer Application",
+      "department": null,
+      "grade": null
+    },
+    {
+      "start": null,
+      "end": null,
+      "college": null,
+      "degree": "Bachelors in Computer  Application",
+      "department": null,
+      "grade": null
+    }
+  ],
+  "Certifications": [
+    {
+      "title": "Advance Diploma in Computer Applications",
+      "url": null,
+      "skills": []
+    }
+  ],
+  "Publications": [],
+  "Achievements": [],
+  "Processed Date": "2026-03-02",
+  "RawText": "ABHISHHEK SINGH\n+91 7084593728\nPune , Maharastra\nabhishheksinghsibbu@gmail.com\nCONTACT\nHTML\nEXPERTISE SKILLS\nHTML\nCSS\nPython\nMYSQL\nJavascript\n02\nAdvance Diploma in Computer Applications\nTechnical Education & Research Institute P. G. College\nGhazipur U.P \n(2016 - 2019)\nMasters in Computer Application\nBachelors in Computer  Application\nACADEMIC PROJECTS\n01\nS\nO\nF\nT\nW\nA\nR\nE\n \nD\nE\nV\nE\nL\nO\nP\nE\nR\nPython\n02\nJavascript\nCoffee Shop Management\n - Developed and implemented new features for the CoffeeShop\nManagement project using PHP , Html,CSS , SQL , andJava script.\n- - Developed a comprehensive management system for a local\ncoffee shop to streamline operations and enhance customer\nservice\nCERTIFICATIONS\nAdvance Diploma in Computer\nApplications\n03\n \n03",
+  "MetaData": {
+    "Word Count": 80,
+    "Word Frequency": {
+      "computer": 4,
+      "html": 3,
+      "management": 3,
+      "css": 2,
+      "python": 2,
+      "javascript": 2,
+      "advance": 2,
+      "diploma": 2,
+      "applications": 2,
+      "application": 2,
+      "coffee": 2,
+      "shop": 2,
+      "developed": 2,
+      "abhishhek": 1,
+      "singh": 1,
+      "pune": 1,
+      "maharastra": 1,
+      "abhishheksinghsibbu": 1,
+      "gmail": 1,
+      "com": 1
+    }
+  }
+}
