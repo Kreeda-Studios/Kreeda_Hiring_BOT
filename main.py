@@ -50,6 +50,7 @@ client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 # ──────────────────────────────────────────────
 
 class MetricAI(BaseModel):
+    impact: float
     difficulty: int
     complexity: int
     domain_relevance: int
@@ -57,8 +58,6 @@ class MetricAI(BaseModel):
 
 class Project(BaseModel):
     title: Optional[str]
-    domain: Optional[str]
-    skills_used: List[str]
     demo_link: Optional[str]
     code_link: Optional[str]
     metric_ai: MetricAI
@@ -70,7 +69,6 @@ class ExperienceDetail(BaseModel):
     start: Optional[str]
     end: Optional[str]
     employment_type: Optional[str]
-    skills_used: List[str]
     impact: List[str]
 
 
@@ -83,6 +81,7 @@ class Experience(BaseModel):
 class Skills(BaseModel):
     provided: List[str]
     inferred: List[str]
+    soft_skills: List[str]
 
 
 class Education(BaseModel):
@@ -92,18 +91,6 @@ class Education(BaseModel):
     degree: Optional[str]
     department: Optional[str]
     grade: Optional[str]
-
-
-class Certification(BaseModel):
-    title: Optional[str]
-    url: Optional[str]
-    skills: List[str]
-
-
-class Publication(BaseModel):
-    title: Optional[str]
-    url: Optional[str]
-    skills: List[str]
 
 
 class Profile(BaseModel):
@@ -125,8 +112,7 @@ class ResumeExtraction(BaseModel):
     experience: Experience
     projects: List[Project]
     educations: List[Education]
-    certifications: List[Certification]
-    publications: List[Publication]
+    certifications: List[str]
     achievements: List[str]
 
 
@@ -153,10 +139,10 @@ You MUST follow these rules:
 
 . Allowed Generated Fields
   You are ONLY allowed to generate:
-  - "Domain"
-  - "Confidence"
-  - "Skills.Inferred"
-  - "Projects[].Metric(AI)"
+  - "domain"
+  - "confidence"
+  - "skills.inferred"
+  - "projects[].metric_ai"
   Everything else must be extracted strictly from resume content.
 
 . Domain Rules
@@ -165,131 +151,59 @@ You MUST follow these rules:
   - AIML
   - UI/UX
   - QA
-  You must provide "Confidence" as a float between 0 and 1.
+  You must provide "confidence" as a float between 0 and 1.
   Do not invent domain outside the allowed list.
 
 . Experience Rules
   - Convert all experience durations into months (integer values).
-  - "Total Full-Time Experience" must be in months.
-  - "Total Internship Experience in months" must be in months.
+  - "total_full_time_experience" must be in months.
+  - "total_internship_experience_in_months" must be in months.
   - If role says "Present", calculate until current date: """ + date.today().isoformat() + """.
   - Do not double count overlapping periods.
   - If dates are missing → exclude from total calculation.
   - Employment_type must be exactly one of: Full Time, Part Time,Intern,Intern above 6 months, Contractual.
 
 . Skills Rules
-  - Provided: Extract only from explicit Skills section in the resume.
-  - Inferred: Infer only from Experience, Projects, Certifications, Education sections.
+  - provided: Extract ONLY EXPLICIT HARD/TECHNICAL SKILLS from the resume. Do NOT include soft skills here.
+  - inferred: Infer explicit HARD/TECHNICAL SKILLS from Experience, Projects, Certifications, Education sections, STRICTLY No explanation of the skill, and the skill should be in the resume.
+  - soft_skills: Extract any soft skills (e.g. "Analytical thinking", "Team collaboration", "Problem solving") here.
   - Do not invent technologies not mentioned anywhere in the resume.
 
 . Projects Rules
-  For each project extract: Title, Domain (if explicitly mentioned, else null), Skills Used, Demo link (only if explicitly present), Code Link (only if explicitly present).
-  You must generate "Metric(AI)" with:
-  - Difficulty (1–10)
-  - Complexity (1–10)
-  - Domain relevance (1–10)
+  For each project extract: Title, Demo link (if explicitly present), Code Link (if explicitly present).
+  You must generate "metric_ai" with:
+  - impact (0.0 to 1.0)
+  - difficulty (1–10)
+  - complexity (1–10)
+  - domain_relevance (1–10)
   Metrics must reflect technical depth, architecture sophistication, and alignment with chosen Domain. Do not inflate scores.
 
 . Hyperlink Rules
   - The resume may contain embedded hyperlinks. These will be provided separately.
-  - Use them to populate LinkedIn, Github, Leetcode, HackerRank, Demo link, Code Link, Certification URL.
+  - Use them to populate linkedin, github, leetcode, hackerrank, demo_link, code_link.
   - If a hyperlink is available for a profile or link field, use the full hyperlink URL.
   - Do not fabricate any URLs.
 
-  . Education Rules
-  - Extract: Start, End, College, Degree, Department, Grade exactly as written.
+. Education Rules
+  - Extract: start, end, college, degree, department, grade exactly as written.
   - If any field is missing, return null.
 
 . Explicit Null and Empty Rules
-  - Missing Sections: If an entire section (e.g. Projects, Publications, Certifications, Achievements) is missing, return an empty array `[]`, NOT an array containing an object with null values.
-  - Array Cleanliness: Do not populate arrays (like Achievements or Impact) with empty strings `""`, or hallucinated metadata keys like `processed_date` or `rawtext`.
-  - Missing Strings: If a string field (like Demo link, Code Link, URL) is missing, ALWAYS return `null`. NEVER return an empty string `""`.
+  - Missing Sections: If an entire section (e.g. projects, certifications, achievements) is missing, return an empty array `[]`.
+  - Array Cleanliness: Do not populate arrays (like achievements or impact) with empty strings `""`, or hallucinated keys.
+  - Missing Strings: If a string field is missing, ALWAYS return `null`. NEVER return an empty string `""`.
 
 . Strict Achievements Rules
   - Do NOT extract random hyperlinks, URLs, or labels (e.g. "Certificate Link", "Website link", "Demo Video") into Achievements.
-  - Do NOT extract bullet points that belong in Projects or Experience sections. Only extract explicit awards, honors, competitive ranks, or scholarships into Achievements.
-  - Do NOT hallucinate schema keys (like "processed date" or "rawtext" or "metadata") as strings inside the Achievements array.
-
-. Strict Output Schema
-  Return EXACTLY this JSON structure:
-  {
-    "Profile": {
-      "Name": "",
-      "Contact": "",
-      "Email": "",
-      "Linkedin": "",
-      "Github": "",
-      "Leetcode": "",
-      "HackerRank": "",
-      "Location": ""
-    },
-    "Domain": "",
-    "Confidence": 0.0,
-    "Skills": {
-      "Provided": [],
-      "Inferred": []
-    },
-    "Experience": {
-      "Total Full-Time Experience": 0,
-      "Total Internship Experience in months": 0,
-      "Details": [
-        {
-          "Company": "",
-          "Role": "",
-          "Start": "",
-          "End": "",
-          "Employment_type": "",
-          "Skills Used": [],
-          "Impact": []
-        }
-      ]
-    },
-    "Projects": [
-      {
-        "Title": "",
-        "Domain": "",
-        "Skills Used": [],
-        "Demo link": "",
-        "Code Link": "",
-        "Metric(AI)": {
-          "Difficulty": 0,
-          "Complexity": 0,
-          "Domain relevance": 0
-        }
-      }
-    ],
-    "Educations": [
-      {
-        "Start": "",
-        "End": "",
-        "College": "",
-        "Degree": "",
-        "Department": "",
-        "Grade": ""
-      }
-    ],
-    "Certifications": [
-      {
-        "Title": "",
-        "URL": "",
-        "Skills": []
-      }
-    ],
-    "Publications": [
-      {
-        "Title": "",
-        "URL": "",
-        "Skills": []
-      }
-    ],
-    "Achievements": []
-  }
+  - Do NOT extract bullet points that belong in Projects or Experience sections. 
+  - MERGE any publications, hackathons, and contests directly into the achievements array.
+  - Only extract explicit awards, honors, competitive ranks, publications, or scholarships into achievements.
 
 . Failure Condition
   If resume text is empty or malformed, return:
   {"error": "Invalid resume text"}
 
-. All skills listed under "Skills → Provided" must be returned in their full, expanded form, and STRICTLY no explanation of the skills(only skill name).
+. All skills listed under "skills.provided" must be returned in their full, expanded form, and STRICTLY no explanation of the skills(only skill name).
 
   If a skill appears in abbreviated or short form in the resume, you must convert it to its complete, standardized form.
 
@@ -334,8 +248,8 @@ def compute_metadata(raw_text: str) -> dict:
     meaningful = [w for w in words if w not in STOPWORDS]
     freq = dict(Counter(meaningful).most_common(20))
     return {
-        "Word Count": len(words),
-        "Word Frequency": freq
+        "word_count": len(words),
+        "word_frequency": freq
     }
 
 
@@ -367,44 +281,15 @@ async def extract_resume_data(raw_text: str, hyperlinks: list[str]) -> ResumeExt
   return response.output_parsed
 
 # ──────────────────────────────────────────────
-# CONVERT TO FINAL FORMAT (YOUR REQUIRED SHAPE)
+# CONVERT TO FINAL FORMAT
 # ──────────────────────────────────────────────
 
 def transform_output(data: ResumeExtraction, raw_text: str) -> dict:
-
-    d = data.model_dump()
-
-    return {
-        "Profile": {
-            "Name": d["profile"]["name"],
-            "Contact": d["profile"]["contact"],
-            "Email": d["profile"]["email"],
-            "Linkedin": d["profile"]["linkedin"],
-            "Github": d["profile"]["github"],
-            "Leetcode": d["profile"]["leetcode"],
-            "HackerRank": d["profile"]["hackerrank"],
-            "Location": d["profile"]["location"],
-        },
-        "Domain": d["domain"],
-        "Confidence": d["confidence"],
-        "Skills": {
-            "Provided": d["skills"]["provided"],
-            "Inferred": d["skills"]["inferred"],
-        },
-        "Experience": {
-            "Total Full-Time Experience": d["experience"]["total_full_time_experience"],
-            "Total Internship Experience in months": d["experience"]["total_internship_experience_in_months"],
-            "Details": d["experience"]["details"],
-        },
-        "Projects": d["projects"],
-        "Educations": d["educations"],
-        "Certifications": d["certifications"],
-        "Publications": d["publications"],
-        "Achievements": d["achievements"],
-        "Processed Date": date.today().isoformat(),
-        "RawText": raw_text.strip(),
-        "MetaData": compute_metadata(raw_text),
-    }
+    result = data.model_dump()
+    result["processed_date"] = date.today().isoformat()
+    result["raw_text"] = raw_text.strip()
+    result["meta_data"] = compute_metadata(raw_text)
+    return result
 
 
 # ──────────────────────────────────────────────

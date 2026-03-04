@@ -1,22 +1,22 @@
 {
-  "Profile": {
-    "Name": "Abhishek Kumar Ram",
-    "Contact": "+91 9123082964",
-    "Email": "ramabhishek04102001@gmail.com",
-    "Linkedin": "https://www.google.com/search?q=https://linkedin.com/in/abhishek-ram-/",
-    "Github": "https://github.com/Abhishek147ram/python-basic/blob/main/6_EDA_Flight_Price_data.ipynb",
-    "Leetcode": null,
-    "HackerRank": null,
-    "Location": "Kolkata, West Bengal, India - 700129"
+  "profile": {
+    "name": "Abhishek Kumar Ram",
+    "contact": "+91 9123082964",
+    "email": "ramabhishek04102001@gmail.com",
+    "linkedin": "https://www.google.com/search?q=https://linkedin.com/in/abhishek-ram-/",
+    "github": "https://github.com/Abhishek147ram/python-basic/blob/main/6_EDA_Flight_Price_data.ipynb",
+    "leetcode": null,
+    "hackerrank": null,
+    "location": "Kolkata, West Bengal, India - 700129"
   },
-  "Domain": "AIML",
-  "Confidence": 0.9,
-  "Skills": {
-    "Provided": [
+  "domain": "AIML",
+  "confidence": 0.9,
+  "skills": {
+    "provided": [
       "Python",
       "Pandas",
       "NumPy",
-      "Scikit-Learn",
+      "Scikit-learn",
       "Matplotlib",
       "Seaborn",
       "MySQL",
@@ -48,41 +48,37 @@
       "Jupyter Notebook",
       "Visual Studio Code",
       "ETL Pipelines",
+      "Web Scraping",
+      "Sentiment Analysis",
+      "Exploratory Data Analysis",
+      "Data Visualization"
+    ],
+    "inferred": [
+      "Model Deployment",
+      "Data Cleaning",
+      "Preprocessing Pipelines",
+      "Hyperparameter Tuning",
+      "Customer Churn Prediction"
+    ],
+    "soft_skills": [
       "Analytical Thinking",
       "Problem Solving",
       "Clear Communication",
       "Business Understanding",
       "Team Collaboration",
       "Continuous Learning"
-    ],
-    "Inferred": [
-      "Random Forest",
-      "Logistic Regression",
-      "Web Scraping",
-      "Sentiment Analysis",
-      "Prompt Chaining",
-      "Customer Churn Prediction",
-      "Forecasting"
     ]
   },
-  "Experience": {
-    "Total Full-Time Experience": 0,
-    "Total Internship Experience in months": 8,
-    "Details": [
+  "experience": {
+    "total_full_time_experience": 0,
+    "total_internship_experience_in_months": 11,
+    "details": [
       {
         "company": "Shamgar Software Solutions",
         "role": "Data Scientist Intern",
         "start": "Nov 2025",
         "end": "Present",
         "employment_type": "Intern",
-        "skills_used": [
-          "Python",
-          "Machine Learning",
-          "Feature Engineering",
-          "Hyperparameter Tuning",
-          "Data Cleaning",
-          "Model Deployment"
-        ],
         "impact": [
           "Developed and deployed end-to-end ML pipelines, improving model accuracy by 22% on a 50k-record dataset through optimized feature engineering and hyperparameter tuning.",
           "Engineered customer churn prediction models, resulting in a 20% improvement in customer retention rates.",
@@ -95,16 +91,6 @@
         "start": "Sept 2025",
         "end": "Nov 2025",
         "employment_type": "Intern",
-        "skills_used": [
-          "Data Extraction",
-          "Data Cleaning",
-          "Forecasting",
-          "Feature Engineering",
-          "Python",
-          "Pandas",
-          "Matplotlib",
-          "Exploratory Data Analysis"
-        ],
         "impact": [
           "Assisted in data extraction and cleaning for large-scale projects, ensuring data quality while improving forecast accuracy by 15%.",
           "Reduced manual feature engineering effort by 30% through the implementation of efficient data processing scripts.",
@@ -117,16 +103,6 @@
         "start": "July 2025",
         "end": "Sept 2025",
         "employment_type": "Intern",
-        "skills_used": [
-          "Python",
-          "SQL",
-          "Machine Learning",
-          "Classification",
-          "Regression",
-          "Clustering",
-          "Preprocessing Pipelines",
-          "Power BI"
-        ],
         "impact": [
           "Optimized machine learning models (classification, regression, and clustering) using Python and SQL to drive actionable business insights.",
           "Automated preprocessing pipelines and built Power BI dashboards, enhancing stakeholder decision-making efficiency by 40%."
@@ -134,75 +110,42 @@
       }
     ]
   },
-  "Projects": [
+  "projects": [
     {
       "title": "Cryptocurrency Volatility Prediction",
-      "domain": null,
-      "skills_used": [
-        "Python",
-        "SQL",
-        "Pandas",
-        "NumPy",
-        "Scikit-Learn",
-        "Matplotlib",
-        "Seaborn",
-        "Feature Engineering",
-        "Model Evaluation",
-        "Data Visualization"
-      ],
       "demo_link": null,
-      "code_link": null,
+      "code_link": "https://github.com/Abhishek147ram/python-basic/blob/main/6_EDA_Flight_Price_data.ipynb",
       "metric_ai": {
-        "difficulty": 6,
+        "impact": 0.6,
+        "difficulty": 5,
         "complexity": 5,
         "domain_relevance": 8
       }
     },
     {
       "title": "Myntra Review Scraper Data Analysis",
-      "domain": null,
-      "skills_used": [
-        "Python",
-        "Pandas",
-        "NumPy",
-        "Matplotlib",
-        "Seaborn",
-        "Web Scraping",
-        "Data Cleaning",
-        "Sentiment Analysis",
-        "Exploratory Data Analysis",
-        "Data Visualization"
-      ],
       "demo_link": null,
-      "code_link": null,
+      "code_link": "https://github.com/Abhishek147ram/python-basic/blob/main/7_EDA_US_Visa.ipynb",
       "metric_ai": {
-        "difficulty": 4,
+        "impact": 0.5,
+        "difficulty": 5,
         "complexity": 4,
-        "domain_relevance": 6
+        "domain_relevance": 7
       }
     },
     {
       "title": "Fraud Detection System using OpenAI API and prompt chaining.",
-      "domain": null,
-      "skills_used": [
-        "Python",
-        "Scikit-Learn",
-        "Pandas",
-        "OpenAI API",
-        "Prompt Chaining",
-        "Classification",
-        "Model Evaluation"
-      ],
       "demo_link": null,
-      "code_link": null,
+      "code_link": "https://github.com/Abhishek147ram/python-basic/blob/main/Abhishek_Mini_Project.ipynb",
       "metric_ai": {
+        "impact": 0.7,
         "difficulty": 7,
-        "complexity": 6,
+        "complexity": 7,
         "domain_relevance": 9
       }
     }
   ],
-  "Educations": [
+  "educations": [
     {
       "start": "July 2025",
       "end": "January 2026 (Expected)",
@@ -220,40 +163,23 @@
       "grade": null
     }
   ],
-  "Certifications": [
-    {
-      "title": "Prompt Engineering with GenAI",
-      "url": null,
-      "skills": []
-    },
-    {
-      "title": "Python for Data Analysis",
-      "url": null,
-      "skills": []
-    },
-    {
-      "title": "SQL Fundamentals",
-      "url": null,
-      "skills": []
-    },
-    {
-      "title": "Diploma in Data Science & Generative AI",
-      "url": null,
-      "skills": []
-    }
+  "certifications": [
+    "Prompt Engineering with GenAI | Microsoft | 2025",
+    "Python for Data Analysis | PwC | 2025",
+    "SQL Fundamentals | Physics Wallah Institute | 2025",
+    "Diploma in Data Science & Generative AI | Physics Wallah Institute | Expected Jan 2026"
   ],
-  "Publications": [],
-  "Achievements": [
+  "achievements": [
     "Reduced manual data processing efforts by 30% by automating data cleaning and preprocessing workflows using Python.",
     "Improved forecasting model accuracy by 15% through feature engineering and optimized model evaluation techniques.",
     "Enhanced machine learning model performance by 22% on structured business datasets using hyperparameter tuning and cross-\nvalidation.",
     "Delivered executive-ready dashboards in Power BI, improving reporting efficiency and decision-making turnaround time by 40%."
   ],
-  "Processed Date": "2026-03-02",
-  "RawText": "Abhishek Kumar Ram\n                                                                                               Data Scientist | Data Analyst | Gen AI\n                                        +91 9123082964 | ramabhishek04102001@gmail.com | LinkedIn | GitHub | Location : Kolkata, West Bengal, India - 700129\nProfessional Summary\nData Scientist with a strong background in Physics and hands-on experience building end-to-end ML solutions using Python and SQL. Specialized in\nbridging mathematical rigor with Generative AI to drive impact in sales analytics, forecasting, and customer retention. Proven track record of automating\ncomplex workflows and translating ambiguous business challenges into measurable, data-driven outcomes.\nTechnical Skills\nProgramming & Databases: Python (Pandas, NumPy, Scikit-learn, Matplotlib, Seaborn), MySQL\nMachine Learning: Classification, Regression, Clustering, Time Series Forecasting, Feature Engineering, Cross-Validation, Model Evaluation\nDeep Learning: Neural Networks (ANN, CNN, RNN, LSTM), TensorFlow, Keras, PyTorch\nAI & Generative AI: Generative AI, Large Language Models (LLMs), Transformer Architecture, Prompt Engineering, OpenAI API, LangChain, AI Agents\nData Analysis & Core Concepts: Statistical Analysis, Numerical Methods (Physics)\nTools & BI: Power BI, Git, Jupyter Notebook, VS Code, ETL Pipelines\nSoft Skills: Analytical Thinking, Problem Solving, Clear Communication, Business Understanding, Team Collaboration,Continuous Learning\nEducation\nDiploma in Data Science with Generative AI (Pursuing, Online)| Physics Wallah Institute | July 2025  -  January 2026 (Expected)\nCompleted specialized modules on foundational Gen AI concepts, including Transformer architecture and Large Language Models\n(LLMs).\nFocused coursework on building ML pipelines, model evaluation, and deployment basics.\nBachelor in Physics (Honors) | West Bengal State University | Sept 2021 - May 2025 \nRelevant Coursework: Applied Mathematics, Numerical Methods, Statistics, Computational Physics\nConducted research involving data modeling, statistical analytics, and experimental data interpretation.\nExperience\nData Scientist Intern | Shamgar Software Solutions | Kolkata, India | Nov 2025 – Present | \nDeveloped and deployed end-to-end ML pipelines, improving model accuracy by 22% on a 50k-record dataset through optimized\nfeature engineering and hyperparameter tuning.\nEngineered customer churn prediction models, resulting in a 20% improvement in customer retention rates.\nAutomated data cleaning and preprocessing workflows using Python scripts, reducing manual workload by 30%.\nData Scientist Intern | EvoAstra Ventures | Remote | Sept 2025 – Nov 2025  | \nAssisted in data extraction and cleaning for large-scale projects, ensuring data quality while improving forecast accuracy by 15%.\nReduced manual feature engineering effort by 30% through the implementation of efficient data processing scripts.\n   Performed Exploratory Data Analysis (EDA) using Pandas and Matplotlib to identify critical trends and anomalies.\nData Scientist Intern | AISECT | Remote | July 2025 – Sept 2025  | \nOptimized machine learning models (classification, regression, and clustering) using Python and SQL to drive actionable business\ninsights.\nAutomated preprocessing pipelines and built Power BI dashboards, enhancing stakeholder decision-making efficiency by 40%.\nTool Stack: It explicitly mentions Python, SQL, and Power BI.\nProjects\n Cryptocurrency Volatility Prediction | [CODE]\nBuilt Random Forest and Logistic Regression models to predict price volatility using historical trading data.\nImproved model accuracy by 18% through rigorous feature engineering and hyperparameter tuning.\nAutomated data preprocessing and delivered visual risk-management insights using Matplotlib and Seaborn.\nSkills: Python, SQL, Pandas, NumPy, Scikit‑Learn, Matplotlib, Seaborn, Feature Engineering, Model Evaluation, Data Visualization.\nMyntra Review Scraper Data Analysis | [CODE]\nDeveloped a web scraper to extract customer reviews from Myntra for sentiment trend identification.\nPerformed Exploratory Data Analysis (EDA) to uncover key factors influencing customer satisfaction.\nDelivered actionable marketing insights through data visualizations, supporting product improvement strategies.\nSkills: Python, Pandas, NumPy, Matplotlib, Seaborn, Web Scraping, Data Cleaning, Sentiment Analysis, EDA, Data Visualization\nFraud Detection System using OpenAI API and prompt chaining. | [CODE]\nDeveloped a classification model to detect fraudulent transactions, achieving a 92% F1-score.\nLLM Insight Generator: Built a separate tool using OpenAI API and prompt chaining to generate sales insights.\nSkills : Python, Scikit-Learn, Pandas, OpenAI API\nCertifications\nPrompt Engineering with GenAI | Microsoft | 2025\nPython for Data Analysis | PwC | 2025\nSQL Fundamentals | Physics Wallah Institute | 2025\nDiploma in Data Science & Generative AI | Physics Wallah Institute | Expected Jan 2026\nAchievements\nReduced manual data processing efforts by 30% by automating data cleaning and preprocessing workflows using Python.\nImproved forecasting model accuracy by 15% through feature engineering and optimized model evaluation techniques.\nEnhanced machine learning model performance by 22% on structured business datasets using hyperparameter tuning and cross-\nvalidation.\nDelivered executive-ready dashboards in Power BI, improving reporting efficiency and decision-making turnaround time by 40%.",
-  "MetaData": {
-    "Word Count": 646,
-    "Word Frequency": {
+  "processed_date": "2026-03-04",
+  "raw_text": "Abhishek Kumar Ram\n                                                                                               Data Scientist | Data Analyst | Gen AI\n                                        +91 9123082964 | ramabhishek04102001@gmail.com | LinkedIn | GitHub | Location : Kolkata, West Bengal, India - 700129\nProfessional Summary\nData Scientist with a strong background in Physics and hands-on experience building end-to-end ML solutions using Python and SQL. Specialized in\nbridging mathematical rigor with Generative AI to drive impact in sales analytics, forecasting, and customer retention. Proven track record of automating\ncomplex workflows and translating ambiguous business challenges into measurable, data-driven outcomes.\nTechnical Skills\nProgramming & Databases: Python (Pandas, NumPy, Scikit-learn, Matplotlib, Seaborn), MySQL\nMachine Learning: Classification, Regression, Clustering, Time Series Forecasting, Feature Engineering, Cross-Validation, Model Evaluation\nDeep Learning: Neural Networks (ANN, CNN, RNN, LSTM), TensorFlow, Keras, PyTorch\nAI & Generative AI: Generative AI, Large Language Models (LLMs), Transformer Architecture, Prompt Engineering, OpenAI API, LangChain, AI Agents\nData Analysis & Core Concepts: Statistical Analysis, Numerical Methods (Physics)\nTools & BI: Power BI, Git, Jupyter Notebook, VS Code, ETL Pipelines\nSoft Skills: Analytical Thinking, Problem Solving, Clear Communication, Business Understanding, Team Collaboration,Continuous Learning\nEducation\nDiploma in Data Science with Generative AI (Pursuing, Online)| Physics Wallah Institute | July 2025  -  January 2026 (Expected)\nCompleted specialized modules on foundational Gen AI concepts, including Transformer architecture and Large Language Models\n(LLMs).\nFocused coursework on building ML pipelines, model evaluation, and deployment basics.\nBachelor in Physics (Honors) | West Bengal State University | Sept 2021 - May 2025 \nRelevant Coursework: Applied Mathematics, Numerical Methods, Statistics, Computational Physics\nConducted research involving data modeling, statistical analytics, and experimental data interpretation.\nExperience\nData Scientist Intern | Shamgar Software Solutions | Kolkata, India | Nov 2025 – Present | \nDeveloped and deployed end-to-end ML pipelines, improving model accuracy by 22% on a 50k-record dataset through optimized\nfeature engineering and hyperparameter tuning.\nEngineered customer churn prediction models, resulting in a 20% improvement in customer retention rates.\nAutomated data cleaning and preprocessing workflows using Python scripts, reducing manual workload by 30%.\nData Scientist Intern | EvoAstra Ventures | Remote | Sept 2025 – Nov 2025  | \nAssisted in data extraction and cleaning for large-scale projects, ensuring data quality while improving forecast accuracy by 15%.\nReduced manual feature engineering effort by 30% through the implementation of efficient data processing scripts.\n   Performed Exploratory Data Analysis (EDA) using Pandas and Matplotlib to identify critical trends and anomalies.\nData Scientist Intern | AISECT | Remote | July 2025 – Sept 2025  | \nOptimized machine learning models (classification, regression, and clustering) using Python and SQL to drive actionable business\ninsights.\nAutomated preprocessing pipelines and built Power BI dashboards, enhancing stakeholder decision-making efficiency by 40%.\nTool Stack: It explicitly mentions Python, SQL, and Power BI.\nProjects\n Cryptocurrency Volatility Prediction | [CODE]\nBuilt Random Forest and Logistic Regression models to predict price volatility using historical trading data.\nImproved model accuracy by 18% through rigorous feature engineering and hyperparameter tuning.\nAutomated data preprocessing and delivered visual risk-management insights using Matplotlib and Seaborn.\nSkills: Python, SQL, Pandas, NumPy, Scikit‑Learn, Matplotlib, Seaborn, Feature Engineering, Model Evaluation, Data Visualization.\nMyntra Review Scraper Data Analysis | [CODE]\nDeveloped a web scraper to extract customer reviews from Myntra for sentiment trend identification.\nPerformed Exploratory Data Analysis (EDA) to uncover key factors influencing customer satisfaction.\nDelivered actionable marketing insights through data visualizations, supporting product improvement strategies.\nSkills: Python, Pandas, NumPy, Matplotlib, Seaborn, Web Scraping, Data Cleaning, Sentiment Analysis, EDA, Data Visualization\nFraud Detection System using OpenAI API and prompt chaining. | [CODE]\nDeveloped a classification model to detect fraudulent transactions, achieving a 92% F1-score.\nLLM Insight Generator: Built a separate tool using OpenAI API and prompt chaining to generate sales insights.\nSkills : Python, Scikit-Learn, Pandas, OpenAI API\nCertifications\nPrompt Engineering with GenAI | Microsoft | 2025\nPython for Data Analysis | PwC | 2025\nSQL Fundamentals | Physics Wallah Institute | 2025\nDiploma in Data Science & Generative AI | Physics Wallah Institute | Expected Jan 2026\nAchievements\nReduced manual data processing efforts by 30% by automating data cleaning and preprocessing workflows using Python.\nImproved forecasting model accuracy by 15% through feature engineering and optimized model evaluation techniques.\nEnhanced machine learning model performance by 22% on structured business datasets using hyperparameter tuning and cross-\nvalidation.\nDelivered executive-ready dashboards in Power BI, improving reporting efficiency and decision-making turnaround time by 40%.",
+  "meta_data": {
+    "word_count": 646,
+    "word_frequency": {
       "data": 28,
       "by": 11,
       "using": 10,
