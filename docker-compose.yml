@@ -6,21 +6,23 @@ services:
     build:
       context: ./FullStack
       dockerfile: Dockerfile
+      target: dev
     container_name: kreeda-nextjs
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-production}
       - MONGODB_URI=mongodb://mongodb:27017/kreeda_hiring
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=resumes
+      - MINIO_BUCKET_RESUMES=resumes
+      - MINIO_BUCKET_DOCUMENTS=documents
+      - MINIO_USE_SSL=false
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
     volumes:
       - ./FullStack:/app
-      - /app/node_modules
-      - /app/.next
     depends_on:
       - mongodb
       - redis
@@ -72,6 +74,34 @@ services:
       - kreeda-network
     restart: unless-stopped
     command: server /data --console-address ":9001"
+
+  # BullMQ Worker - Resume Processing
+  worker:
+    build:
+      context: ./ProcessingScripts
+      dockerfile: Dockerfile
+    container_name: kreeda-worker
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MONGODB_URI=mongodb://mongodb:27017/kreeda_hiring
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=resumes
+      - MINIO_USE_SSL=false
+      - API_BASE_URL=http://nextjs:3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./ProcessingScripts:/app
+    depends_on:
+      - mongodb
+      - redis
+      - minio
+      - nextjs
+    networks:
+      - kreeda-network
+    restart: unless-stopped
 
 networks:
   kreeda-network:
