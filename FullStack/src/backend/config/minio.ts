@@ -54,7 +54,7 @@ export const minioConfig = {
  * Easy to change to direct S3 URLs when migrating to AWS/external S3
  */
 export function getPublicUrl(bucket: string, key: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
   return `${baseUrl}/api/files/${bucket}/${key}`;
   
   // For future direct S3 access, just uncomment this:

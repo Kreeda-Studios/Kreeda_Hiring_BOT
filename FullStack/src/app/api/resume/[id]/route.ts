@@ -41,8 +41,8 @@ export async function GET(
       },
     }, {
       headers: {
-        // Cache for 5 minutes to reduce API calls
-        'Cache-Control': 'private, max-age=300',
+        // No cache - always fetch fresh data
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
       },
     });
 
