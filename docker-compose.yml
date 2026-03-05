@@ -6,12 +6,12 @@ services:
     build:
       context: ./FullStack
       dockerfile: Dockerfile
-      target: dev
+      target: runner
     container_name: kreeda-nextjs
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
       - MONGODB_URI=mongodb://mongodb:27017/kreeda_hiring
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
@@ -21,15 +21,13 @@ services:
       - MINIO_BUCKET_DOCUMENTS=documents
       - MINIO_USE_SSL=false
       - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
-    volumes:
-      - ./FullStack:/app
     depends_on:
       - mongodb
       - redis
       - minio
     networks:
       - kreeda-network
-    command: npm run dev
+    restart: unless-stopped
 
   # MongoDB Database
   mongodb:
@@ -92,8 +90,6 @@ services:
       - MINIO_USE_SSL=false
       - API_BASE_URL=http://nextjs:3000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    volumes:
-      - ./ProcessingScripts:/app
     depends_on:
       - mongodb
       - redis
