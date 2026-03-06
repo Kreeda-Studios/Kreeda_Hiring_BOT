@@ -16,10 +16,14 @@
     "preferred": [
       "Machine Learning",
       "Deep Learning",
+      "GenAI",
       "Lang Chain",
       "Lang Graph",
-      "RAG pipelines",
-      "Vector databases",
+      "Llama Index",
+      "FAISS",
+      "Pinecone",
+      "Weaviate",
+      "RAG",
       "Agentic AI workflows",
       "Python",
       "NumPy",
@@ -30,21 +34,20 @@
       "Transformers",
       "LLMs",
       "embeddings",
-      "fine-tuning techniques",
-      "ML Ops practices",
+      "fine-tuning",
+      "ML Ops",
+      "AWS",
+      "GCP",
+      "Azure",
       "Snowflake",
-      "Advanced Computer Vision model development",
-      "Cloud deployment (AWS/GCP/Azure)",
-      "statistics",
-      "linear algebra",
-      "optimization"
+      "Computer Vision"
     ],
     "soft_skills": [
       "Collaboration",
-      "Communication",
       "Ownership",
       "Problem Solving",
-      "Continuous Learning"
+      "Communication",
+      "Adaptability"
     ]
   },
   "tech_stack": {
@@ -52,40 +55,42 @@
       "Python"
     ],
     "frameworks": [
-      "Py Torch",
-      "Tensor Flow",
       "Lang Chain",
       "Lang Graph",
-      "Llama Index"
+      "Py Torch",
+      "Tensor Flow"
     ],
     "libraries": [
       "NumPy",
       "Pandas",
-      "Scikit-learn"
+      "Scikit-learn",
+      "Llama Index"
     ],
     "databases": [
       "FAISS",
       "Pinecone",
       "Weaviate",
-      "Snowflake"
+      "Snowflake",
+      "vector databases"
     ],
     "cloud": [
       "AWS",
       "GCP",
       "Azure"
     ],
-    "tools": [],
+    "tools": [
+      "ML Ops",
+      "CI/CD"
+    ],
     "ai_techniques": [
       "RAG",
       "RAG-based architectures",
+      "LLM orchestration",
       "Agentic AI workflows",
       "Transformers",
       "LLMs",
       "embeddings",
-      "fine-tuning techniques",
-      "GenAI",
-      "ML/DL models",
-      "Computer Vision"
+      "fine-tuning"
     ]
   },
   "responsibilities": [

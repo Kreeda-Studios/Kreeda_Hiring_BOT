@@ -94,13 +94,13 @@ You MUST follow these rules carefully:
 . Missing Data Rules
   - If a string field is missing from the JD, return `null`. NEVER return an empty string `""`.
   - If a list/array is missing, return `[]`.
-  - If experience months are not mentioned, return -1.
+  - If experience months are not mentioned, return 0.
 
 . EXTRACT ONLY (Must be pulled directly from the JD text exactly as written)
   - job_profile.role, job_profile.location, job_profile.work_mode, job_profile.job_type, job_profile.notice_period.
   - experience_requirements: MUST be converted to integer MONTHS (e.g., 2 years = 24 months). If there is no max limit, set maximum_experience_months to -1.
   - responsibilities: Extract the core day-to-day responsibilities.
-  - skills.required & skills.preferred: Extract exactly as stated in the JD.
+  - skills.required & skills.preferred: Extract ONLY the explicit hard technical skill names (e.g., "Python", "Machine Learning", "AWS"). Do NOT extract entire long sentences, bullet points, or paragraphs. Keep each string extremely concise.
   - education_requirements: Extract specific degrees and fields.
   - certifications: Extract explicit certifications mentioned.
 

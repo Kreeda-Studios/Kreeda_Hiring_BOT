@@ -1,0 +1,106 @@
+{
+  "job_profile": {
+    "role": "AI & Machine Learning Engineer",
+    "domain": "AIML",
+    "location": null,
+    "work_mode": null,
+    "job_type": null,
+    "notice_period": null
+  },
+  "experience_requirements": {
+    "minimum_experience_months": 0,
+    "maximum_experience_months": 0
+  },
+  "skills": {
+    "required": [
+      "AI & Machine Learning",
+      "cloud deployment",
+      "AWS",
+      "GCP",
+      "Azure",
+      "Lang chain",
+      "advanced RAG applications",
+      "Vector database",
+      "Gen AI",
+      "SQL",
+      "scripting languages",
+      "data pre-processing",
+      "ML techniques",
+      "ML algorithms",
+      "model building",
+      "optimization",
+      "data visualization",
+      "Natural Language Processing",
+      "Computer Vision",
+      "Graph Networks"
+    ],
+    "preferred": [
+      "Snowflake",
+      "MLOps",
+      "deep learning",
+      "advanced Computer Vision model development"
+    ],
+    "soft_skills": [
+      "Communication",
+      "Teamwork",
+      "Collaboration",
+      "Analytical Thinking",
+      "Problem Solving",
+      "Continuous Learning",
+      "Stakeholder Management"
+    ]
+  },
+  "tech_stack": {
+    "languages": [
+      "SQL",
+      "scripting languages"
+    ],
+    "frameworks": [],
+    "libraries": [
+      "Lang chain"
+    ],
+    "databases": [
+      "Vector database",
+      "Snowflake"
+    ],
+    "cloud": [
+      "AWS",
+      "GCP",
+      "Azure",
+      "Microsoft Azure"
+    ],
+    "tools": [
+      "MLOps"
+    ],
+    "ai_techniques": [
+      "Gen AI",
+      "advanced RAG applications",
+      "Natural Language Processing",
+      "Computer Vision",
+      "Graph Networks",
+      "deep learning",
+      "data pre-processing",
+      "model building",
+      "optimization"
+    ]
+  },
+  "responsibilities": [
+    "Develop AI & Machine Learning solutions on cloud-based platforms.",
+    "Identify, access, import, clean, and format data from various sources.",
+    "Implement research findings and custom models effectively.",
+    "Construct backend systems to interface with other microservices.",
+    "Train and optimize machine learning models for optimal performance.",
+    "Engineer scalable machine intelligence systems and infrastructure for real-world deployment.",
+    "Justify the application of AI/ML solutions based on problem statements.",
+    "Prototype solutions efficiently and deliver results promptly.",
+    "Manipulate data using SQL and scripting languages.",
+    "Collaborate with internal and external teams to design and deploy AI & ML solutions.",
+    "Explore emerging AI & Machine learning trends and develop prototypes.",
+    "Demonstrate effective communication and teamwork skills."
+  ],
+  "education_requirements": {
+    "degrees": [],
+    "fields": []
+  },
+  "certifications": []
+}
