@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-'''
 """
 Resume Intelligence Extraction Engine
 ======================================
@@ -9,8 +8,7 @@ Minimal async parallel pipeline that:
 2. Extracts text + embedded hyperlinks from each PDF
 3. Sends extracted content to GPT-5-mini with a strict system prompt
 4. Saves structured JSON output to output_json/ folder
-
-'''
+"""
 
 
 import asyncio
@@ -21,7 +19,7 @@ import sys
 from collections import Counter
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import fitz
 from dotenv import load_dotenv
@@ -330,4 +328,6 @@ async def run_pipeline():
 
 
 if __name__ == "__main__":
+    if sys.platform.startswith("win"):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(run_pipeline())
