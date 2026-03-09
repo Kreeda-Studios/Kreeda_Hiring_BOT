@@ -1,0 +1,42 @@
+{
+    "candidate_name": "Akhilesh Y Ragate",
+    "skill_match": 0.7,
+    "experience_match": 0.0,
+    "tech_stack_match": 0.6,
+    "project_relevance": 0.72,
+    "responsibility_match": 0.65,
+    "impact_strength": 0.6,
+    "education_match": 1.0,
+    "critical_skill_gap_score": 0.28,
+    "missing_skills": [
+        "Lang Chain",
+        "Lang Graph",
+        "Llama Index",
+        "FAISS",
+        "Pinecone",
+        "Weaviate",
+        "PyTorch",
+        "Transformers (library/workflow)",
+        "LLM fine-tuning / production LLM ops",
+        "embeddings/vector pipeline (explicit)",
+        "RAG / RAG-based architectures",
+        "Agentic AI workflows",
+        "Snowflake"
+    ],
+    "strengths": [
+        "Strong hands-on computer vision experience (CNNs, YOLO, SAM) with domain projects (remote sensing, pothole detection, satellite imagery).",
+        "Solid ML foundations and tooling: TensorFlow, Keras, Scikit-Learn, XGBoost and classical algorithms.",
+        "Practical data engineering and cloud experience: built serverless ETL pipelines (AWS S3, Lambda, Glue, Athena, Parquet) and RESTful APIs.",
+        "Deployment and engineering skills: Docker, FastAPI, inference pipelines and end-to-end model deployment experience.",
+        "Relevant certifications in cloud, generative AI, and data science; formal degree in Computer Science with AI/ML specialization.",
+        "Experience across audio, image, and remote-sensing domains showing breadth and adaptability."
+    ],
+    "concerns": [
+        "Does not meet the JD minimum experience requirement (no documented full-time months of experience).",
+        "Limited or no evidence of core GenAI production stack items required by the role (LangChain, Llama Index, Lang Graph).",
+        "Key vector DBs and retrieval tooling (FAISS, Pinecone, Weaviate) and RAG architectures are missing or not demonstrated.",
+        "PyTorch and Transformers-based workflows / fine-tuning for LLMs are not shown; GenAI/LLM production experience appears weak.",
+        "Most experience is internship/project-level \u2014 limited evidence of owning production-grade, end-to-end GenAI systems at scale."
+    ],
+    "overall_score": 0.568
+}

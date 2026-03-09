@@ -1,0 +1,112 @@
+{
+  "job_profile": {
+    "role": "AI/ML Engineer",
+    "domain": "AIML",
+    "location": "Pune (Hybrid)",
+    "work_mode": "Hybrid",
+    "job_type": "Permanent Full time",
+    "notice_period": "Immediate Joiners"
+  },
+  "experience_requirements": {
+    "minimum_experience_months": 18,
+    "maximum_experience_months": 48
+  },
+  "skills": {
+    "required": [],
+    "preferred": [
+      "Machine Learning",
+      "Deep Learning",
+      "GenAI",
+      "Lang Chain",
+      "Lang Graph",
+      "Llama Index",
+      "FAISS",
+      "Pinecone",
+      "Weaviate",
+      "RAG",
+      "Agentic AI workflows",
+      "Python",
+      "NumPy",
+      "Pandas",
+      "Scikit-learn",
+      "Py Torch",
+      "Tensor Flow",
+      "Transformers",
+      "LLMs",
+      "embeddings",
+      "fine-tuning",
+      "ML Ops",
+      "AWS",
+      "GCP",
+      "Azure",
+      "Snowflake",
+      "Computer Vision"
+    ],
+    "soft_skills": [
+      "Collaboration",
+      "Ownership",
+      "Problem Solving",
+      "Communication",
+      "Adaptability"
+    ]
+  },
+  "tech_stack": {
+    "languages": [
+      "Python"
+    ],
+    "frameworks": [
+      "Lang Chain",
+      "Lang Graph",
+      "Py Torch",
+      "Tensor Flow"
+    ],
+    "libraries": [
+      "NumPy",
+      "Pandas",
+      "Scikit-learn",
+      "Llama Index"
+    ],
+    "databases": [
+      "FAISS",
+      "Pinecone",
+      "Weaviate",
+      "Snowflake",
+      "vector databases"
+    ],
+    "cloud": [
+      "AWS",
+      "GCP",
+      "Azure"
+    ],
+    "tools": [
+      "ML Ops",
+      "CI/CD"
+    ],
+    "ai_techniques": [
+      "RAG",
+      "RAG-based architectures",
+      "LLM orchestration",
+      "Agentic AI workflows",
+      "Transformers",
+      "LLMs",
+      "embeddings",
+      "fine-tuning"
+    ]
+  },
+  "responsibilities": [
+    "Design, build, and deploy end-to-end ML and DL models for production use cases.",
+    "Develop advanced GenAI solutions using Lang Chain, Lang Graph, Llama Index, vector databases (FAISS, Pinecone, Weaviate, etc.), and RAG-based architectures.",
+    "Create Agentic AI workflows to automate reasoning and task execution.",
+    "Build cloud-native AI pipelines (AWS/GCP/Azure), including model training, optimization, deployment, and monitoring.",
+    "Work hands-on with data — sourcing, cleaning, preprocessing, and feature engineering.",
+    "Develop backend components to integrate AI models with microservices and production systems.",
+    "Rapidly prototype GenAI and ML features and convert research into deployable systems.",
+    "Collaborate with engineering, product, and client teams to deliver reliable AI solutions.",
+    "Continuously explore emerging ML/DL and GenAI technologies to improve internal capabilities."
+  ],
+  "education_requirements": {
+    "degrees": [],
+    "fields": []
+  },
+  "certifications": []
+}

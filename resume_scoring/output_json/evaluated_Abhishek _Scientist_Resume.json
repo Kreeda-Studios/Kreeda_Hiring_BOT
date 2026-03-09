@@ -1,0 +1,41 @@
+{
+    "candidate_name": "Abhishek Kumar Ram",
+    "skill_match": 0.62,
+    "experience_match": 0.61,
+    "tech_stack_match": 0.45,
+    "project_relevance": 0.65,
+    "responsibility_match": 0.6,
+    "impact_strength": 0.85,
+    "education_match": 0.9,
+    "critical_skill_gap_score": 0.35,
+    "missing_skills": [
+        "Lang Graph",
+        "Llama Index",
+        "FAISS",
+        "Pinecone",
+        "Weaviate",
+        "Snowflake",
+        "AWS",
+        "GCP",
+        "Azure",
+        "ML Ops (CI/CD pipelines)",
+        "fine-tuning (LLM fine-tuning workflows)",
+        "embeddings (explicit implementation & tooling)"
+    ],
+    "strengths": [
+        "Strong core ML/AI skills: Python, NumPy, Pandas, Scikit-learn, TensorFlow, PyTorch",
+        "Hands-on GenAI/LLM experience: OpenAI API, prompt engineering, LangChain, transformer knowledge",
+        "Proven impact with metrics (e.g., 22% model improvement, 20% retention lift, 92% F1 on fraud detection)",
+        "Experience building end-to-end ML pipelines and automating preprocessing",
+        "Relevant projects demonstrating GenAI and applied ML (fraud detection with OpenAI, volatility prediction)",
+        "Good data visualization and stakeholder-facing deliverables (Power BI dashboards)"
+    ],
+    "concerns": [
+        "Total professional experience is below JD minimum (internships = 11 months vs 18-month minimum)",
+        "Limited or no evidence of production-grade vector DB usage (FAISS/Pinecone/Weaviate) and RAG implementations",
+        "No clear cloud-native experience (AWS/GCP/Azure) or ML-Ops/CI-CD pipeline ownership",
+        "Missing explicit experience with Llama Index, Lang Graph, and fine-tuning/embeddings pipelines",
+        "Most experience is internship-level \u2014 may require ramp-up for senior production responsibilities"
+    ],
+    "overall_score": 0.626
+}

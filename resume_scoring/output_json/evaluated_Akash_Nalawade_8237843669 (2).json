@@ -1,0 +1,42 @@
+{
+    "candidate_name": "Akash Nalawade",
+    "skill_match": 0.55,
+    "experience_match": 0.1,
+    "tech_stack_match": 0.6,
+    "project_relevance": 0.6,
+    "responsibility_match": 0.65,
+    "impact_strength": 0.6,
+    "education_match": 1.0,
+    "critical_skill_gap_score": 0.25,
+    "missing_skills": [
+        "Lang Chain",
+        "Lang Graph",
+        "Llama Index",
+        "FAISS",
+        "Pinecone",
+        "Weaviate",
+        "RAG",
+        "Agentic AI workflows",
+        "Transformers",
+        "LLMs",
+        "embeddings",
+        "fine-tuning",
+        "Azure",
+        "Snowflake"
+    ],
+    "strengths": [
+        "Strong foundation in core ML and DL (Python, TensorFlow, PyTorch, Scikit-learn)",
+        "Hands-on experience building and deploying end-to-end ML pipelines (real-time models, deployment, monitoring)",
+        "Cloud experience with AWS and GCP and scalable pipeline implementation",
+        "Practical experience in data cleaning, feature engineering, EDA and visualization (Power BI, Tableau, Matplotlib)",
+        "Relevant certifications (IBM, AWS, Oracle, Google) and a B.Tech in Computer Science"
+    ],
+    "concerns": [
+        "Total professional experience well below JD minimum (6 months internships vs 18 months required)",
+        "Limited or no demonstrated experience with GenAI/LLMs and related frameworks (LangChain, LlamaIndex, Transformers)",
+        "No evidence of experience with vector DBs or retrieval systems (FAISS, Pinecone, Weaviate) and RAG/agentic workflows",
+        "Missing Azure and Snowflake experience called out in JD tech stack",
+        "Limited evidence of production microservice/backend integration and CI/CD/ML-Ops tooling experience"
+    ],
+    "overall_score": 0.525
+}

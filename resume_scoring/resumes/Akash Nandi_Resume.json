@@ -1,0 +1,233 @@
+{
+  "profile": {
+    "name": "Akash Nandi",
+    "contact": "+918093541513",
+    "email": "akashnandi446@gmail.com",
+    "linkedin": "https://www.linkedin.com/in/akashnandi1999",
+    "github": null,
+    "leetcode": null,
+    "hackerrank": null,
+    "location": null
+  },
+  "domain": "AIML",
+  "confidence": 0.95,
+  "skills": {
+    "provided": [
+      "Natural Language Processing",
+      "Term Frequency-Inverse Document Frequency",
+      "Natural Language Toolkit",
+      "Long Short-Term Memory",
+      "Gated Recurrent Unit",
+      "Recurrent Neural Network",
+      "Transformers",
+      "Supervised Machine Learning",
+      "Unsupervised Machine Learning",
+      "Feature Engineering",
+      "Missing Value Treatment",
+      "Imbalanced Dataset Handling",
+      "One-Hot Encoding",
+      "Label Encoding",
+      "Ordinal Encoding",
+      "Target Guided Encoding",
+      "Statistical Analysis",
+      "Descriptive Analytics",
+      "Predictive Analytics",
+      "Prescriptive Analytics",
+      "Python",
+      "Object Oriented Programming",
+      "Functional Programming",
+      "Microsoft SQL Server",
+      "SQL",
+      "ETL",
+      "ELT",
+      "SQL Server Integration Services",
+      "Data Cleaning",
+      "Data Wrangling",
+      "Power BI",
+      "Google Cloud Platform",
+      "Google BigQuery",
+      "Pandas",
+      "NumPy",
+      "Scikit-learn",
+      "Matplotlib",
+      "Seaborn",
+      "Jupyter Notebook",
+      "VS Code",
+      "Logistic Regression",
+      "Random Forest",
+      "XGBoost",
+      "Support Vector Machine",
+      "K-Nearest Neighbors (KNN)",
+      "JSON",
+      "GitLab",
+      "JIRA"
+    ],
+    "inferred": [
+      "Python",
+      "SQL",
+      "SQL Server Integration Services",
+      "Power BI",
+      "Google BigQuery",
+      "Scikit-learn",
+      "Pandas",
+      "NumPy",
+      "Matplotlib",
+      "Seaborn",
+      "Jupyter Notebook",
+      "Logistic Regression",
+      "Random Forest",
+      "XGBoost",
+      "Support Vector Machine",
+      "K-Nearest Neighbors (KNN)"
+    ],
+    "soft_skills": [
+      "Analytical thinking",
+      "Team collaboration",
+      "Agile methodology"
+    ]
+  },
+  "experience": {
+    "total_full_time_experience": 54,
+    "total_internship_experience_in_months": 0,
+    "details": [
+      {
+        "company": "Capgemini, Pune",
+        "role": "Analyst",
+        "start": "Jul'21",
+        "end": "May'23",
+        "employment_type": "Full Time",
+        "impact": [
+          "Utilizing skills in Python Scripting and SQL for the design, development and deployment of new features into existing products.",
+          "Managing the maintenance of program modules including operational support, production support, preventative and corrective maintenance and enhancements.",
+          "Conducting code reviews, analysing and modifying existing codes for application optimization and writing new codes as required.",
+          "Performing analysis, design, verification, demonstration and maintenance of products in a process-driven, team environment.",
+          "Troubleshooting errors and resolving customer issues raised in GitLabs and JIRA.",
+          "Ensuring delivered solutions are compatible with the user’s environment and can run smoothly across multiple platforms."
+        ]
+      },
+      {
+        "company": "TCS, Pune",
+        "role": "Data Scientist",
+        "start": "July'23",
+        "end": "Till Now",
+        "employment_type": "Full Time",
+        "impact": [
+          "Using Python to extract the raw data and clean it as per the requirement.",
+          "Conduct Exploratory Data Analysis to identify trends, patterns and anomalies, facilitating informed decision-making purposes.",
+          "Worked on Subscriber Churn Prediction Model to identify the users that were likely to cancel their Subscriptions. Classification Models like Logistic Regression, Random Forest and XGBoost ML Algorithms were used for the prediction of High-Risk Users.",
+          "Using SQL, GCP, Power BI for Data Analysis, Warehousing and Visualization.",
+          "Created an ETL pipelines in SSIS to automate the process of inserting CSV files in Microsoft SQL Server database.",
+          "Collaborate with cross functional teams to identify the business needs and translate them into actionable data analysis solutions."
+        ]
+      }
+    ]
+  },
+  "projects": [
+    {
+      "title": "Algerian Forest Fire Prediction",
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "impact": 0.6,
+        "difficulty": 6,
+        "complexity": 6,
+        "domain_relevance": 9
+      }
+    },
+    {
+      "title": "Prediction of Heart Attack",
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "impact": 0.7,
+        "difficulty": 6,
+        "complexity": 6,
+        "domain_relevance": 9
+      }
+    },
+    {
+      "title": "Data Analysis for Homestay prices",
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "impact": 0.5,
+        "difficulty": 5,
+        "complexity": 5,
+        "domain_relevance": 7
+      }
+    },
+    {
+      "title": "Inventory Management System",
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "impact": 0.3,
+        "difficulty": 3,
+        "complexity": 3,
+        "domain_relevance": 4
+      }
+    }
+  ],
+  "educations": [
+    {
+      "start": "2017",
+      "end": "2021",
+      "college": "Siksha ‘O’ Anusandhan University, Bhubaneswar",
+      "degree": "Bachelor of Technology (Computer Science and Information Technology)",
+      "department": "Computer Science and Information Technology",
+      "grade": "CGPA-8.35"
+    },
+    {
+      "start": "2015",
+      "end": "2017",
+      "college": "Dalmia Vidya Mandir, Rajgangpur",
+      "degree": "Higher Secondary",
+      "department": null,
+      "grade": "71% (PCA)"
+    },
+    {
+      "start": "2014",
+      "end": "2015",
+      "college": "Dalmia Vidya Mandir, Rajgangpur",
+      "degree": "Secondary",
+      "department": null,
+      "grade": "CGPA-9.2"
+    }
+  ],
+  "certifications": [
+    "Google Data Analytics Professional Certificate",
+    "Full Stack Data Analytics from iNeuron.ai",
+    "MYSQL for Data Analytics and BI (Udemy)",
+    "Microsoft Certified Azure Fundamentals",
+    "Hacker-Rank Certifications: Python, SQL",
+    "Microsoft Certified: Azure Data Fundamentals"
+  ],
+  "achievements": [],
+  "processed_date": "2026-03-04",
+  "raw_text": "Akash Nandi \n \n \n               Email: akashnandi446@gmail.com \nLinkedIn \n                                                                                                    Phone N.o: +918093541513  \n \nSUMMARY \nMachine Learning Engineer with expertise in NLP, supervised and unsupervised learning, and statistical analysis. Skilled \nin feature engineering, including handling missing values, imbalanced data, and advanced encoding techniques. \nProficient in Python, SQL, and ETL/ELT processes using SSIS for data transformation and integration. Experienced in \ndata visualization with Power BI and leveraging Google Cloud and Big Query for scalable analytics. Strong team \ncollaborator with solid analytical thinking and Agile methodology experience, focused on developing data-driven \nsolutions for business optimization and predictive modelling.\n \nSKILLS \n• \nNLP (TF-IDF, NLTK, LSTM, GRU RNN, Transformers) \n• \nMachine Learning: Supervised and Unsupervised Machine Learning. \n• \nFeature Engineering: Missing value treatment, Imbalanced dataset handling, Encoding techniques (OHE, \nlabel, ordinal, target-guided). \n• \nStatistical Analysis & Analytics: Descriptive, predictive, and prescriptive analytics. \n• \nAgile methodologies, strong analytical thinking, team collaboration. \n• \nProgramming & Querying: Python (OOPS, functional programming), SQL(Microsoft SQL Server). \n• \nData Processing: ETL/ELT (SSIS), data cleaning, data wrangling. \n• \nData Visualization & Reporting: Power BI. \n• \nCloud: Google Cloud Services, Google Big Query. \n \nCERTIFICATIONS \n• \nGoogle Data Analytics Professional Certificate \n• \nFull Stack Data Analytics from iNeuron.ai \n• \nMYSQL for Data Analytics and BI (Udemy) \n• \nMicrosoft Certified Azure Fundamentals \n• \nHacker-Rank Certifications: Python, SQL \n• \nMicrosoft Certified: Azure Data Fundamentals \n \nEDUCATION \n• \nBachelor of Technology (Computer Science and Information Technology), \nSiksha ‘O’ Anusandhan University, Bhubaneswar | CGPA-8.35 | 2017 – 2021 \n• \nHigher Secondary \nDalmia Vidya Mandir, Rajgangpur | 71% (PCA) | 2015 – 2017 \n• \nSecondary \nDalmia Vidya Mandir, Rajgangpur | CGPA-9.2 | 2014 – 2015\n \nWORK EXPERIENCE \n \n Jul’21 –May’23 | Analyst | Capgemini, Pune \nKey Result Areas: \n \nUtilizing skills in Python Scripting and SQL for the design, development and deployment of new features into \nexisting products. \n \nManaging the maintenance of program modules including operational support, production support, \npreventative and corrective maintenance and enhancements. \n \nConducting code reviews, analysing and modifying existing codes for application optimization and writing \nnew codes as required. \n \nPerforming analysis, design, verification, demonstration and maintenance of products in a process-driven, \nteam environment. \n \nTroubleshooting errors and resolving customer issues raised in GitLabs and JIRA. \n \nEnsuring delivered solutions are compatible with the user’s environment and can run smoothly across multiple \nplatforms. \n \n July’23 –Till Now | Data Scientist | TCS, Pune \nKey Result Areas: \n• \nUsing Python to extract the raw data and clean it as per the requirement. \n• \nConduct Exploratory Data Analysis to identify trends, patterns and anomalies, facilitating informed \ndecision-making purposes. \n• \nWorked on Subscriber Churn Prediction Model to identify the users that were likely to cancel their \nSubscriptions. Classification Models like Logistic Regression, Random Forest and XGBoost ML \nAlgorithms were used for the prediction of High-Risk Users. \n• \nUsing SQL, GCP, Power BI for Data Analysis, Warehousing and Visualization. \n• \nCreated an ETL pipelines in SSIS to automate the process of inserting CSV files in Microsoft SQL Server \ndatabase. \n• \nCollaborate with cross functional teams to identify the business needs and translate them into actionable \ndata analysis solutions. \n \n \nPROJECTS \n Title: Algerian Forest Fire Prediction \no \nDescription:  Conducted an in-depth analysis of the Algerian Forest Fire dataset to identify key environmental \nfactors influencing fire occurrence. Performed data cleaning, exploratory data analysis (EDA), and visualizations \nusing Python libraries (Pandas, Matplotlib, Seaborn). Developed predictive models using machine learning \nalgorithms such as Logistic Regression, Random Forest and SVM to classify fire-prone areas. Achieved high \nmodel accuracy and provided actionable insights for fire risk mitigation. \no \nTech Stack:  Python, Pandas, NumPy, Scikit-learn, Matplotlib, Seaborn, Jupyter Notebook, VS Code. \n \n Title: Prediction of Heart Attack \no \nDescription: Five million Americans are living with heat diseases and the numbers are expected to rise. It is very \nimportant to understand the factors which causes heart attacks so that precaution can be taken by the \nindividuals. In order to understand the reason of heart attack, a data was collected from various hospitals across \nUS. \no \nTech Stack: Python, Pandas, Numpy, Scikit-learn, Matplotlib, Seaborn. \n \n Title: Data Analysis for Homestay prices \no \nDescription: Created a Data Model to predict the Homestay Prices of Residential properties. Analysed the data \nfor null values, duplicates and outliers and treated them accordingly to get a better accuracy of the Regression \nModel constructed for the data.  \no \nTech Stack: Python, Pandas, Numpy, Scikit-learn, Matplotlib, Seaborn, KNN-Clustering, Jupyter Notebook. \n \n Title: Inventory Management System \no \nDescription:  An Inventory Management System keeps records of all the items in a store in the form of a JSON \ndata and that JSON file will be used to generate a bill for the customers for every item bought from the store. \no \nTech Stack: Python, Pandas, Numpy, Jupyter Notebook.",
+  "meta_data": {
+    "word_count": 718,
+    "word_frequency": {
+      "data": 25,
+      "python": 10,
+      "analysis": 9,
+      "sql": 7,
+      "analytics": 6,
+      "learning": 5,
+      "using": 5,
+      "stack": 5,
+      "fire": 5,
+      "pandas": 5,
+      "machine": 4,
+      "bi": 4,
+      "google": 4,
+      "microsoft": 4,
+      "identify": 4,
+      "prediction": 4,
+      "model": 4,
+      "forest": 4,
+      "title": 4,
+      "description": 4
+    }
+  }
+}
