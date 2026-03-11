@@ -1,7 +1,7 @@
 """
-S3/MinIO File Download Handler
-==============================
-Handles downloading resume files from MinIO storage to temporary locations.
+S3 File Download Handler
+=========================
+Handles downloading resume files from S3-compatible storage (MinIO/AWS S3) to temporary locations.
 Supports concurrent processing by using unique temp files.
 """
 
@@ -17,23 +17,24 @@ from minio.error import S3Error
 logger = logging.getLogger(__name__)
 
 
-def get_minio_client() -> Minio:
+def get_s3_client() -> Minio:
     """
-    Create and return a MinIO client using environment variables
+    Create and return an S3 client using environment variables
+    Compatible with AWS S3 and S3-compatible services (MinIO)
     
     Environment Variables:
-        MINIO_ENDPOINT: MinIO server endpoint (e.g., 'minio:9000')
-        MINIO_ACCESS_KEY: Access key for authentication
-        MINIO_SECRET_KEY: Secret key for authentication
-        MINIO_USE_SSL: Whether to use SSL ('true' or 'false')
+        S3_ENDPOINT: S3 server endpoint (e.g., 's3:9000' or 's3.amazonaws.com')
+        S3_ACCESS_KEY: Access key for authentication
+        S3_SECRET_KEY: Secret key for authentication
+        S3_USE_SSL: Whether to use SSL ('true' or 'false')
     
     Returns:
-        Configured Minio client instance
+        Configured Minio client instance (compatible with S3)
     """
-    endpoint = os.getenv('MINIO_ENDPOINT', 'localhost:9000')
-    access_key = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
-    secret_key = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
-    use_ssl = os.getenv('MINIO_USE_SSL', 'false').lower() == 'true'
+    endpoint = os.getenv('S3_ENDPOINT', 'localhost:9000')
+    access_key = os.getenv('S3_ACCESS_KEY', 'minioadmin')
+    secret_key = os.getenv('S3_SECRET_KEY', 'minioadmin')
+    use_ssl = os.getenv('S3_USE_SSL', 'false').lower() == 'true'
     
     return Minio(
         endpoint,
@@ -45,11 +46,11 @@ def get_minio_client() -> Minio:
 
 def download_from_s3(s3_key: str, bucket: str) -> Path:
     """
-    Download a file from S3/MinIO to a temporary location
+    Download a file from S3 to a temporary location
     
     This function:
     1. Creates a unique temporary file with proper extension
-    2. Downloads the file from MinIO
+    2. Downloads the file from S3
     3. Returns the path to the temp file
     
     The caller is responsible for cleaning up the temp file after processing.
@@ -84,8 +85,8 @@ def download_from_s3(s3_key: str, bucket: str) -> Path:
     temp_path = Path(temp_path_str)
     
     try:
-        # Download from MinIO
-        client = get_minio_client()
+        # Download from S3
+        client = get_s3_client()
         client.fget_object(bucket, s3_key, str(temp_path))
         
         logger.info(f"✅ Downloaded to: {temp_path}")

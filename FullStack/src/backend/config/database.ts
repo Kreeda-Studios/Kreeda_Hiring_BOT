@@ -1,10 +1,6 @@
-/**
- * MongoDB Database Connection using Mongoose
- */
-
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/kreeda_hiring';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/hrbot_hiring';
 
 let isConnected = false;
 

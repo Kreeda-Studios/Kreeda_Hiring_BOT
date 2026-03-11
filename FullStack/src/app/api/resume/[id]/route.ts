@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ResumeService } from '@/backend/services/resume.service';
-import { getPublicUrl } from '@/backend/config/minio';
+import { getPublicUrl, s3Config } from '@/backend/config/s3';
 
 export async function GET(
   request: NextRequest,
@@ -28,7 +28,7 @@ export async function GET(
     }
 
     // Generate file URL for viewing
-    const bucket = process.env.MINIO_BUCKET_RESUMES!;
+    const bucket = s3Config.buckets.resumes;
     const fileUrl = getPublicUrl(bucket, resume.resumeFilePath);
     
     console.log('Generated file URL:', fileUrl);

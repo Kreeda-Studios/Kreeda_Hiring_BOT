@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { minioClient } from '@/backend/config/minio';
+import { minioClient } from '@/backend/config/s3';
 
 export async function GET(
   request: NextRequest,

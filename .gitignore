@@ -38,10 +38,6 @@ Thumbs.db
 *.swo
 *~
 
-# Uploaded files (optional - comment out if you want to track them)
-Uploaded_Resumes/*
-!Uploaded_Resumes/.gitkeep
-
 # Docker volumes
 mongodb_data/
 redis_data/

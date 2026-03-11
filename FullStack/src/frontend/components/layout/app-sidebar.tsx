@@ -11,6 +11,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  BarChart2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -39,6 +40,16 @@ const mainNavItems: NavItem[] = [
     title: "Resume Processor",
     href: "/resume-processor",
     icon: FileText,
+  },
+  {
+    title: "JD Processor",
+    href: "/jd-processor",
+    icon: Briefcase,
+  },
+  {
+    title: "Scoring",
+    href: "/scoring",
+    icon: BarChart2,
   },
 ];
 

@@ -1,109 +1,239 @@
-version: '3.8'
+# ==================================================================
+# PRODUCTION DOCKER COMPOSE - HR Bot
+# ==================================================================
+# 
+# Quick Start:
+#   docker compose up --build -d
+#
+# ==================================================================
+
+# version: '3.8'
 
 services:
-  # Next.js Frontend & Backend API
-  nextjs:
+  # ==============================================
+  # FULLSTACK APPLICATION (Next.js + API)
+  # ==============================================
+  hrbot-fullstack:
     build:
       context: ./FullStack
       dockerfile: Dockerfile
-      target: runner
-    container_name: kreeda-nextjs
+    container_name: hrbot-fullstack
+    hostname: hrbot-fullstack
     ports:
       - "3000:3000"
     environment:
+      # Application
       - NODE_ENV=production
-      - MONGODB_URI=mongodb://mongodb:27017/kreeda_hiring
-      - REDIS_URL=redis://redis:6379
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET_RESUMES=resumes
-      - MINIO_BUCKET_DOCUMENTS=documents
-      - MINIO_USE_SSL=false
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      
+      # Database
+      - MONGODB_URI=mongodb://hrbot-mongodb:27017/hrbot_hiring
+      
+      # Redis & Queue
+      - REDIS_URL=redis://hrbot-redis:6379
+      - REDIS_HOST=hrbot-redis
+      - REDIS_PORT=6379
+      
+      # S3 Storage (MinIO for local/dev)
+      - S3_ENDPOINT=hrbot-s3:9000
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
+      - S3_BUCKET_RESUMES=${S3_BUCKET_RESUMES:-resumes}
+      - S3_BUCKET_JDS=${S3_BUCKET_JDS:-jds}
+      - S3_USE_SSL=${S3_USE_SSL:-false}
+      
+      # Public URLs
       - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
     depends_on:
-      - mongodb
-      - redis
-      - minio
+      hrbot-mongodb:
+        condition: service_healthy
+      hrbot-redis:
+        condition: service_healthy
+      hrbot-s3:
+        condition: service_healthy
     networks:
-      - kreeda-network
+      - hrbot-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  # MongoDB Database
-  mongodb:
-    image: mongo:7.0
-    container_name: kreeda-mongodb
-    ports:
-      - "27017:27017"
-    environment:
-      - MONGO_INITDB_DATABASE=kreeda_hiring
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - kreeda-network
-    restart: unless-stopped
-
-  # Redis for Caching & Job Queue
-  redis:
-    image: redis:7-alpine
-    container_name: kreeda-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - kreeda-network
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-
-  # MinIO (S3-compatible storage)
-  minio:
-    image: minio/minio:latest
-    container_name: kreeda-minio
-    ports:
-      - "9000:9000"      # API
-      - "9001:9001"      # Console UI
-    environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-    volumes:
-      - minio_data:/data
-    networks:
-      - kreeda-network
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-
-  # BullMQ Worker - Resume Processing
-  worker:
+  # ==============================================
+  # PROCESSING SCRIPTS (Python Worker)
+  # ==============================================
+  hrbot-processing:
     build:
       context: ./ProcessingScripts
       dockerfile: Dockerfile
-    container_name: kreeda-worker
+    container_name: hrbot-processing
+    hostname: hrbot-processing
     environment:
-      - REDIS_HOST=redis
+      # Worker Configuration
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      
+      # Redis & Queue
+      - REDIS_HOST=hrbot-redis
       - REDIS_PORT=6379
-      - MONGODB_URI=mongodb://mongodb:27017/kreeda_hiring
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=resumes
-      - MINIO_USE_SSL=false
-      - API_BASE_URL=http://nextjs:3000
+      - REDIS_URL=redis://hrbot-redis:6379
+      
+      # Database
+      - MONGODB_URI=mongodb://hrbot-mongodb:27017/hrbot_hiring
+      
+      # S3 Storage (MinIO for local/dev)
+      - S3_ENDPOINT=hrbot-s3:9000
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
+      - S3_BUCKET=${S3_BUCKET_RESUMES:-resumes}
+      - S3_BUCKET_JDS=${S3_BUCKET_JDS:-jds}
+      - S3_USE_SSL=${S3_USE_SSL:-false}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      
+      # API Communication
+      - API_BASE_URL=http://hrbot-fullstack:3000
+      
+      # AI Configuration
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
-      - mongodb
-      - redis
-      - minio
-      - nextjs
+      hrbot-mongodb:
+        condition: service_healthy
+      hrbot-redis:
+        condition: service_healthy
+      hrbot-s3:
+        condition: service_healthy
+      hrbot-fullstack:
+        condition: service_healthy
     networks:
-      - kreeda-network
+      - hrbot-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis(host='hrbot-redis', port=6379); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # ==============================================
+  # INFRASTRUCTURE SERVICES
+  # ==============================================
+  
+  # MongoDB Database
+  hrbot-mongodb:
+    image: mongo:7.0
+    container_name: hrbot-mongodb
+    hostname: hrbot-mongodb
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=hrbot_hiring
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_ROOT_USER:-}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD:-}
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - hrbot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Redis Cache & Queue
+  hrbot-redis:
+    image: redis:7-alpine
+    container_name: hrbot-redis
+    hostname: hrbot-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - hrbot-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # S3-Compatible Storage (MinIO for local/dev)
+  hrbot-s3:
+    image: minio/minio:latest
+    container_name: hrbot-s3
+    hostname: hrbot-s3
+    ports:
+      - "${S3_API_PORT:-9000}:9000"      # API
+      - "${S3_CONSOLE_PORT:-9001}:9001"  # Console UI
+    environment:
+      - MINIO_ROOT_USER=${S3_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - s3_data:/data
+    networks:
+      - hrbot-network
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # S3 Bucket Initialization (ensures bucket exists)
+  hrbot-s3-init:
+    image: minio/mc:latest
+    container_name: hrbot-s3-init
+    depends_on:
+      hrbot-s3:
+        condition: service_healthy
+    environment:
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
+      - S3_BUCKET_RESUMES=${S3_BUCKET_RESUMES:-resumes}
+      - S3_BUCKET_JDS=${S3_BUCKET_JDS:-jds}
+    networks:
+      - hrbot-network
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Connecting to MinIO...';
+      mc alias set myminio http://hrbot-s3:9000 $${S3_ACCESS_KEY} $${S3_SECRET_KEY};
+      echo 'Creating buckets if not exist...';
+      mc mb myminio/$${S3_BUCKET_RESUMES} --ignore-existing;
+      mc mb myminio/$${S3_BUCKET_JDS} --ignore-existing;
+      echo 'Buckets $${S3_BUCKET_RESUMES} and $${S3_BUCKET_JDS} are ready!';
+      exit 0;
+      "
+    restart: "no"
+
+# ==============================================
+# NETWORKS
+# ==============================================
 networks:
-  kreeda-network:
+  hrbot-network:
     driver: bridge
+    name: hrbot-network
 
+# ==============================================
+# VOLUMES
+# ==============================================
 volumes:
   mongodb_data:
+    name: hrbot-mongodb-data
+  mongodb_config:
+    name: hrbot-mongodb-config
   redis_data:
-  minio_data:
+    name: hrbot-redis-data
+  s3_data:
+    name: hrbot-s3-data

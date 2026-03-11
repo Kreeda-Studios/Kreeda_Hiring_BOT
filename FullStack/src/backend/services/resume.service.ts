@@ -7,6 +7,7 @@ import { Resume } from '../models';
 import type { IResume } from '../models/resume';
 import { resumeQueue } from '../config/bullmq';
 import { connectToDatabase } from '../config/database';
+import { s3Config } from '../config/s3';
 
 export interface CreateResumeData {
   fileName: string;
@@ -133,7 +134,7 @@ export class ResumeService {
       {
         resumeId,
         fileName,
-        s3Bucket: process.env.MINIO_BUCKET_RESUMES!,
+        s3Bucket: s3Config.buckets.resumes,
         s3Key,
         originalFileName: fileName,
       },

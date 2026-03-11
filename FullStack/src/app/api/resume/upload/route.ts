@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, minioConfig } from '@/backend/config/minio';
+import { s3Client, s3Config } from '@/backend/config/s3';
 import { ResumeService } from '@/backend/services/resume.service';
 import { randomUUID } from 'crypto';
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     // Upload to MinIO
-    const bucket = minioConfig.buckets.resumes;
+    const bucket = s3Config.buckets.resumes;
     const s3Key = fileName;
 
     const command = new PutObjectCommand({
