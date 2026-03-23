@@ -24,6 +24,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Job } from "@/lib/types";
 import { JDSection } from "./components/jd-section";
 import { ResumesSection } from "./components/resumes-section";
@@ -43,6 +53,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("jd");
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     async function fetchJob() {
@@ -64,19 +75,16 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
   const handleDeleteJob = async () => {
     if (deleting) return;
 
-    const confirmed = window.confirm(
-      "Delete this job and all related resumes, scores, and files? This action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
     try {
       setDeleting(true);
       await jobsAPI.delete(jobId);
+      setShowDeleteDialog(false);
       router.push("/jobs");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete job");
+      const message = err instanceof Error ? err.message : "Failed to delete job";
+      setError(message);
+      window.alert(message);
     } finally {
       setDeleting(false);
     }
@@ -145,9 +153,11 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 className="text-destructive"
-                onSelect={(event) => {
-                  event.preventDefault();
-                  void handleDeleteJob();
+                onClick={() => {
+                  setShowDeleteDialog(true);
+                }}
+                onSelect={() => {
+                  setShowDeleteDialog(true);
                 }}
                 disabled={deleting}
               >
@@ -190,6 +200,29 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
           <ResultsSection jobId={jobId} />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete This Job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this job, all related resumes, all scores, and stored files. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void handleDeleteJob();
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete Job"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   );
 }
