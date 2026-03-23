@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageContainer, JobStatusBadge, EmptyState } from "@/components/common";
@@ -35,11 +36,13 @@ interface JobDetailPageProps {
 }
 
 export default function JobDetailPage({ params }: JobDetailPageProps) {
+  const router = useRouter();
   const { jobId } = use(params);
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("jd");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     async function fetchJob() {
@@ -57,6 +60,27 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
     }
     fetchJob();
   }, [jobId]);
+
+  const handleDeleteJob = async () => {
+    if (deleting) return;
+
+    const confirmed = window.confirm(
+      "Delete this job and all related resumes, scores, and files? This action cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      await jobsAPI.delete(jobId);
+      router.push("/jobs");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete job");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -119,8 +143,15 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem className="text-destructive">
-                Delete Job
+              <DropdownMenuItem
+                className="text-destructive"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void handleDeleteJob();
+                }}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete Job"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

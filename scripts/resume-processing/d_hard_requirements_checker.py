@@ -154,6 +154,7 @@ def check_experience(resume: Dict[str, Any], spec: Any) -> bool:
         return True
     
     min_years = spec.get('min', 0)
+    max_years = spec.get('max', float('inf'))
     resume_years = resume.get('years_experience', 0)
     
     try:
@@ -161,7 +162,7 @@ def check_experience(resume: Dict[str, Any], spec: Any) -> bool:
     except (ValueError, TypeError):
         resume_years = 0.0
     
-    return resume_years >= min_years
+    return resume_years >= min_years and resume_years <= max_years
 
 
 def check_skills(resume: Dict[str, Any], spec: Any) -> bool:

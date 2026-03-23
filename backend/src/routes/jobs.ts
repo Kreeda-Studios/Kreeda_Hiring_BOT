@@ -228,28 +228,38 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Check if job deletion is allowed based on status level
-    const operationCheck = isOperationAllowed(job.status, 'JOB_DELETE');
-    if (!operationCheck.allowed) {
-      res.status(400).json({
-        success: false,
-        error: operationCheck.reason
-      });
-      return;
+    // const operationCheck = isOperationAllowed(job.status, 'JOB_DELETE');
+    // if (!operationCheck.allowed) {
+    //   res.status(400).json({
+    //     success: false,
+    //     error: operationCheck.reason
+    //   });
+    //   return;
+    // }
+
+    const jobId = req.params.id;
+
+    // Remove uploaded JD file for this job from storage.
+    if (job.jd_pdf_filename) {
+      const jdFilePath = path.join('/app', config.uploadPath, 'jds', job.jd_pdf_filename);
+      if (fs.existsSync(jdFilePath)) {
+        fs.unlinkSync(jdFilePath);
+      }
     }
 
-    await Job.findByIdAndDelete(req.params.id);
-
-    if (!job) {
-      res.status(404).json({
-        success: false,
-        error: 'Job not found'
-      });
-      return;
+    // Remove all resume files by deleting the entire job-specific folder.
+    const jobStorageDir = path.join('/app', config.uploadPath, jobId);
+    if (fs.existsSync(jobStorageDir)) {
+      fs.rmSync(jobStorageDir, { recursive: true, force: true });
     }
+
+    // Delete related resumes (includes embedded scores) and then the job.
+    await Resume.deleteMany({ job_id: jobId });
+    await Job.findByIdAndDelete(jobId);
 
     res.json({
       success: true,
-      message: 'Job deleted successfully'
+      message: 'Job and all related resumes, scores, and files deleted successfully'
     });
   } catch (error) {
     console.error('Error deleting job:', error);
