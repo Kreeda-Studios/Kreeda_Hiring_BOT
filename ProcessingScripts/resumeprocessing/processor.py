@@ -36,7 +36,7 @@ from pydantic import BaseModel
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_NAME = "gpt-4o-mini"
+MODEL_NAME = "gpt-5-mini"
 
 INPUT_DIR = Path("input_resumes")
 OUTPUT_DIR = Path("output_json")
