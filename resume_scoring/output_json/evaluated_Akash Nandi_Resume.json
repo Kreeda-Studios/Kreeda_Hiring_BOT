@@ -1,15 +1,15 @@
 {
     "candidate_name": "Akash Nandi",
-    "skill_match": 0.62,
-    "experience_match": 0.85,
-    "tech_stack_match": 0.55,
-    "project_relevance": 0.65,
-    "responsibility_match": 0.6,
-    "impact_strength": 0.45,
+    "skill_match": 0.65,
+    "experience_match": 0.8,
+    "tech_stack_match": 0.45,
+    "project_relevance": 0.6,
+    "responsibility_match": 0.65,
+    "impact_strength": 0.3,
     "education_match": 1.0,
-    "critical_skill_gap_score": 0.35,
+    "critical_skill_gap_score": 0.25,
     "missing_skills": [
-        "GenAI (practical experience)",
+        "GenAI (general experience)",
         "Lang Chain",
         "Lang Graph",
         "Llama Index",
@@ -20,31 +20,27 @@
         "Agentic AI workflows",
         "PyTorch",
         "TensorFlow",
-        "embeddings (generation/usage)",
-        "fine-tuning LLMs",
-        "ML Ops (CI/CD for models, model monitoring)",
+        "LLM fine-tuning / embeddings workflow",
+        "ML Ops (explicit experience with model CI/CD, monitoring)",
         "AWS",
         "Snowflake",
-        "vector databases (production experience)",
-        "LLM orchestration"
+        "Vector databases (explicit hands-on)"
     ],
     "strengths": [
-        "Strong foundation in classical ML (logistic regression, Random Forest, XGBoost, SVM, KNN)",
-        "Solid NLP knowledge including Transformers, TF-IDF, NLTK and sequence models (LSTM/GRU)",
-        "Proficient in Python, Pandas, NumPy and Scikit-learn for end-to-end ML workflows",
-        "Hands-on experience with GCP and Microsoft Azure fundamentals; practical use of GCP/BigQuery in projects",
-        "Experience building ETL pipelines (SSIS) and working with Microsoft SQL Server/SQL",
-        "Experience with EDA, feature engineering, missing-value and imbalance handling",
-        "Exposure to production-support processes, code reviews, GitLab and JIRA",
-        "Relevant academic background (B.Tech in Computer Science) and multiple data-related certifications"
+        "Strong foundation in classical Machine Learning (Logistic Regression, Random Forest, XGBoost, SVM, KNN)",
+        "Solid Python, SQL and data engineering experience (ETL with SSIS, data cleaning, pipelines)",
+        "Experience with cloud analytics (GCP, BigQuery) and Azure certifications",
+        "NLP experience including Transformers, LSTM/GRU and TF-IDF approaches",
+        "Hands-on experience deploying features, production support and collaborating in Agile teams",
+        "Good visualization and BI skills (Power BI) and thorough EDA/processes demonstrated in projects"
     ],
     "concerns": [
-        "Limited to no demonstrable hands-on experience with core GenAI tooling (LangChain, Llama Index) and vector DBs",
-        "No evidence of deep learning framework usage in production (PyTorch / TensorFlow) or DL model deployment",
-        "No explicit ML Ops/CI-CD, model monitoring, or large-scale model deployment experience described",
-        "No clear experience with embeddings, fine-tuning LLMs, RAG or agentic AI workflows required by the JD",
-        "AWS and Snowflake (listed in JD tech stack) are not shown in hands-on experience (only GCP/Azure basics)",
-        "Impact statements lack measurable business metrics (improvements, scale, ROI) and public code/artifacts (GitHub links)"
+        "No explicit hands-on experience with GenAI toolchain (LangChain, LlamaIndex) or vector DBs (FAISS/Pinecone/Weaviate)",
+        "Missing mainstream deep learning frameworks used in production GenAI stacks (PyTorch, TensorFlow)",
+        "No evidence of LLM-specific work: embeddings pipeline, fine-tuning, or RAG implementations",
+        "Limited explicit ML Ops experience (model deployment, CI/CD for models, monitoring) beyond general production support",
+        "Projects and impact statements lack measurable business metrics or scale (few quantifiable outcomes)",
+        "No public code links (GitHub) or demonstrable GenAI project artifacts to validate applied expertise"
     ],
-    "overall_score": 0.636
+    "overall_score": 0.615
 }

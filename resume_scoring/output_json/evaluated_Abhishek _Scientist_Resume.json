@@ -1,41 +1,44 @@
 {
     "candidate_name": "Abhishek Kumar Ram",
-    "skill_match": 0.62,
-    "experience_match": 0.61,
-    "tech_stack_match": 0.45,
-    "project_relevance": 0.65,
+    "skill_match": 0.65,
+    "experience_match": 0.2,
+    "tech_stack_match": 0.6,
+    "project_relevance": 0.7,
     "responsibility_match": 0.6,
-    "impact_strength": 0.85,
-    "education_match": 0.9,
-    "critical_skill_gap_score": 0.35,
+    "impact_strength": 0.9,
+    "education_match": 0.8,
+    "critical_skill_gap_score": 0.3,
     "missing_skills": [
         "Lang Graph",
         "Llama Index",
         "FAISS",
         "Pinecone",
         "Weaviate",
-        "Snowflake",
+        "embeddings",
+        "fine-tuning",
+        "ML Ops",
         "AWS",
         "GCP",
         "Azure",
-        "ML Ops (CI/CD pipelines)",
-        "fine-tuning (LLM fine-tuning workflows)",
-        "embeddings (explicit implementation & tooling)"
+        "Snowflake",
+        "vector databases (production)"
     ],
     "strengths": [
-        "Strong core ML/AI skills: Python, NumPy, Pandas, Scikit-learn, TensorFlow, PyTorch",
-        "Hands-on GenAI/LLM experience: OpenAI API, prompt engineering, LangChain, transformer knowledge",
-        "Proven impact with metrics (e.g., 22% model improvement, 20% retention lift, 92% F1 on fraud detection)",
-        "Experience building end-to-end ML pipelines and automating preprocessing",
-        "Relevant projects demonstrating GenAI and applied ML (fraud detection with OpenAI, volatility prediction)",
-        "Good data visualization and stakeholder-facing deliverables (Power BI dashboards)"
+        "Strong Python + data stack (Pandas, NumPy, Scikit-learn)",
+        "Experience with Deep Learning (TensorFlow, Keras, PyTorch)",
+        "Generative AI / LLM experience (Transformer knowledge, OpenAI API, LangChain, prompt engineering)",
+        "Hands-on model development, deployment of end-to-end ML pipelines",
+        "Measurable impact (accuracy +22%, retention +20%, 92% F1 in fraud detection, workflow automation savings)",
+        "Solid data engineering skills: data cleaning, feature engineering, ETL automation",
+        "Projects demonstrating ML, time-series, NLP/sentiment and GenAI use-cases",
+        "Visualization & stakeholder reporting (Power BI)"
     ],
     "concerns": [
-        "Total professional experience is below JD minimum (internships = 11 months vs 18-month minimum)",
-        "Limited or no evidence of production-grade vector DB usage (FAISS/Pinecone/Weaviate) and RAG implementations",
-        "No clear cloud-native experience (AWS/GCP/Azure) or ML-Ops/CI-CD pipeline ownership",
-        "Missing explicit experience with Llama Index, Lang Graph, and fine-tuning/embeddings pipelines",
-        "Most experience is internship-level \u2014 may require ramp-up for senior production responsibilities"
+        "Total professional full-time experience is 0 months; internships = 11 months (< JD minimum 18 months)",
+        "Limited/no evidence of hands-on experience with vector DBs and retrieval stack (LlamaIndex, FAISS, Pinecone, Weaviate) or RAG in production",
+        "No explicit cloud-native/ML-Ops tooling experience (AWS/GCP/Azure, CI/CD, managed model serving)",
+        "Few signs of backend/microservice integration or production monitoring of models",
+        "Some preferred libraries/tech (Lang Graph, Llama Index, Snowflake, fine-tuning workflows) are missing"
     ],
-    "overall_score": 0.626
+    "overall_score": 0.595
 }

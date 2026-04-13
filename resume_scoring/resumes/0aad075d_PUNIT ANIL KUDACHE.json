@@ -1,0 +1,202 @@
+{
+  "profile": {
+    "name": "PUNIT ANIL KUDACHE",
+    "contact": "9527933852",
+    "email": "punitkudache5@gmail.com",
+    "linkedin": "https://www.linkedin.com/in/dktepunit-kudache-?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app",
+    "github": null,
+    "leetcode": null,
+    "hackerrank": null,
+    "location": "Hinjewadi, Pune"
+  },
+  "domain": "QA",
+  "confidence": 0.92,
+  "skills": {
+    "provided": [
+      "Java (8, 11, 17)",
+      "Structured Query Language",
+      "Selenium",
+      "TestNG",
+      "Behavior Driven Development",
+      "Cucumber",
+      "JUnit",
+      "Microservices",
+      "Postman",
+      "Swagger",
+      "REST Assured",
+      "SoapUI",
+      "JIRA",
+      "HP Application Lifecycle Management",
+      "IntelliJ IDEA",
+      "JMeter",
+      "SonarQube",
+      "Grafana",
+      "PuTTY",
+      "Jenkins",
+      "Continuous Integration/Continuous Deployment",
+      "Docker",
+      "Kubernetes",
+      "Google Cloud Platform",
+      "JFrog Artifactory",
+      "RabbitMQ",
+      "MongoDB",
+      "Git",
+      "Bitbucket",
+      "Confluence",
+      "Maven",
+      "Unix",
+      "Linux",
+      "Windows",
+      "Agile",
+      "Scrum"
+    ],
+    "inferred": [
+      "Selenium",
+      "Cucumber",
+      "TestNG",
+      "JUnit",
+      "Java (8, 11, 17)",
+      "Postman",
+      "Swagger",
+      "REST Assured",
+      "Structured Query Language",
+      "MongoDB",
+      "JFrog Artifactory",
+      "SonarQube",
+      "Grafana",
+      "RabbitMQ",
+      "GitLab",
+      "Git",
+      "Jenkins",
+      "Docker",
+      "Kubernetes",
+      "Google Cloud Platform",
+      "IntelliJ IDEA"
+    ],
+    "soft_skills": [
+      "Detail-oriented",
+      "Team collaboration",
+      "Cross-functional collaboration",
+      "Agile methodologies"
+    ]
+  },
+  "experience": {
+    "total_full_time_experience": 43,
+    "total_internship_experience_in_months": 0,
+    "details": [
+      {
+        "company": "Tata Technologies Ltd",
+        "role": "Automation Test Engineer",
+        "start": "Oct 2024",
+        "end": "Present",
+        "employment_type": "Full Time",
+        "impact": [
+          "Performed manual and automated testing across releases to ensure application functionality and reliability. Maintained Selenium, Cucumber, TestNG, and Java frameworks, improving test efficiency by 40% and accelerating test cycles by 20%",
+          "Designed and executed API test cases via Postman and Postman CLI, utilizing Swagger documentation for endpoint validation and integrated automated API testing into CI/CD pipelines using GitLab.",
+          "Conducted backend validations and log analysis on Google Cloud Platform (GCP) to verify data accuracy, debug production issues, and executed complex SQL queries ensure data consistency across relational databases.",
+          "Created and maintained test plans, cases, data, and reusable automation scripts using Agile methodologies. Actively participated and collaborated with cross-functional teams to clarify requirements and mitigate risks.",
+          "Managed defects and quality assurance activities end-to-end using JIRA, ensuring full traceability and transparency throughout the QA lifecycle and provided final sign-off for production deployments"
+        ]
+      },
+      {
+        "company": "Tata Technologies Ltd",
+        "role": "Automation Test Engineer",
+        "start": "April 2023",
+        "end": "Oct 2024",
+        "employment_type": "Full Time",
+        "impact": [
+          "Collaborated with developers to validate Java Spring Boot microservices, focusing on backend API and business logic testing using JUnit integration tests for early defect detection.",
+          "Implemented CI/CD pipelines with JFrog Artifactory, managing deployments and artifacts; utilized SonarQube for static code analysis and quality gate enforcement to maintain high code standards.",
+          "Built and maintained Grafana dashboards for real-time monitoring of application metrics, test results visualization, and performance analysis.",
+          "Verified asynchronous processes and message flows using RabbitMQ, ensuring accurate queue handling and message delivery.",
+          "Collaborated with devops team for application deployment and server management in higher environments."
+        ]
+      },
+      {
+        "company": "Tata Technologies Ltd",
+        "role": "Automation Test Engineer",
+        "start": "Aug 2022",
+        "end": "Apr 2023",
+        "employment_type": "Full Time",
+        "impact": [
+          "Developed automated web scraping solutions using Java and Selenium to extract data from legacy web applications and integrated JDBC connectivity for efficient storage into SQL databases.",
+          "Automated data collection, transformation, and loading from web sources into structured SQL database tables.",
+          "Created reusable Java modules to streamline the data scraping and storage process, reducing manual efforts and errors.",
+          "Collaborated with cross-functional teams to analyze legacy applications structures for efficient data extraction",
+          "Monitored and maintained the scraping system, troubleshooting issues related to web page changes or connectivity"
+        ]
+      }
+    ]
+  },
+  "projects": [
+    {
+      "title": "NVRS",
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "impact": 0.6,
+        "difficulty": 7,
+        "complexity": 7,
+        "domain_relevance": 9
+      }
+    },
+    {
+      "title": "WebScraping",
+      "demo_link": null,
+      "code_link": null,
+      "metric_ai": {
+        "impact": 0.5,
+        "difficulty": 6,
+        "complexity": 6,
+        "domain_relevance": 7
+      }
+    }
+  ],
+  "educations": [
+    {
+      "start": null,
+      "end": "2022",
+      "college": "Shivaji University, Kolhapur",
+      "degree": "B.E.",
+      "department": "Computer Science and Engineering",
+      "grade": null
+    }
+  ],
+  "certifications": [
+    "TechVersity certified Java programmer",
+    "TechVersity certified Automation Test Engineer",
+    "TechVersity certified Integration Test Engineer",
+    "TechVersity certified QA Engineer"
+  ],
+  "achievements": [
+    "Spot Awards (JLR| Q2-FY25): Recognized for exceptional client project performance.",
+    "Rise Award (TTL | Q1-FY25 & Q3-FY23): Honored for delivering high-quality work within tight deadlines."
+  ],
+  "processed_date": "2026-03-27",
+  "raw_text": "PUNIT ANIL KUDACHE \nAUTOMATION TEST ENGINEER \n 📞 9527933852 |  \n punitkudache5@gmail.com | LinkedIn: linkedin.com/in/punit-kudache \nSUMMARY \n• Detail-oriented Automation Tester with over 3 years of experience in software testing and quality assurance for \nweb-based applications. \n• Proficient in both manual and automated testing methodologies, with a strong focus on Java and Selenium \nframeworks. \n• Skilled in designing and implementing automated test scripts, ensuring comprehensive test coverage and exceptional \nsoftware quality. \n• Experienced in Agile/Scrum environments, contributing to all phases of the SDLC. \n• Experienced in CI/CD pipelines, Agile methodologies, and cross-functional team collaboration. \n• Hands-on experience with tools and technologies including JFrog for artifact management, RabbitMQ for messaging, \nSonarQube for code quality analysis, Grafana for monitoring and dashboards, and MongoDB for NoSQL database \ntesting. \nSKILLS \n• Programming languages: Java (8,11,17), SQL \n• Frameworks: Selenium, TestNG, BDD, Cucumber, Junit, Microservices,  \n• API & Tools: Postman, Swagger, REST Assured, SOAPUI, JIRA, HP ALM, Intellij \n• Performance & Monitoring: JMeter, SonarQube, Grafana, PuTTy \n• DevOps & Cloud: Jenkins, CI/CD, Docker, Kubernetes, GCP, Jfrog \n• Messaging & Queues: RabbitMQ \n• Database: SQL, MongoDB \n• Version Control & Build Tools: Git, Bitbucket , Confluence, Maven \n• Platforms & Methodologies : Unix/Linux, Windows, Agile, Scrum \nWORK EXPERIENCE : \nTata Technologies Ltd : \nAutomation Test Engineer: Oct 2024 – Present | Client: VSR \n• \nPerformed manual and automated testing across releases to ensure application functionality and reliability. Maintained \nSelenium, Cucumber, TestNG, and Java frameworks, improving test efficiency by 40% and accelerating test cycles by 20% \n• \nDesigned and executed API test cases via Postman and Postman CLI, utilizing Swagger documentation for endpoint \nvalidation and integrated automated API testing into CI/CD pipelines using GitLab. \n• \nConducted backend validations and log analysis on Google Cloud Platform (GCP) to verify data accuracy, debug \nproduction issues, and executed complex SQL queries ensure data consistency across relational databases. \n• \nCreated and maintained test plans, cases, data, and reusable automation scripts using Agile methodologies. Actively \nparticipated and collaborated with cross-functional teams to clarify requirements and mitigate risks. \n• \nManaged defects and quality assurance activities end-to-end using JIRA, ensuring full traceability and transparency \nthroughout the QA lifecycle and provided final sign-off for production deployments \nApril 2023 – Oct 2024 | Project: NVRS \n• \nCollaborated with developers to validate Java Spring Boot microservices, focusing on backend API and business logic \ntesting using JUnit integration tests for early defect detection. \n• \nImplemented CI/CD pipelines with JFrog Artifactory, managing deployments and artifacts; utilized SonarQube for static \ncode analysis and quality gate enforcement to maintain high code standards. \n• \nBuilt and maintained Grafana dashboards for real-time monitoring of application metrics, test results visualization, and \nperformance analysis. \n• \nVerified asynchronous processes and message flows using RabbitMQ, ensuring accurate queue handling and message \ndelivery. \n• \nCollaborated with devops team for application deployment and server management in higher environments. \nAug 2022 – Apr 2023 |Project: WebScraping \n• \nDeveloped automated web scraping solutions using Java and Selenium to extract data from legacy web applications \nand integrated JDBC connectivity for efficient storage into SQL databases. \n• \nAutomated data collection, transformation, and loading from web sources into structured SQL database tables. \n• \nCreated reusable Java modules to streamline the data scraping and storage process, reducing manual efforts and errors. \n• \nCollaborated with cross-functional teams to analyze legacy applications structures  for efficient data extraction \n• \nMonitored and maintained the scraping system, troubleshooting issues related to web page changes or connectivity \nACADEMIA \n• \nB.E. –Computer Science and Engineering, 2022 | Shivaji University, Kolhapur \nAWARDS AND RECOGNITIONS \n• \nSpot Awards (JLR| Q2-FY25): Recognized for exceptional client project performance. \n• \nRise Award (TTL | Q1-FY25 & Q3-FY23): Honored for delivering high-quality work within tight deadlines. \nCERTIFICATIONS & TRAINING \n• \nTechVersity certified Java programmer \n• \nTechVersity certified Automation Test Engineer \n• \nTechVersity certified Integration Test Engineer \n• \nTechVersity certified QA Engineer \nPERSONAL INFORMATION: \nAddress: Hinjewadi, Pune.    DOB: 10th July 2000. \nGender: Male \nLinguistic Proficiency: English, Hindi, Marathi",
+  "meta_data": {
+    "word_count": 596,
+    "word_frequency": {
+      "test": 11,
+      "java": 7,
+      "data": 7,
+      "testing": 6,
+      "quality": 6,
+      "automated": 6,
+      "using": 6,
+      "automation": 5,
+      "engineer": 5,
+      "web": 5,
+      "sql": 5,
+      "methodologies": 4,
+      "selenium": 4,
+      "agile": 4,
+      "ci": 4,
+      "cd": 4,
+      "analysis": 4,
+      "api": 4,
+      "maintained": 4,
+      "collaborated": 4
+    }
+  }
+}

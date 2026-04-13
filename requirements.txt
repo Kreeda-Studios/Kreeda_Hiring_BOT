@@ -2,3 +2,6 @@ openai
 PyMuPDF
 python-dotenv
 pydantic
+fastapi 
+uvicorn 
+httpx

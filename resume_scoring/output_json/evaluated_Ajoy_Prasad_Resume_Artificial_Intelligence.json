@@ -1,39 +1,40 @@
 {
     "candidate_name": "AJOY PRASAD",
-    "skill_match": 0.82,
+    "skill_match": 0.84,
     "experience_match": 1.0,
-    "tech_stack_match": 0.65,
+    "tech_stack_match": 0.78,
     "project_relevance": 0.9,
-    "responsibility_match": 0.7,
+    "responsibility_match": 0.8,
     "impact_strength": 0.72,
     "education_match": 1.0,
     "critical_skill_gap_score": 0.75,
     "missing_skills": [
-        "Py Torch (PyTorch)",
+        "Llama Index",
+        "PyTorch",
         "NumPy",
         "Pandas",
-        "Llama Index",
         "Weaviate",
-        "Snowflake",
-        "ML Ops / CI-CD",
         "GCP",
         "Azure",
-        "fine-tuning (LLM fine-tuning)"
+        "Snowflake",
+        "ML Ops",
+        "CI/CD"
     ],
     "strengths": [
-        "Strong domain education: M.Tech in Artificial Intelligence (NIT Bhopal).",
-        "Hands-on RAG systems and Agentic AI (LangChain, LangGraph, RAG-based PDF QA, Pinecone, SBERT, Faiss inferred).",
-        "Production-oriented backend experience: FastAPI, API Gateway, JWT auth, AWS SES, S3, PostgreSQL.",
-        "Concrete project results: Satellite CNN with 94% accuracy and parameter optimization; RAG PDF QA and multilingual document RAG chatbot.",
-        "Experience with Transformers/LLM APIs (Mistral API, Hugging Face) and embeddings pipelines.",
-        "Clear familiarity with OCR, computer vision (OpenCV), and ML libraries (scikit-learn, TensorFlow)."
+        "Strong hands-on experience building RAG systems (LangChain/LangGraph, Pinecone/Chroma, SBERT, Faiss)",
+        "Practical LLM integration experience (Mistral API, Hugging Face) and Agentic AI workflows",
+        "Production-oriented backend skills: FastAPI, JWT, API Gateway, AWS S3, AWS SES, PostgreSQL",
+        "Computer vision and lightweight CNN work with concrete metrics (94% accuracy, parameter reduction)",
+        "M.Tech in AI and clear domain-relevant projects with code repos demonstrating end-to-end systems",
+        "Strong foundation in NLP, embeddings, and retrieval-based QA systems"
     ],
     "concerns": [
-        "Key preferred tech missing or not explicitly shown: PyTorch, core data libs (NumPy, Pandas) and Llama Index.",
-        "Limited explicit MLOps / CI-CD and multi-cloud (GCP/Azure) production experience\u2014AWS present but other clouds absent.",
-        "Resume shows strong project work but limited long-tenure industry roles or evidence of large-scale production deployments/monitoring.",
-        "No explicit mention of fine-tuning LLMs or model monitoring/observability practices.",
-        "Certifications or formal ML Ops training not listed; potential gap for enterprise ML lifecycle requirements."
+        "Key preferred items missing or not explicitly stated: PyTorch, NumPy, Pandas, Llama Index",
+        "Limited explicit evidence of multi-cloud (GCP/Azure) experience \u2014 only AWS shown",
+        "No explicit ML Ops / CI-CD / monitoring experience for production model lifecycle",
+        "Enterprise data platform experience (Weaviate, Snowflake) not shown",
+        "Resume shows only one short listed full-time role in details; total experience claim (4 years) not fully backed by multi-role history in the resume",
+        "Some preferred items (Llama Index, Weaviate, Snowflake, PyTorch) are important for this role and are absent or only inferred"
     ],
-    "overall_score": 0.808
+    "overall_score": 0.847
 }

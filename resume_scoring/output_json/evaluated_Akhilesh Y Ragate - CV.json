@@ -1,13 +1,13 @@
 {
     "candidate_name": "Akhilesh Y Ragate",
-    "skill_match": 0.7,
+    "skill_match": 0.72,
     "experience_match": 0.0,
-    "tech_stack_match": 0.6,
-    "project_relevance": 0.72,
-    "responsibility_match": 0.65,
+    "tech_stack_match": 0.62,
+    "project_relevance": 0.66,
+    "responsibility_match": 0.7,
     "impact_strength": 0.6,
     "education_match": 1.0,
-    "critical_skill_gap_score": 0.28,
+    "critical_skill_gap_score": 0.45,
     "missing_skills": [
         "Lang Chain",
         "Lang Graph",
@@ -15,28 +15,31 @@
         "FAISS",
         "Pinecone",
         "Weaviate",
-        "PyTorch",
-        "Transformers (library/workflow)",
-        "LLM fine-tuning / production LLM ops",
-        "embeddings/vector pipeline (explicit)",
-        "RAG / RAG-based architectures",
+        "RAG (Retrieval-Augmented Generation)",
         "Agentic AI workflows",
-        "Snowflake"
+        "PyTorch",
+        "Transformers (explicit)",
+        "embeddings (explicit workflow/fine-tuning)",
+        "fine-tuning (LLM fine-tuning)",
+        "Snowflake",
+        "ML Ops / CI/CD (explicit pipelines & monitoring)"
     ],
     "strengths": [
-        "Strong hands-on computer vision experience (CNNs, YOLO, SAM) with domain projects (remote sensing, pothole detection, satellite imagery).",
-        "Solid ML foundations and tooling: TensorFlow, Keras, Scikit-Learn, XGBoost and classical algorithms.",
-        "Practical data engineering and cloud experience: built serverless ETL pipelines (AWS S3, Lambda, Glue, Athena, Parquet) and RESTful APIs.",
-        "Deployment and engineering skills: Docker, FastAPI, inference pipelines and end-to-end model deployment experience.",
-        "Relevant certifications in cloud, generative AI, and data science; formal degree in Computer Science with AI/ML specialization.",
-        "Experience across audio, image, and remote-sensing domains showing breadth and adaptability."
+        "Strong hands-on experience in Computer Vision (YOLO, SAM, OpenCV, CNNs) with concrete projects and a reported 95% accuracy on a pothole detection app.",
+        "Solid ML/DL toolset: TensorFlow, Keras, Scikit-Learn, XGBoost, typical data science stack (Pandas, SQL).",
+        "Cloud & data engineering experience: built serverless ETL on AWS (S3, Lambda, Glue, Athena, Parquet) and practical data-pipeline implementations for analytics.",
+        "Experience building deployable inference pipelines and integrating ML models into applications (web/mobile) and reports.",
+        "Exposure to GenAI ecosystem tools (Hugging Face, Gemini API, AI Studio, Chroma DB) and relevant certifications in Generative AI / Cloud.",
+        "Relevant degree: BE in Computer Science with AI & ML specialization and multiple related certifications.",
+        "Demonstrated problem solving and continuous learning (hackathons, 150+ coding challenges)."
     ],
     "concerns": [
-        "Does not meet the JD minimum experience requirement (no documented full-time months of experience).",
-        "Limited or no evidence of core GenAI production stack items required by the role (LangChain, Llama Index, Lang Graph).",
-        "Key vector DBs and retrieval tooling (FAISS, Pinecone, Weaviate) and RAG architectures are missing or not demonstrated.",
-        "PyTorch and Transformers-based workflows / fine-tuning for LLMs are not shown; GenAI/LLM production experience appears weak.",
-        "Most experience is internship/project-level \u2014 limited evidence of owning production-grade, end-to-end GenAI systems at scale."
+        "No documented full-time experience; total professional months do not meet the JD minimum (18 months).",
+        "Limited or no explicit evidence of PyTorch usage \u2014 JD lists PyTorch as a key framework.",
+        "No direct evidence of LangChain / LlamaIndex / Lang Graph usage or experience with FAISS/Pinecone/Weaviate vector DBs (only Chroma DB noted).",
+        "Limited evidence of RAG architectures, LLM fine-tuning, embeddings workflows, or agentic AI orchestration required by the GenAI responsibilities.",
+        "MLOps and production-grade CI/CD/monitoring practices are not clearly demonstrated (Docker presence helps, but end-to-end MLOps evidence is thin).",
+        "Location: candidate is in Bangalore while role is Pune (hybrid) \u2014 not a disqualifier but a logistical consideration."
     ],
-    "overall_score": 0.568
+    "overall_score": 0.583
 }

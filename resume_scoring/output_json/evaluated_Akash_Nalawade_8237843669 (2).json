@@ -1,42 +1,46 @@
 {
     "candidate_name": "Akash Nalawade",
-    "skill_match": 0.55,
+    "skill_match": 0.5,
     "experience_match": 0.1,
-    "tech_stack_match": 0.6,
+    "tech_stack_match": 0.45,
     "project_relevance": 0.6,
-    "responsibility_match": 0.65,
+    "responsibility_match": 0.5,
     "impact_strength": 0.6,
     "education_match": 1.0,
-    "critical_skill_gap_score": 0.25,
+    "critical_skill_gap_score": 0.35,
     "missing_skills": [
+        "GenAI (LLM-focused workflows)",
         "Lang Chain",
         "Lang Graph",
         "Llama Index",
         "FAISS",
         "Pinecone",
         "Weaviate",
-        "RAG",
+        "RAG / RAG-based architectures",
         "Agentic AI workflows",
-        "Transformers",
-        "LLMs",
+        "Transformers / LLMs",
         "embeddings",
-        "fine-tuning",
+        "fine-tuning (LLM fine-tuning)",
+        "ML Ops (explicit tools/practices / CI-CD pipelines)",
         "Azure",
         "Snowflake"
     ],
     "strengths": [
-        "Strong foundation in core ML and DL (Python, TensorFlow, PyTorch, Scikit-learn)",
-        "Hands-on experience building and deploying end-to-end ML pipelines (real-time models, deployment, monitoring)",
-        "Cloud experience with AWS and GCP and scalable pipeline implementation",
-        "Practical experience in data cleaning, feature engineering, EDA and visualization (Power BI, Tableau, Matplotlib)",
-        "Relevant certifications (IBM, AWS, Oracle, Google) and a B.Tech in Computer Science"
+        "Strong core ML and DL foundations (Machine Learning, Deep Learning, Scikit-learn, XGBoost, Random Forest, Logistic Regression)",
+        "Hands-on experience with TensorFlow and PyTorch",
+        "Practical experience building end-to-end ML pipelines and deploying real-time models (internship + projects)",
+        "Cloud experience with AWS and GCP and implementing scalable pipelines",
+        "Good data engineering skills: ETL, feature engineering, data cleaning, EDA",
+        "Visualization and product-facing delivery (Power BI, dashboards)",
+        "Measurable impact shown (e.g., 92% model accuracy, 12% automation efficiency improvement)",
+        "Relevant degree (B.Tech in Computer Science) and multiple relevant certifications"
     ],
     "concerns": [
-        "Total professional experience well below JD minimum (6 months internships vs 18 months required)",
-        "Limited or no demonstrated experience with GenAI/LLMs and related frameworks (LangChain, LlamaIndex, Transformers)",
-        "No evidence of experience with vector DBs or retrieval systems (FAISS, Pinecone, Weaviate) and RAG/agentic workflows",
-        "Missing Azure and Snowflake experience called out in JD tech stack",
-        "Limited evidence of production microservice/backend integration and CI/CD/ML-Ops tooling experience"
+        "Total professional experience is well below JD minimum (6 months internships vs 18 months required)",
+        "Major gaps in GenAI / LLM-specific toolset (LangChain, LlamaIndex, vector DBs) which are primary for this role",
+        "No explicit experience listed with vector databases (FAISS, Pinecone, Weaviate) or Snowflake",
+        "Limited evidence of mature ML Ops/CI-CD practices and large-scale production deployments",
+        "Most experience is internship/project-level \u2014 may lack breadth/depth for mid-level permanent role (18-48 months)"
     ],
-    "overall_score": 0.525
+    "overall_score": 0.467
 }

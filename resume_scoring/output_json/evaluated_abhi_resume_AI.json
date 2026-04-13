@@ -1,40 +1,40 @@
 {
     "candidate_name": "Abhishek Patidar",
-    "skill_match": 0.82,
-    "experience_match": 0.9,
+    "skill_match": 0.8,
+    "experience_match": 0.4,
     "tech_stack_match": 0.75,
-    "project_relevance": 0.95,
-    "responsibility_match": 0.9,
+    "project_relevance": 0.9,
+    "responsibility_match": 0.85,
     "impact_strength": 0.6,
     "education_match": 1.0,
-    "critical_skill_gap_score": 0.68,
+    "critical_skill_gap_score": 0.8,
     "missing_skills": [
-        "Llama Index",
         "FAISS",
         "Weaviate",
         "Snowflake",
         "GCP",
         "Azure",
-        "ML Ops / CI-CD (explicit experience)",
-        "RAG (explicit RAG architectures mention)",
-        "PyTorch (explicit confirmation)"
+        "Llama Index",
+        "CI/CD / explicit MLOps tooling",
+        "(explicit) NumPy",
+        "(explicit) Pandas"
     ],
     "strengths": [
-        "Strong GenAI / LLM experience (Gemini, OpenAI GPT, custom SkinGPT-4, Llama 2)",
-        "Experience building agentic AI workflows and multi-LLM pipelines (LangChain, LangGraph, agent projects)",
-        "Practical experience with vector DBs and retrieval (Pinecone) and embedding/fine-tuning workflows",
-        "Solid Computer Vision portfolio: YOLO (v8/v11), multi-object tracking (Deep SORT, ByteTrack), person re-identification (Torchreid)",
-        "Full-stack delivery experience: frontend (Streamlit), backend (FastAPI), integration (chatbots, Twilio), PDF export and e-commerce recommendations",
-        "Education: MSc in Data Science from IIIT Lucknow (strong academic background for role)",
-        "Cloud exposure (AWS) and containerization (Docker) with hands-on deployment experience"
+        "Strong GenAI and LLM experience (Gemini, OpenAI GPT, custom SkinGPT-4, Llama 2)",
+        "Hands-on agentic AI workflows using LangChain and LangGraph",
+        "Experience with vector DB (Pinecone) and RAG-like retrieval stacks",
+        "Proven full-stack ML deployment skills (FastAPI, Streamlit, Docker, AWS)",
+        "Extensive Computer Vision expertise (YOLOv8/v11, Deep SORT, ByteTrack, Torchreid) and real-time systems",
+        "Experience with fine-tuning and transformer models (PEGASUS, transformers)",
+        "Strong academic background (MSc Data Science from IIIT Lucknow)"
     ],
     "concerns": [
-        "Several preferred/vector DB technologies are missing or not explicitly listed (FAISS, Weaviate, Llama Index) which are commonly used for RAG pipelines",
-        "Limited explicit multi-cloud experience (GCP/Azure) \u2014 JD expects cloud-native pipelines across AWS/GCP/Azure",
-        "ML Ops and CI/CD experience is not clearly documented (model monitoring, automated pipelines, production ML practices)",
-        "Few quantifiable production metrics and business impact figures provided (most impacts are descriptive)",
-        "Candidate's total experience (9 years) exceeds the JD's upper range (4 years) \u2014 may be overqualified relative to stated requirement or expect different compensation/level",
-        "PyTorch not clearly listed (though Torchreid implies PyTorch usage) \u2014 requires confirmation for framework alignment"
+        "Total full-time professional experience is below JD minimum (appears ~9 months FT; ~16 months including internships)",
+        "Missing explicit experience with FAISS and Weaviate which are listed preferred vector DBs",
+        "No evidence of Snowflake or other data warehouse experience",
+        "No explicit GCP/Azure cloud experience (only AWS shown)",
+        "Limited explicit evidence of formal ML-Ops / CI-CD pipelines and monitoring (some deployment work exists but CI/CD tooling not listed)",
+        "Llama Index not listed though other retrieval tooling present (Pinecone)"
     ],
-    "overall_score": 0.835
+    "overall_score": 0.741
 }
