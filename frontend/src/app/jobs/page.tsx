@@ -58,7 +58,7 @@ export default function JobsPage() {
           title="Failed to load jobs"
           description={error}
           action={
-            <Button onClick={() => window.location.reload()}>
+            <Button onClick={() => window.location.reload()} className="cursor-pointer">
               Try again
             </Button>
           }
@@ -73,7 +73,7 @@ export default function JobsPage() {
         title="Jobs"
         description="Manage your hiring processes and view candidate pipelines."
       >
-        <Button asChild>
+        <Button asChild className="cursor-pointer">
           <Link href="/jobs/new">
             <Plus className="mr-2 h-4 w-4" />
             Create Job
@@ -105,7 +105,7 @@ export default function JobsPage() {
               : "Create your first job to start screening resumes with AI."
           }
           action={
-            <Button asChild>
+            <Button asChild className="cursor-pointer">
               <Link href="/jobs/new">
                 <Plus className="mr-2 h-4 w-4" />
                 Create Job
@@ -130,7 +130,7 @@ interface JobCardProps {
 
 function JobCard({ job }: JobCardProps) {
   return (
-    <Link href={`/jobs/${job._id}`}>
+    <Link href={`/jobs/${job._id}`} className="cursor-pointer">
       <Card className="hover:border-primary/50 transition-colors h-full">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">

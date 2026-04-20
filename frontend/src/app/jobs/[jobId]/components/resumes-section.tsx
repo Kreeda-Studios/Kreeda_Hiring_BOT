@@ -7,23 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { EmptyState, ResumeStatusBadge } from "@/components/common";
-import {
-  Users,
   Upload,
   FileText,
   Loader2,
-  Play,
   AlertTriangle,
   CheckCircle2,
   FileUp,
+  Users,
+  Play,
 } from "lucide-react";
 import type { Resume, ResumeStatus } from "@/lib/types";
 import { jobsAPI, resumesAPI, processingAPI } from "@/lib/api";
@@ -115,7 +106,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
         setProcessingStats({ total: currentTotal, completed: 0, failed: 0 });
       }
     }
-  }, [isResumeProcessingInProgress, statusData?.job.status]);
+  }, [statusData?.job.status, resumes.length]);
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -331,15 +322,12 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
   };
 
   const getResumeStatus = (resume: Resume): ResumeStatus => {
-    // Check if resume was filtered out due to hard requirements
-    if (resume.scores?.hard_requirements?.meets_all_requirements === false) {
-      return "filtered";
-    }
-    
-    if (resume.parsing_status === "complete") return "complete";
-    if (resume.parsing_status === "failed" || resume.extraction_status === "failed") return "failed";
-    if (resume.parsing_status === "processing" || resume.extraction_status === "processing") return "processing";
-    return "pending";
+    // Map backend status to frontend display status
+    if (resume.status === "completed") return "completed";
+    if (resume.status === "failed") return "failed";
+    if (resume.status === "filtered") return "filtered";
+    if (resume.status === "processing") return "processing";
+    return "pending"; // Default for draft or pending
   };
 
   if (loading) {
@@ -352,34 +340,18 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
 
   return (
     <div className="space-y-6">
-      {/* Error Display */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Success Message */}
-      {uploadSuccess && (
-        <Alert className="border-green-200 bg-green-50">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-700">{uploadSuccess}</AlertDescription>
-        </Alert>
-      )}
-
       {/* Upload Progress */}
       {uploadProgress && (
-        <Card className="border-blue-500/50 bg-blue-50">
+        <Card className="border-primary/50 bg-primary/10 dark:border-primary/40 dark:bg-primary/10">
           <CardContent className="pt-6 space-y-3">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                <span className="font-semibold text-base text-blue-900">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="font-semibold text-base text-foreground">
                   Uploading Resumes... (Batch {uploadProgress.currentBatch}/{uploadProgress.totalBatches})
                 </span>
               </div>
-              <span className="font-bold text-lg text-blue-900 tabular-nums">
+              <span className="font-bold text-lg text-foreground tabular-nums">
                 {uploadProgress.uploadedCount}/{uploadProgress.totalFiles}
               </span>
             </div>
@@ -387,7 +359,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
               value={(uploadProgress.uploadedCount / uploadProgress.totalFiles) * 100} 
               className="h-2.5" 
             />
-            <div className="flex justify-between text-sm text-blue-800">
+            <div className="flex justify-between text-sm text-muted-foreground">
               <span>Current batch: {uploadProgress.currentBatch} of {uploadProgress.totalBatches}</span>
               <span>Uploaded: {uploadProgress.uploadedCount} | Failed: {uploadProgress.failedCount}</span>
             </div>
@@ -397,12 +369,12 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
 
       {/* Resume Processing Progress Bar - Top Position */}
       {resumes.length > 0 && (
-        <Card className={processingProgress === 100 ? 'border-green-500/50 bg-green-500/10' : processing ? 'border-primary/50 bg-primary/10' : 'border-muted'}>
+        <Card className={processingProgress === 100 ? 'border-emerald-500/50 bg-emerald-500/10 dark:border-emerald-500/40 dark:bg-emerald-500/10' : processing ? 'border-primary/50 bg-primary/10 dark:border-primary/40' : 'border-muted'}>
           <CardContent className="pt-6 space-y-3">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 {processingProgress === 100 ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 ) : processing ? (
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 ) : (
@@ -429,7 +401,7 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
             <Progress value={processingProgress} className="h-2.5" />
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Total Resumes: <span className="font-medium text-foreground">{processingStats.total}</span></span>
-              <span className="text-muted-foreground">Completed: <span className="font-medium text-green-500">{processingStats.completed}</span></span>
+              <span className="text-muted-foreground">Completed: <span className="font-medium text-emerald-600 dark:text-emerald-400">{processingStats.completed}</span></span>
               <span className="text-muted-foreground">Failed: <span className="font-medium text-destructive">{processingStats.failed}</span></span>
             </div>
           </CardContent>
@@ -455,180 +427,54 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
               <div className="space-y-1">
                 <h4 className="font-medium">Bulk Upload Resume PDFs</h4>
                 <p className="text-sm text-muted-foreground">
-                  Select multiple PDF files - uploads in batches of 5 for optimal performance
+                  Select multiple PDF files
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || !canUploadResumes()}
+                className="cursor-pointer"
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <FileUp className="h-4 w-4 mr-2" />
+                )}
+                {uploading ? 'Uploading...' : 'Select PDFs'}
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".pdf"
+                multiple
+                className="hidden"
+              />
+            </div>
+
+            {/* Start Processing Section - Centered */}
+            {resumes.length > 0 && (
+              <div className="flex justify-center p-6">
                 <Button
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading || !canUploadResumes()}
+                  onClick={handleProcessResumes}
+                  disabled={!canStartResumeProcessing() || processing}
+                  className="cursor-pointer"
+                  size="lg"
                 >
-                  {uploading ? (
+                  {processing ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : (
-                    <FileUp className="h-4 w-4 mr-2" />
+                    <Play className="h-4 w-4 mr-2" />
                   )}
-                  {uploading ? 'Uploading...' : 'Select PDFs'}
+                  {processing ? 'Processing...' : 'Start Resume Processing'}
                 </Button>
-                {!canUploadResumes() && (
-                  <p className="text-xs text-orange-600">
-                    Upload locked during processing
-                  </p>
-                )}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept=".pdf"
-                  multiple
-                  className="hidden"
-                />
-              </div>
-            </div>
-
-            {/* Resume Stats */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold">{resumes.length}</div>
-                <div className="text-sm text-muted-foreground">Total Resumes</div>
-              </div>
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {resumes.filter(r => r.parsing_status === "complete" && r.scores?.hard_requirements?.meets_all_requirements !== false).length}
-                </div>
-                <div className="text-sm text-muted-foreground">Processed</div>
-              </div>
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">
-                  {resumes.filter(r => r.scores?.hard_requirements?.meets_all_requirements === false).length}
-                </div>
-                <div className="text-sm text-muted-foreground">Filtered Out</div>
-              </div>
-              <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {resumes.filter(r => r.parsing_status === "pending" || r.extraction_status === "pending").length}
-                </div>
-                <div className="text-sm text-muted-foreground">Pending</div>
-              </div>
-            </div>
-
-            {/* Process Button */}
-            {resumes.length > 0 && (
-              <div className="space-y-3 pt-4 border-t">
-                <div className="flex justify-center">
-                  <Button
-                    onClick={handleProcessResumes}
-                    disabled={!canStartResumeProcessing() || processing}
-                    className="w-full max-w-md"
-                    size="lg"
-                  >
-                    {processing ? (
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : (
-                      <Play className="mr-2 h-5 w-5" />
-                    )}
-                    {processing ? 'Processing Resumes...' : 'Start Resume Processing'}
-                  </Button>
-                </div>
-                
-                {/* Status Messages */}
-                {statusData && (
-                  <div className="text-center space-y-1">
-                    {statusData.job.status !== 'jd_processing_completed' && (
-                      <p className="text-xs text-orange-600">
-                        ⚠️ JD must be processed before resume processing can start
-                      </p>
-                    )}
-                    {statusData.job.status === 'resume_processing_started' && (
-                      <p className="text-xs text-blue-600">
-                        🔄 Processing resumes...
-                      </p>
-                    )}
-                    {statusData.job.status === 'resume_processing_completed' && (
-                      <p className="text-xs text-green-600">
-                        ✅ All resumes processed successfully
-                      </p>
-                    )}
-                    {statusData.job.status === 'resume_processing_failed' && (
-                      <p className="text-xs text-red-600">
-                        ❌ Resume processing failed. Please try again.
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             )}
+
           </CardContent>
         </Card>
 
-      {/* Resumes List */}
-      {resumes.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Uploaded Resumes ({resumes.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Filename</TableHead>
-                  <TableHead>Candidate</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Uploaded</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {resumes.map((resume) => (
-                  <TableRow key={resume._id}>
-                    <TableCell className="font-medium">
-                      {resume.filename}
-                    </TableCell>
-                    <TableCell>
-                      {resume.candidate_name || "Not extracted"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <ResumeStatusBadge status={getResumeStatus(resume)} />
-                        {resume.scores?.hard_requirements?.meets_all_requirements === false && (
-                          <div className="group relative">
-                            <AlertTriangle className="h-4 w-4 text-orange-500 cursor-help" />
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                              {resume.scores.hard_requirements.filter_reason || "Does not meet mandatory requirements"}
-                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-black"></div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(resume.createdAt).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <EmptyState
-          icon={<Users className="h-8 w-8" />}
-          title="No resumes uploaded yet"
-          description="Upload PDF resumes to get started with candidate evaluation"
-          action={
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              className="mt-4"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload First Resume
-            </Button>
-          }
-        />
-      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Briefcase,
@@ -51,6 +52,28 @@ interface AppSidebarProps {
 
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const pathname = usePathname();
+  const [theme, setTheme] = React.useState<"light" | "dark">("light");
+
+  React.useEffect(() => {
+    const root = window.document.documentElement;
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      setTheme("dark");
+    }
+
+    // Listen for theme changes
+    const handleThemeChange = () => {
+      const newTheme = root.classList.contains("dark") ? "dark" : "light";
+      setTheme(newTheme);
+    };
+
+    const observer = new MutationObserver(handleThemeChange);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+
+    return () => observer.disconnect();
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -66,19 +89,15 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center border-b px-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Users className="h-5 w-5 text-primary-foreground" />
-            </div>
-            {!collapsed && (
-              <div className="flex flex-col">
-                <span className="text-lg font-semibold">Kreeda</span>
-                <span className="text-xs text-muted-foreground">
-                  Hiring Bot
-                </span>
-              </div>
-            )}
+        <div className="flex h-16 items-center justify-center border-b px-6">
+          <Link href="/" className="flex items-center justify-start w-full h-full">
+            <Image
+              src={theme === "dark" ? "/KreedaLabs_White.png" : "/KreedaLabs_Black.png"}
+              alt="Kreeda Labs"
+              width={200}
+              height={60}
+              className="h-8 w-auto object-contain max-w-full"
+            />
           </Link>
         </div>
 

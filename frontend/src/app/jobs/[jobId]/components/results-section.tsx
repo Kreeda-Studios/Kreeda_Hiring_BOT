@@ -149,10 +149,14 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
 
   useEffect(() => {
     fetchScores();
+    // Reset selection when tab/jobId changes
+    setSelectedResumes(new Set());
   }, [jobId]);
 
   const handleRefresh = () => {
     setRefreshing(true);
+    // Reset checkbox selections when refreshing
+    setSelectedResumes(new Set());
     fetchScores();
   };
 

@@ -94,7 +94,7 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
       clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
     }
-  }, [isJDProcessingInProgress, statusData?.job.status, job.status]);
+  }, [statusData?.job.status, job.status]);
 
   // Cleanup interval on unmount
   useEffect(() => {

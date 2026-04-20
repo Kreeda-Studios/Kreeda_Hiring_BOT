@@ -108,7 +108,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
           title="Job not found"
           description={error || "The job you're looking for doesn't exist."}
           action={
-            <Button asChild>
+            <Button asChild className="cursor-pointer">
               <Link href="/jobs">Back to Jobs</Link>
             </Button>
           }
@@ -123,7 +123,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
     <PageContainer>
       {/* Back button */}
       <div className="mb-6">
-        <Button variant="ghost" size="sm" asChild>
+        <Button variant="ghost" size="sm" asChild className="cursor-pointer">
           <Link href="/jobs">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Jobs
@@ -146,13 +146,13 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="cursor-pointer">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                className="text-destructive"
+                className="text-destructive cursor-pointer"
                 onClick={() => {
                   setShowDeleteDialog(true);
                 }}
@@ -210,12 +210,12 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting} className="cursor-pointer">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 void handleDeleteJob();
               }}
-              className="bg-destructive hover:bg-destructive/90"
+              className="bg-destructive hover:bg-destructive/90 cursor-pointer"
               disabled={deleting}
             >
               {deleting ? "Deleting..." : "Delete Job"}

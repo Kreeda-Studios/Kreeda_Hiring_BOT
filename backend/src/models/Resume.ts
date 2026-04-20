@@ -152,13 +152,13 @@ export interface IResume extends Document {
   candidate_name: string;
   
   // Processing status
-  status: 'draft' | 'started' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'filtered';
   processing_progress?: number; // 0-100
   processing_error?: string;
   bullmq_job_id?: string; // Individual resume processing job ID
   
   // AI Parser output - structured according to b_ai_parser.py PARSE_FUNCTION
-  parsed_content?: IParsedContent;
+  parsed_content: IParsedContent;
   
   // Resume embeddings for semantic scoring (6 sections from d_embedding_generator.py)
   resume_embedding?: IResumeEmbedding;
@@ -329,8 +329,8 @@ const resumeSchema = new Schema<IResume>({
   // Processing status
   status: {
     type: String,
-    enum: ['draft', 'started', 'completed', 'failed'],
-    default: 'draft'
+    enum: ['pending', 'processing', 'completed', 'failed', 'filtered'],
+    default: 'pending'
   },
   processing_progress: {
     type: Number,

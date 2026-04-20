@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Kreeda Hiring Bot",
   description: "AI-powered resume screening platform",
+  icons: {
+    icon: "/favicion.png",
+  },
 };
 
 export default function RootLayout({

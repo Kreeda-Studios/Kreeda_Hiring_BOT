@@ -48,7 +48,7 @@ router.get('/', async (req: Request, res: Response) => {
     if (job_id) filter.job_id = job_id;
 
     const resumes = await Resume.find(filter)
-      .select('filename original_name candidate_name status scores parsed_content createdAt')
+      .select('filename original_name candidate_name status scores parsed_content createdAt hard_requirements_met processing_error')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -258,7 +258,16 @@ router.post('/upload', resumeUpload.array('resumes', 500), async (req: Request, 
         filename: file.filename,
         original_name: file.originalname,
         job_id: job_id,
-        status: 'draft'
+        candidate_name: file.originalname.replace(/\.[^.]+$/, ''), // Use filename without extension
+        status: 'pending',
+        parsed_content: {
+          candidate_id: `resume-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: '[Pending extraction from PDF]',
+          contact: { email: 'pending@extraction.com' },
+          profile_keywords_line: '[Pending extraction from PDF]',
+          canonical_skills: {},
+          ats_boost_line: '[Pending extraction from PDF]'
+        }
       });
 
       await resume.save();

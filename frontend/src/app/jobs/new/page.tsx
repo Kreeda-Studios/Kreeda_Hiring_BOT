@@ -28,6 +28,12 @@ export default function NewJobPage() {
       newErrors.title = "Job title is required";
     } else if (formData.title.length < 3) {
       newErrors.title = "Job title must be at least 3 characters";
+    } else if (formData.title.length > 20) {
+      newErrors.title = "Job title must not exceed 20 characters";
+    }
+
+    if (formData.description.length > 100) {
+      newErrors.description = "Description must not exceed 100 characters";
     }
 
     setErrors(newErrors);
@@ -85,14 +91,17 @@ export default function NewJobPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="title">Job Title *</Label>
+              <Label htmlFor="title">
+                Job Title * <span className="text-muted-foreground">({formData.title.length}/20)</span>
+              </Label>
               <Input
                 id="title"
                 placeholder="e.g., Senior Software Engineer"
                 value={formData.title}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, title: e.target.value }))
+                  setFormData((prev) => ({ ...prev, title: e.target.value.slice(0, 20) }))
                 }
+                maxLength={20}
                 className={errors.title ? "border-destructive" : ""}
               />
               {errors.title && (
@@ -104,6 +113,7 @@ export default function NewJobPage() {
               <Label htmlFor="description">
                 Short Description{" "}
                 <span className="text-muted-foreground">(optional)</span>
+                <span className="text-muted-foreground"> ({formData.description.length}/100)</span>
               </Label>
               <Textarea
                 id="description"
@@ -112,11 +122,15 @@ export default function NewJobPage() {
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    description: e.target.value,
+                    description: e.target.value.slice(0, 100),
                   }))
                 }
+                maxLength={100}
                 rows={3}
               />
+              {errors.description && (
+                <p className="text-sm text-destructive">{errors.description}</p>
+              )}
               <p className="text-xs text-muted-foreground">
                 This is a brief summary for your reference, not the full job
                 description.
@@ -129,10 +143,11 @@ export default function NewJobPage() {
                 variant="outline"
                 onClick={() => router.back()}
                 disabled={isSubmitting}
+                className="cursor-pointer"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="cursor-pointer">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

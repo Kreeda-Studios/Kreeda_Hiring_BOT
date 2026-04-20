@@ -85,7 +85,9 @@ export function useJobStatus(jobId: string) {
   };
 
   const canUploadResumes = () => {
-    return !isResumeProcessingInProgress();
+    const status = statusData?.job.status;
+    // Only allow upload when status is exactly 'jd_processing_completed'
+    return status === 'jd_processing_completed';
   };
 
   const canStartJDProcessing = () => {
@@ -97,9 +99,8 @@ export function useJobStatus(jobId: string) {
     const status = statusData?.job.status;
     const hasResumes = (statusData?.resumeCount || 0) > 0;
     
-    return statusData?.job.locked && 
-           status === 'jd_processing_completed' &&
-           hasResumes;
+    // Only allow processing when status is exactly 'jd_processing_completed'
+    return status === 'jd_processing_completed' && hasResumes;
   };
 
   return {

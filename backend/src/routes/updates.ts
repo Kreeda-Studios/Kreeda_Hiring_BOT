@@ -335,9 +335,12 @@ router.post('/resume/status/single', async (req: Request, res: Response): Promis
           processing_error: error || 'Resume processing failed'
         };
 
-    // Set hard_requirements_met if provided
+    // Set hard_requirements_met if provided and set status to 'filtered' if hard requirements not met
     if (hard_requirements_met !== undefined) {
       updatePayload.hard_requirements_met = hard_requirements_met;
+      if (!hard_requirements_met && success) {
+        updatePayload.status = 'filtered';
+      }
     }
 
     const resume = await Resume.findByIdAndUpdate(resume_id, updatePayload, { new: true });

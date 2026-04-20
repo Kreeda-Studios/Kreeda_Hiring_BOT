@@ -94,7 +94,7 @@ export interface CreateJobData {
 
 // ==================== RESUME TYPES ====================
 
-export type ResumeStatus = "pending" | "processing" | "complete" | "failed" | "filtered";
+export type ResumeStatus = "pending" | "processing" | "completed" | "failed" | "filtered";
 
 export interface Resume {
   _id: string;
@@ -104,9 +104,6 @@ export interface Resume {
   filename?: string;
   file_path?: string;
   status?: ResumeStatus;
-  extraction_status?: ResumeStatus;
-  parsing_status?: ResumeStatus;
-  embedding_status?: ResumeStatus;
   raw_text?: string;
   jd_compliance_text?: string;
   parsed_content?: ParsedResume;

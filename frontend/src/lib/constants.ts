@@ -75,8 +75,8 @@ export const RESUME_STATUS_CONFIG = {
     label: "Processing",
     color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   },
-  complete: {
-    label: "Complete",
+  completed: {
+    label: "Completed",
     color: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
   },
   failed: {

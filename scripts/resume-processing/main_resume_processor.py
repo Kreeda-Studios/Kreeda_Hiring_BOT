@@ -34,32 +34,21 @@ class ResumeProcessingError(Exception):
 
 
 def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None, hard_requirements_met: bool = None):
-    """Update resume processing status in database"""
+    """Update resume processing status in database via /updates/resume/status/single endpoint"""
     try:
-        if status in ['success', 'failed']:
-            payload = {
-                'resume_id': resume_id,
-                'success': status == 'success',
-                'processing_progress': progress,
-                'error': error
-            }
-            if hard_requirements_met is not None:
-                payload['hard_requirements_met'] = hard_requirements_met
-            
-            api.post("/updates/resume/status/single", data=payload)
-            return
-
+        # Only use success/failed boolean approach
+        success = status == 'success'
         payload = {
-            'overall_processing_status': status
+            'resume_id': resume_id,
+            'success': success,
+            'error': error
         }
         if progress is not None:
             payload['processing_progress'] = progress
-        if error is not None:
-            payload['processing_error'] = error
-        if job_id is not None:
-            payload['bullmq_job_id'] = job_id
+        if hard_requirements_met is not None:
+            payload['hard_requirements_met'] = hard_requirements_met
         
-        api.patch(f"/resumes/{resume_id}", data=payload)
+        api.post("/updates/resume/status/single", data=payload)
     except Exception as e:
         print(f"⚠️ Failed to update resume status: {e}")
 
