@@ -8,6 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageContainer, JobStatusBadge, EmptyState } from "@/components/common";
 import { Briefcase, Plus, Search, Loader2, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Job } from "@/lib/types";
 import { jobsAPI } from "@/lib/api";
 
@@ -19,6 +29,7 @@ export default function JobsPage() {
   const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const JOBS_PER_PAGE = 12;
 
   useEffect(() => {
@@ -70,7 +81,7 @@ export default function JobsPage() {
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedJobs.size === 0 || !confirm(`Delete ${selectedJobs.size} job(s)?`)) {
+    if (selectedJobs.size === 0) {
       return;
     }
 
@@ -83,13 +94,15 @@ export default function JobsPage() {
       // Remove deleted jobs from state
       setJobs(jobs.filter(j => !selectedJobs.has(j._id)));
       setSelectedJobs(new Set());
+      setShowDeleteDialog(false);
       
       // Reset to first page if current page is empty
       if (currentPage > totalPages) {
         setCurrentPage(Math.max(1, totalPages));
       }
     } catch (err) {
-      alert(`Failed to delete jobs: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert(`Failed to delete jobs: ${message}`);
     } finally {
       setDeleting(false);
     }
@@ -150,7 +163,7 @@ export default function JobsPage() {
             <Button 
               variant="destructive" 
               size="sm"
-              onClick={handleDeleteSelected}
+              onClick={() => setShowDeleteDialog(true)}
               disabled={deleting}
               className="cursor-pointer"
             >
@@ -237,6 +250,31 @@ export default function JobsPage() {
           </div>
         </>
       )}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Jobs?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedJobs.size} job(s), all related resumes, all scores, and stored files. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void handleDeleteSelected();
+              }}
+              className="bg-destructive hover:bg-destructive/90 cursor-pointer"
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete Jobs"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   );
 }
