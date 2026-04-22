@@ -198,6 +198,7 @@ export interface RankedCandidate {
     requirements_met: string[];
     requirements_missing: string[];
   };
+  filter_reason?: string;
   llm_validated?: boolean;
 }
 

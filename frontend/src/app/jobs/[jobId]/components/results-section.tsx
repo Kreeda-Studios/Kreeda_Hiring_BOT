@@ -61,6 +61,15 @@ interface ScoreData {
   final_score: number;
   recalculated_llm_score: number;
   hard_requirements_met: boolean;
+  scores?: {
+    hard_requirements?: {
+      meets_all_requirements: boolean;
+      compliance_score: number;
+      requirements_met: string[];
+      requirements_missing: string[];
+      filter_reason?: string;
+    };
+  };
   rank?: number;
   adjusted_score?: number;
   score_breakdown?: any;
@@ -90,10 +99,11 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("final_score");
   const [filterCompliant, setFilterCompliant] = useState<"all" | "compliant" | "non-compliant">("all");
-  
+
   // Selection state
   const [selectedResumes, setSelectedResumes] = useState<Set<string>>(new Set());
   const [downloadingBulk, setDownloadingBulk] = useState(false);
+  const [expandedFiltered, setExpandedFiltered] = useState<Set<string>>(new Set());
 
   // Convert scores to rankings for display
   const convertScoresToRankings = (scoreData: ScoreData[]): RankedCandidate[] => {
@@ -102,9 +112,9 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
       .map((score, index) => ({
         rank: index + 1,
         resume_id: score.resume_id._id,
-        candidate_name: score.resume_id.candidate_name || 
-                       score.resume_id.filename?.replace(/\.(pdf|doc|docx)$/i, '') || 
-                       `Candidate ${index + 1}`,
+        candidate_name: score.resume_id.candidate_name ||
+          score.resume_id.filename?.replace(/\.(pdf|doc|docx)$/i, '') ||
+          `Candidate ${index + 1}`,
         email: score.contact?.email || '',
         phone: score.contact?.phone || '',
         profile: score.contact?.profile || '',
@@ -116,6 +126,13 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
         project_score: score.project_score,
         compliance_score: score.recalculated_llm_score,
         is_compliant: score.hard_requirements_met,
+        filter_reason: score.scores?.hard_requirements?.filter_reason,
+        compliance_status: {
+          hard_compliance: score.hard_requirements_met,
+          soft_compliance_score: score.recalculated_llm_score,
+          requirements_met: score.scores?.hard_requirements?.requirements_met || [],
+          requirements_missing: score.scores?.hard_requirements?.requirements_missing || [],
+        },
         group_name: undefined,
       }));
   };
@@ -124,7 +141,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     try {
       setLoading(true);
       const response = await processingAPI.getScoresByJob(jobId);
-      
+
       if (response.success && response.data) {
         console.log('Fetched scores:', response.data);
         setScores(response.data);
@@ -195,7 +212,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     .sort((a, b) => {
       const key = sortBy as keyof RankedCandidate;
       if (typeof a[key] === "number" && typeof b[key] === "number") {
-        return sortBy === "rank" 
+        return sortBy === "rank"
           ? (a[key] as number) - (b[key] as number)
           : (b[key] as number) - (a[key] as number);
       }
@@ -271,7 +288,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
       alert('No data to export');
       return;
     }
-    
+
     // CSV with contact details first, then scores
     const headers = ['Rank', 'Name', 'Phone', 'Email', 'Profile/LinkedIn', 'Final Score', 'Keyword', 'Semantic', 'Project'];
     const rows = filteredRankings.map(r => [
@@ -285,7 +302,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
       r.semantic_score.toFixed(1),
       r.project_score.toFixed(1)
     ]);
-    
+
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -329,21 +346,22 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={handleRefresh}
                 disabled={refreshing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                className="cursor-pointer"              >
+                <RefreshCw className={` h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
               {selectedResumes.size > 0 && (
-                <Button 
-                  variant="default" 
+                <Button
+                  variant="default"
                   size="sm"
                   onClick={handleBulkDownload}
                   disabled={downloadingBulk}
+                  className="cursor-pointer"
                 >
                   {downloadingBulk ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -353,7 +371,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                   Download Selected ({selectedResumes.size})
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={handleExportCSV}>
+              <Button variant="outline" size="sm" onClick={handleExportCSV} className="cursor-pointer">
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
               </Button>
@@ -408,7 +426,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
             <EmptyState
               icon={<Trophy className="h-6 w-6" />}
               title="No scored candidates found"
-              description={scores.length === 0 
+              description={scores.length === 0
                 ? "No scores found for this job. Candidates need to be processed first."
                 : "No candidates match your current filters."}
             />
@@ -428,11 +446,11 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                     <TableHead>Candidate</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
-                    <TableHead className="text-right">Final</TableHead>
-                    <TableHead className="text-right">Keyword</TableHead>
-                    <TableHead className="text-right">Semantic</TableHead>
-                    <TableHead className="text-right">Project</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-center">Final</TableHead>
+                    <TableHead className="text-center">Keyword</TableHead>
+                    <TableHead className="text-center">Semantic</TableHead>
+                    <TableHead className="text-center">Project</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -448,11 +466,10 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {candidate.rank <= 3 && (
-                            <Trophy className={`h-4 w-4 ${
-                              candidate.rank === 1 ? 'text-yellow-500' :
-                              candidate.rank === 2 ? 'text-gray-400' :
-                              'text-amber-600'
-                            }`} />
+                            <Trophy className={`h-4 w-4 ${candidate.rank === 1 ? 'text-yellow-500' :
+                                candidate.rank === 2 ? 'text-gray-400' :
+                                  'text-amber-600'
+                              }`} />
                           )}
                           <span className="font-medium">{candidate.rank}</span>
                         </div>
@@ -478,22 +495,22 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                           <span className="text-xs text-muted-foreground">N/A</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <span className={`font-bold ${getScoreColor(candidate.final_score / 100)}`}>
                           {candidate.final_score.toFixed(1)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <span className={getScoreColor(candidate.keyword_score / 100)}>
                           {candidate.keyword_score.toFixed(1)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <span className={getScoreColor(candidate.semantic_score / 100)}>
                           {candidate.semantic_score.toFixed(1)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <span className={getScoreColor(candidate.project_score / 100)}>
                           {candidate.project_score.toFixed(1)}
                         </span>
@@ -501,9 +518,9 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                       {/* <TableCell className="text-center">
                         <ComplianceBadge isCompliant={candidate.is_compliant} />
                       </TableCell> */}
-                      <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => resumesAPI.openResume(candidate.resume_id)}
                           title="View Resume"

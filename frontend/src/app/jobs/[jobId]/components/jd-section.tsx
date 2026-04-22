@@ -337,6 +337,7 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
+                  className="cursor-pointer"
                 >
                   {isUploading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -452,7 +453,7 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
           <Button
             onClick={handleProcessClick}
             disabled={!canStartJDProcessing() || (!jd_pdf_filename && !jdText) || isProcessing}
-            className="w-full"
+            className="w-full cursor-pointer"
           >
             {isProcessing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

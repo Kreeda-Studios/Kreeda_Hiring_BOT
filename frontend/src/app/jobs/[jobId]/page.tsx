@@ -123,10 +123,10 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
     <PageContainer>
       {/* Back button */}
       <div className="mb-6">
-        <Button variant="ghost" size="sm" asChild className="cursor-pointer">
-          <Link href="/jobs">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Jobs
+        <Button variant="ghost" size="sm" asChild className="px-0 cursor-pointer h-auto py-1 -mx-2">
+          <Link href="/jobs" className="flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Jobs</span>
           </Link>
         </Button>
       </div>
@@ -171,17 +171,17 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
-          <TabsTrigger value="jd" className="gap-2">
+          <TabsTrigger value="jd" className="gap-2 cursor-pointer">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Job Description</span>
             <span className="sm:hidden">JD</span>
           </TabsTrigger>
-          <TabsTrigger value="resumes" className="gap-2">
+          <TabsTrigger value="resumes" className="gap-2 cursor-pointer">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Resumes</span>
             <span className="sm:hidden">Resumes</span>
           </TabsTrigger>
-          <TabsTrigger value="results" className="gap-2">
+          <TabsTrigger value="results" className="gap-2 cursor-pointer">
             <Trophy className="h-4 w-4" />
             <span className="hidden sm:inline">Results</span>
             <span className="sm:hidden">Results</span>

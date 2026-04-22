@@ -150,6 +150,13 @@ interface IScores {
   keyword_score?: number;
   semantic_score?: number;
   composite_score?: number;
+  hard_requirements?: {
+    meets_all_requirements: boolean;
+    compliance_score: number;
+    requirements_met: string[];
+    requirements_missing: string[];
+    filter_reason?: string;
+  };
 }
 
 export interface IResume extends Document {
@@ -312,7 +319,14 @@ const scoresSchema = new Schema({
   project_score: Number,
   keyword_score: Number,
   semantic_score: Number,
-  composite_score: Number
+  composite_score: Number,
+  hard_requirements: {
+    meets_all_requirements: Boolean,
+    compliance_score: Number,
+    requirements_met: [String],
+    requirements_missing: [String],
+    filter_reason: String
+  }
 }, { _id: false });
 
 // ==========================================

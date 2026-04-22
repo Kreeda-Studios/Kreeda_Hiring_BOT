@@ -5,7 +5,7 @@
 export const JOB_STATUS_CONFIG = {
   draft: {
     label: "Draft",
-    color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
     icon: "circle",
   },
   jd_processing_started: {

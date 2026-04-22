@@ -144,6 +144,7 @@ export function ProgressSection({ jobId }: ProgressSectionProps) {
               size="sm"
               onClick={handleRefresh}
               disabled={refreshing}
+              className="cursor-pointer"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
