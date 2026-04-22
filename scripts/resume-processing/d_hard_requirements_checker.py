@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
 
 """
-Hard Requirements Checker for Resume Analysis
-
-Checks mandatory HR requirements using filter_requirements.mandatory_compliances.structured format.
-Returns simple pass/fail based on whether candidate meets ALL mandatory requirements.
+Pure LLM-Based Hard Requirements Checker for Resume Analysis
+Completely replaces the old rigid string-matching arrays with dynamic semantic compliance verification.
 """
 
+import sys
+import json
+from pathlib import Path
 from typing import Dict, Any
+
+# Ensure we can import from common
+script_dir = Path(__file__).parent
+parent_dir = script_dir.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
+from openai_client import parse_json_response
 
 def check_hard_requirements(resume: Dict[str, Any], jd_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Check if resume meets ALL mandatory compliance requirements.
-    Uses filter_requirements.mandatory_compliances.structured format.
+    Check if resume meets ALL mandatory compliance requirements using LLM Intelligence natively.
     
     Returns: {
         'success': bool,
@@ -25,12 +33,13 @@ def check_hard_requirements(resume: Dict[str, Any], jd_data: Dict[str, Any]) -> 
     }
     """
     try:
-        # Extract mandatory compliances from JD
-        filter_requirements = jd_data.get('filter_requirements', {})
-        mandatory_compliances = filter_requirements.get('mandatory_compliances', {})
+        filter_reqs = jd_data.get('filter_requirements', {}).get('mandatory_compliances', {})
         
-        if not mandatory_compliances:
-            # No mandatory requirements
+        # If there are no mandatory compliances to strictly verify, let them immediately pass
+        has_raw = bool(filter_reqs.get('raw_prompt', '').strip())
+        has_structured = bool(filter_reqs.get('structured', {}))
+        
+        if not filter_reqs or (not has_raw and not has_structured):
             return {
                 'success': True,
                 'meets_all_requirements': True,
@@ -40,77 +49,40 @@ def check_hard_requirements(resume: Dict[str, Any], jd_data: Dict[str, Any]) -> 
                 'filter_reason': None,
                 'error': None
             }
-        
-        structured = mandatory_compliances.get('structured', {})
-        
-        if not structured:
-            # No structured requirements
-            return {
-                'success': True,
-                'meets_all_requirements': True,
-                'compliance_score': 1.0,
-                'requirements_met': [],
-                'requirements_missing': [],
-                'filter_reason': None,
-                'error': None
-            }
-        
-        # Check each requirement
-        requirements_met = []
-        requirements_missing = []
-        filter_reasons = []
-        
-        def field_has_value(val):
-            """Check if a field has a meaningful value."""
-            if val is None:
-                return False
-            if isinstance(val, bool):
-                return val
-            if isinstance(val, (list, tuple, set)):
-                return len(val) > 0
-            if isinstance(val, dict):
-                if val.get('specified', False):
-                    return True
-                for k, v in val.items():
-                    if k != 'specified' and v not in (None, [], {}, ''):
-                        return True
-                return False
-            return bool(val)
-        
-        # Check each field in structured requirements
-        for field_name, field_spec in structured.items():
-            if not field_has_value(field_spec):
-                continue  # Skip empty fields
             
-            # Check the requirement
-            meets_requirement = check_requirement(resume, field_name, field_spec)
-            
-            if meets_requirement:
-                requirements_met.append(field_name)
-            else:
-                requirements_missing.append(field_name)
-                filter_reasons.append(f"{field_name}: requirement not met")
+        system_prompt = (
+            "You are an HR Compliance screener. Your ONLY job is to check if the candidate's resume contains evidence of each mandatory requirement. "
+            "Use broad semantic matching: treat synonyms, abbreviations, and closely related terms as equivalent "
+            "(e.g. 'Gen AI' = 'Generative AI', 'manual testing' + 'automation testing' = 'testing', 'New York' = 'USA'). "
+            "PASS the candidate if the skill or concept appears ANYWHERE in their resume — in experience, skills, projects, or certifications. "
+            "CRITICAL: You MUST thoroughly scan all JSON fields including `inferred_skills`, `skill_proficiency`, `ats_boost_line`, and `canonical_skills` for evidence! "
+            "CRITICAL EXCEPTION: If a requirement has its value or 'required' field as 'Not specified', 'Any', or blank, you MUST automatically PASS that specific requirement without failing the candidate. "
+            "FAIL the candidate ONLY if a true mandatory requirement has zero mention or evidence in the entire resume. "
+            "Return JSON: "
+            "{"
+            "   'meets_all_requirements': bool, "
+            "   'compliance_score': float (0.0 to 1.0), "
+            "   'requirements_met': ['list of met criteria'], "
+            "   'requirements_missing': ['list of missing criteria'], "
+            "   'filter_reason': 'One-line reason if rejected (e.g. No mention of Python anywhere in resume), or null'"
+            "}"
+        )
         
-        # Calculate compliance
-        total_requirements = len(requirements_met) + len(requirements_missing)
-        if total_requirements == 0:
-            compliance_score = 1.0
-            meets_all = True
-        else:
-            compliance_score = len(requirements_met) / total_requirements
-            meets_all = len(requirements_missing) == 0
+        prompt = (
+            f"### CANDIDATE RESUME JSON:\n{json.dumps(resume)}\n\n"
+            f"### MANDATORY REQUIREMENTS JSON:\n{json.dumps(filter_reqs)}\n\n"
+            "Evaluate compliance now."
+        )
         
-        filter_reason = None
-        if not meets_all and filter_reasons:
-            filter_reason = '; '.join(filter_reasons[:3])
+        result = parse_json_response(prompt=prompt, system_prompt=system_prompt, model="gpt-4o-mini")
         
         return {
             'success': True,
-            'meets_all_requirements': meets_all,
-            'compliance_score': compliance_score,
-            'requirements_met': requirements_met,
-            'requirements_missing': requirements_missing,
-            'filter_reason': filter_reason,
+            'meets_all_requirements': bool(result.get('meets_all_requirements', True)),
+            'compliance_score': float(result.get('compliance_score', 1.0)),
+            'requirements_met': result.get('requirements_met', []),
+            'requirements_missing': result.get('requirements_missing', []),
+            'filter_reason': result.get('filter_reason', None),
             'error': None
         }
         
@@ -121,132 +93,6 @@ def check_hard_requirements(resume: Dict[str, Any], jd_data: Dict[str, Any]) -> 
             'compliance_score': 0.0,
             'requirements_met': [],
             'requirements_missing': [],
-            'filter_reason': None,
-            'error': f"Hard requirements check failed: {str(e)}"
+            'filter_reason': "LLM engine failed to process validation.",
+            'error': f"LLM Hard requirements check failed: {str(e)}"
         }
-
-
-def check_requirement(resume: Dict[str, Any], field_name: str, field_spec: Any) -> bool:
-    """
-    Check if resume meets a specific requirement.
-    Returns True if requirement is met, False otherwise.
-    """
-    try:
-        # Handle different requirement types
-        if field_name == 'experience':
-            return check_experience(resume, field_spec)
-        elif field_name == 'hard_skills':
-            return check_skills(resume, field_spec)
-        elif field_name == 'education':
-            return check_education(resume, field_spec)
-        elif field_name == 'location':
-            return check_location(resume, field_spec)
-        else:
-            # Unknown requirement type - pass by default
-            return True
-    except Exception:
-        return False
-
-
-def check_experience(resume: Dict[str, Any], spec: Any) -> bool:
-    """Check experience requirement."""
-    if not isinstance(spec, dict) or not spec.get('specified'):
-        return True
-    
-    min_years = spec.get('min', 0)
-    max_years = spec.get('max', float('inf'))
-    resume_years = resume.get('years_experience', 0)
-    
-    try:
-        resume_years = float(resume_years)
-    except (ValueError, TypeError):
-        resume_years = 0.0
-    
-    return resume_years >= min_years and resume_years <= max_years
-
-
-def check_skills(resume: Dict[str, Any], spec: Any) -> bool:
-    """Check skills requirement."""
-    if not isinstance(spec, dict) or not spec.get('specified'):
-        return True
-    
-    required_skills = spec.get('required', [])
-    if not required_skills:
-        return True
-    
-    # Collect resume skills
-    resume_skills = set()
-    
-    # From canonical_skills
-    canonical = resume.get('canonical_skills', {})
-    for cat_skills in canonical.values():
-        if isinstance(cat_skills, list):
-            resume_skills.update(s.lower().strip() for s in cat_skills if s)
-    
-    # From inferred_skills
-    for inf in resume.get('inferred_skills', []):
-        if inf.get('skill'):
-            resume_skills.add(inf['skill'].lower().strip())
-    
-    # From skill_proficiency
-    for sp in resume.get('skill_proficiency', []):
-        if sp.get('skill'):
-            resume_skills.add(sp['skill'].lower().strip())
-    
-    # Check if all required skills are present
-    for req_skill in required_skills:
-        req_normalized = req_skill.lower().strip()
-        found = any(req_normalized in skill or skill in req_normalized for skill in resume_skills)
-        if not found:
-            return False
-    
-    return True
-
-
-def check_education(resume: Dict[str, Any], spec: Any) -> bool:
-    """Check education requirement."""
-    if not isinstance(spec, dict) or not spec.get('specified'):
-        return True
-    
-    required_ed = spec.get('required', '') or spec.get('minimum', '')
-    if not required_ed:
-        return True
-    
-    education_entries = resume.get('education', [])
-    if not education_entries:
-        return False
-    
-    # Simple check - if any education entry matches
-    req_lower = required_ed.lower()
-    for edu in education_entries:
-        degree = edu.get('degree', '').lower()
-        if req_lower in degree or degree in req_lower:
-            return True
-    
-    return False
-
-
-def check_location(resume: Dict[str, Any], spec: Any) -> bool:
-    """Check location requirement."""
-    if not isinstance(spec, dict) or not spec.get('specified'):
-        return True
-    
-    required_loc = spec.get('required', '')
-    if not required_loc or required_loc.lower() in ['any', 'anywhere', 'flexible']:
-        return True
-    
-    candidate_loc = resume.get('location', '').lower()
-    if not candidate_loc:
-        return False
-    
-    required_loc_lower = required_loc.lower()
-    
-    # Check for remote/onsite/hybrid
-    if 'remote' in required_loc_lower and 'remote' in candidate_loc:
-        return True
-    
-    # Check for city/state match
-    if required_loc_lower in candidate_loc or candidate_loc in required_loc_lower:
-        return True
-    
-    return False

@@ -559,18 +559,6 @@ def enhance_parsed_data(parsed_data: Dict[str, Any]) -> Dict[str, Any]:
         all_keywords.update(enhanced.get('skills', []))
         
         # Add canonical skills
-        for skill_list in canonical.values():
-            if isinstance(skill_list, list):
-                all_keywords.update(skill_list)
-        
-    # Flatten all skills into keywords_flat if not present
-    if not enhanced.get('keywords_flat'):
-        all_keywords = set()
-        
-        # Add skills
-        all_keywords.update(enhanced.get('skills', []))
-        
-        # Add canonical skills
         canonical = enhanced.get('canonical_skills', {})
         for skill_list in canonical.values():
             if isinstance(skill_list, list):

@@ -56,15 +56,7 @@ def update_resume_status(resume_id: str, status: str, progress: int = None, erro
 def update_job_resume_status(job_id: str, status: str, progress: int = None, error: str = None):
     """Update job's resume processing status"""
     try:
-        payload = {
-            'resume_processing_status': status
-        }
-        if progress is not None:
-            payload['resume_processing_progress'] = progress
-        if error is not None:
-            payload['resume_processing_error'] = error
-        
-        api.patch(f"/jobs/{job_id}", data=payload)
+        pass # Disabling legacy status update as progress is now tracked via BullMQ and final status via /updates/resume/status.
     except Exception as e:
         print(f"⚠️ Failed to update job resume status: {e}")
 
@@ -222,8 +214,9 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         
         # If hard requirements not met, skip further processing and save failed result
         if not meets_hard_requirements:
-            logger.progress("❌ Hard requirements not met - skipping further processing")
-            await tracker.update(95, "saving_scores", "Saving failed compliance scores to database")
+            reason = hard_req_result.get('filter_reason', 'No reason provided')
+            logger.progress(f"❌ Hard requirements not met: {reason} - skipping further processing")
+            await tracker.update(95, "saving_scores", f"Saving failed compliance scores: {reason}")
             
             # Save failed compliance scores
             api.post("/updates/resume/scores", data={

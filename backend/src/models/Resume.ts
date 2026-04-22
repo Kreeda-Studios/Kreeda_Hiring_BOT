@@ -138,6 +138,14 @@ interface IResumeEmbedding {
 }
 
 interface IScores {
+  hard_requirements?: {
+    meets_all_requirements?: boolean;
+    compliance_score?: number;
+    requirements_met?: string[];
+    requirements_missing?: string[];
+    filter_reason?: string;
+    details?: any;
+  };
   project_score?: number;
   keyword_score?: number;
   semantic_score?: number;
@@ -150,25 +158,25 @@ export interface IResume extends Document {
   original_name: string;
   job_id: mongoose.Types.ObjectId;
   candidate_name: string;
-  
+
   // Processing status
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'filtered';
   processing_progress?: number; // 0-100
   processing_error?: string;
   bullmq_job_id?: string; // Individual resume processing job ID
-  
+
   // AI Parser output - structured according to b_ai_parser.py PARSE_FUNCTION
   parsed_content: IParsedContent;
-  
+
   // Resume embeddings for semantic scoring (6 sections from d_embedding_generator.py)
   resume_embedding?: IResumeEmbedding;
-  
+
   // Scoring results
   scores?: IScores;
-  
+
   // Hard requirements compliance (main field, not under scores)
   hard_requirements_met?: boolean;
-  
+
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -293,6 +301,14 @@ const resumeEmbeddingSchema = new Schema({
 
 // Scores Schema
 const scoresSchema = new Schema({
+  hard_requirements: {
+    meets_all_requirements: Boolean,
+    compliance_score: Number,
+    requirements_met: [String],
+    requirements_missing: [String],
+    filter_reason: String,
+    details: Schema.Types.Mixed
+  },
   project_score: Number,
   keyword_score: Number,
   semantic_score: Number,
@@ -325,7 +341,7 @@ const resumeSchema = new Schema<IResume>({
     required: false,
     index: true
   },
-  
+
   // Processing status
   status: {
     type: String,
@@ -343,13 +359,13 @@ const resumeSchema = new Schema<IResume>({
     type: String,
     index: true
   },
-  
+
   // Hard requirements compliance (main field)
   hard_requirements_met: {
     type: Boolean,
     index: true
   },
-  
+
   // Structured data (clean sub-schemas)
   parsed_content: parsedContentSchema,
   resume_embedding: resumeEmbeddingSchema,
@@ -367,7 +383,7 @@ resumeSchema.index({ bullmq_job_id: 1 });
 resumeSchema.index({ createdAt: -1 });
 
 // Virtual for candidate email
-resumeSchema.virtual('candidate_email').get(function() {
+resumeSchema.virtual('candidate_email').get(function () {
   return this.parsed_content?.contact?.email || '';
 });
 

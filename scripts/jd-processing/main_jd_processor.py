@@ -37,15 +37,7 @@ from d_compliance_parser import validate_and_format_compliances
 def update_job_status(job_id: str, status: str, progress: int = None, error: str = None):
     """Update job processing status in database"""
     try:
-        payload = {
-            'jd_processing_status': status
-        }
-        if progress is not None:
-            payload['jd_processing_progress'] = progress
-        if error is not None:
-            payload['jd_processing_error'] = error
-        
-        api.patch(f"/jobs/{job_id}", data=payload)
+        pass # Disabling legacy status update as progress is now tracked via BullMQ and final status via /updates/jd/status.
     except Exception as e:
         print(f"⚠️ Failed to update job status: {e}")
 
