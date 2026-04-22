@@ -61,6 +61,7 @@ interface ScoreData {
   final_score: number;
   recalculated_llm_score: number;
   hard_requirements_met: boolean;
+  filter_reason?: string;
   scores?: {
     hard_requirements?: {
       meets_all_requirements: boolean;
@@ -126,7 +127,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
         project_score: score.project_score,
         compliance_score: score.recalculated_llm_score,
         is_compliant: score.hard_requirements_met,
-        filter_reason: score.scores?.hard_requirements?.filter_reason,
+        filter_reason: score.filter_reason || "Reason not specified" ,
         compliance_status: {
           hard_compliance: score.hard_requirements_met,
           soft_compliance_score: score.recalculated_llm_score,
