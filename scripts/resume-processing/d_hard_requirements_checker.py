@@ -64,7 +64,7 @@ def check_hard_requirements(resume: Dict[str, Any], jd_data: Dict[str, Any]) -> 
             "   'compliance_score': float (0.0 to 1.0), "
             "   'requirements_met': ['list of met criteria'], "
             "   'requirements_missing': ['list of missing criteria'], "
-            "   'filter_reason': 'One-line reason if rejected (e.g. No mention of Python anywhere in resume), or null'"
+            "   'filter_reason': 'Strictly One-line reason if rejected, or null'"
             "}"
         )
         
