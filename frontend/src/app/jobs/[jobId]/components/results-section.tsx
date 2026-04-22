@@ -342,7 +342,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                     {' '}• {filteredOutCandidates.length} filtered out
                   </span>
                 )}
-                {' '}from Score API (Job ID: {jobId})
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -572,7 +571,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
-                          Does not meet mandatory compliance requirements
+                          {candidate.filter_reason || "Did not meet mandatory requirements"}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">

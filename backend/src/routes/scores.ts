@@ -44,6 +44,7 @@ router.get('/resumes/:jobId', async (req: Request, res: Response) => {
         recalculated_llm_score: resume.scores?.composite_score || 0,
         hard_requirements_met: resume.hard_requirements_met || false,
         rank: index + 1,
+        filter_reason: resume.scores?.hard_requirements?.filter_reason || "Reason not specified",
         adjusted_score: resume.scores?.composite_score || 0,
         score_breakdown: {},
         createdAt: resume.createdAt,
