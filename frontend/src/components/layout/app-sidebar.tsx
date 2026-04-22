@@ -89,20 +89,30 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center justify-center border-b px-6">
+        <div className="flex h-16 items-center justify-center border-b px-4">
           <Link href="/" className="flex items-center justify-start w-full h-full">
-            <Image
-              src={theme === "dark" ? "/KreedaLabs_White.png" : "/KreedaLabs_Black.png"}
-              alt="Kreeda Labs"
-              width={200}
-              height={60}
-              className="h-8 w-auto object-contain max-w-full"
-            />
+            {collapsed ? (
+              <Image
+                src="/r.png"
+                alt="Kreeda"
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
+            ) : (
+              <Image
+                src={theme === "dark" ? "/KreedaLabs_White.png" : "/KreedaLabs_Black.png"}
+                alt="Kreeda Labs"
+                width={200}
+                height={60}
+                className="h-8 w-auto object-contain max-w-full"
+              />
+            )}
           </Link>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex-1 space-y-1 p-2">
           <div className="space-y-1">
             {mainNavItems.map((item) => (
               <NavLink
@@ -116,7 +126,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         </nav>
 
         {/* Bottom Section */}
-        <div className="border-t p-3">
+        <div className="border-t p-2">
           <div className="space-y-1">
             {secondaryNavItems.map((item) => (
               <NavLink
@@ -164,7 +174,7 @@ function NavLink({ item, collapsed, isActive }: NavLinkProps) {
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
         isActive
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",

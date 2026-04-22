@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title: "Kreeda Hiring Bot",
   description: "AI-powered resume screening platform",
   icons: {
-    icon: "/favicion.png",
+    icon: "/r.png",
   },
 };
 
