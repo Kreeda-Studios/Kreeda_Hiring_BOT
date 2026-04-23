@@ -30,7 +30,7 @@ router.get('/resumes/:jobId', async (req: Request, res: Response) => {
         },
         // Contact details
         contact: {
-          email: parsedContent?.profile?.email || '',
+          email: parsedContent?.profile?.email?.replace(/^mailto:/, '') || '',
           phone: parsedContent?.profile?.contact || '',
           profile: parsedContent?.profile?.linkedin || '', // LinkedIn/GitHub/Portfolio
         },
