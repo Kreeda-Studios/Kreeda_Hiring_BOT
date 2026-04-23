@@ -92,14 +92,25 @@ export default function JobsPage() {
       }
       
       // Remove deleted jobs from state
-      setJobs(jobs.filter(j => !selectedJobs.has(j._id)));
+      const updatedJobs = jobs.filter(j => !selectedJobs.has(j._id));
+      setJobs(updatedJobs);
+      
+      // Calculate new total pages based on filtered jobs (after applying search)
+      const updatedFilteredJobs = updatedJobs.filter((job) => {
+        return (
+          job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          job.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      });
+      const newTotalPages = Math.ceil(updatedFilteredJobs.length / JOBS_PER_PAGE);
+      
+      // If current page is now beyond the new total pages, adjust it
+      if (currentPage > newTotalPages) {
+        setCurrentPage(Math.max(1, newTotalPages));
+      }
+      
       setSelectedJobs(new Set());
       setShowDeleteDialog(false);
-      
-      // Reset to first page if current page is empty
-      if (currentPage > totalPages) {
-        setCurrentPage(Math.max(1, totalPages));
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       alert(`Failed to delete jobs: ${message}`);

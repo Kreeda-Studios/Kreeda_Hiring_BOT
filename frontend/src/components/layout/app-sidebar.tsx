@@ -144,7 +144,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             size="sm"
             onClick={onToggle}
             className={cn(
-              "mt-3 w-full justify-start",
+              "mt-3 w-full justify-start cursor-pointer",
               collapsed && "justify-center px-2"
             )}
           >

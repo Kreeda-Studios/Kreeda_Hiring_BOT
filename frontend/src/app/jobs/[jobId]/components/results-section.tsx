@@ -390,7 +390,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 className="pl-10"
               />
             </div>
-            <Select value={sortBy} onValueChange={setSortBy}>
+            {/* <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-45">
                 <ArrowUpDown className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Sort by" />
@@ -402,7 +402,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select> */}
             {/*
             <Select 
               value={filterCompliant} 
@@ -461,6 +461,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                           checked={selectedResumes.has(candidate.resume_id)}
                           onCheckedChange={() => toggleSelectResume(candidate.resume_id)}
                           aria-label={`Select ${candidate.candidate_name}`}
+                          className="cursor-pointer"
                         />
                       </TableCell>
                       <TableCell>
@@ -524,6 +525,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                           size="sm"
                           onClick={() => resumesAPI.openResume(candidate.resume_id)}
                           title="View Resume"
+                          className="cursor-pointer"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
@@ -581,6 +583,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                           size="sm"
                           onClick={() => resumesAPI.openResume(candidate.resume_id)}
                           title="View Resume"
+                          className="cursor-pointer"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>

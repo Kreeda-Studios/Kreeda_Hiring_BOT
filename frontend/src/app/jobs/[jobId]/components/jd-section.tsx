@@ -511,7 +511,7 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleProcessConfirm} className="bg-orange-600 hover:bg-orange-700">
+            <AlertDialogAction onClick={handleProcessConfirm} className="bg-orange-600 hover:bg-orange-700 c">
               Yes, Process & Lock
             </AlertDialogAction>
           </AlertDialogFooter>
