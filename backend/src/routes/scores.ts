@@ -7,7 +7,7 @@ const router = Router();
 router.get('/resumes/:jobId', async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
-    
+
     // Find all resumes with scores for this job
     const resumes = await Resume.find({
       job_id: jobId,
@@ -15,24 +15,24 @@ router.get('/resumes/:jobId', async (req: Request, res: Response) => {
     })
       .select('filename parsed_content scores hard_requirements_met createdAt updatedAt')
       .sort({ 'scores.composite_score': -1 });
-    
+
     // Transform to match frontend expectation
     const scoresData = resumes.map((resume, index) => {
       const parsedContent = resume.parsed_content as any;
-      
+
       return {
         _id: resume._id,
         job_id: jobId,
         resume_id: {
           _id: resume._id,
           filename: resume.filename,
-          candidate_name: parsedContent?.name || resume.filename
+          candidate_name: parsedContent?.profile.name || resume.filename
         },
         // Contact details
         contact: {
-          email: parsedContent?.contact?.email || '',
-          phone: parsedContent?.contact?.phone || '',
-          profile: parsedContent?.contact?.profile || '', // LinkedIn/GitHub/Portfolio
+          email: parsedContent?.profile?.email || '',
+          phone: parsedContent?.profile?.contact || '',
+          profile: parsedContent?.profile?.linkedin || '', // LinkedIn/GitHub/Portfolio
         },
         location: parsedContent?.location || '',
         years_experience: parsedContent?.years_experience || 0,
@@ -51,7 +51,7 @@ router.get('/resumes/:jobId', async (req: Request, res: Response) => {
         updatedAt: resume.updatedAt
       };
     });
-    
+
     res.json({
       success: true,
       data: scoresData,

@@ -44,7 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { job_id } = req.query;
     const filter: any = {};
-    
+
     if (job_id) filter.job_id = job_id;
 
     const resumes = await Resume.find(filter)
@@ -171,13 +171,13 @@ router.post('/bulk-download', async (req: Request, res: Response): Promise<void>
     let addedCount = 0;
     for (const resume of resumes) {
       const filePath = path.join('/app', config.uploadPath, resume.job_id.toString(), 'resumes', resume.filename);
-      
+
       if (fs.existsSync(filePath)) {
-        const candidateName = (resume.parsed_content as any)?.name || resume.filename.replace(/\.(pdf|doc|docx)$/i, '');
+        const candidateName = resume.parsed_content?.profile?.name || resume.filename.replace(/\.(pdf|doc|docx)$/i, '');
         const sanitizedName = candidateName.replace(/[^a-z0-9_-]/gi, '_');
         const ext = path.extname(resume.filename);
         const filename = `${sanitizedName}${ext}`;
-        
+
         archive.file(filePath, { name: filename });
         addedCount++;
       } else {
@@ -195,7 +195,7 @@ router.post('/bulk-download', async (req: Request, res: Response): Promise<void>
 
     // Finalize the archive
     await archive.finalize();
-    
+
     console.log(`✅ Bulk download: ${addedCount} resumes zipped successfully`);
   } catch (error) {
     console.error('Error during bulk download:', error);
@@ -213,7 +213,7 @@ router.post('/upload', resumeUpload.array('resumes', 500), async (req: Request, 
   try {
     const { job_id } = req.body;
     const files = req.files as Express.Multer.File[];
-    
+
     if (!files || files.length === 0) {
       res.status(400).json({
         success: false,
@@ -261,12 +261,19 @@ router.post('/upload', resumeUpload.array('resumes', 500), async (req: Request, 
         candidate_name: file.originalname.replace(/\.[^.]+$/, ''), // Use filename without extension
         status: 'pending',
         parsed_content: {
-          candidate_id: `resume-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: '[Pending extraction from PDF]',
-          contact: { email: 'pending@extraction.com' },
-          profile_keywords_line: '[Pending extraction from PDF]',
-          canonical_skills: {},
-          ats_boost_line: '[Pending extraction from PDF]'
+          profile: {
+            name: file.originalname.replace(/\.[^.]+$/, ''),
+            email: 'pending@extraction.com'
+          },
+          domain: 'Full stack', // Default domain
+          confidence: 0,
+          skills: { provided: [], inferred: [], soft_skills: [] },
+          experience: { total_full_time_experience: 0, total_internship_experience_in_months: 0, details: [] },
+          projects: [],
+          educations: [],
+          certifications: [],
+          achievements: [],
+          candidate_id: `resume-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         }
       });
 

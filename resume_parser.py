@@ -1,30 +1,50 @@
-#!/usr/bin/env python3
-"""
-AI Resume Parser — Pure LLM Structured Extraction
-===================================================
-Replaces old function-calling logic with client.responses.parse +
-a strict Pydantic schema. Model and API style match resume_parser.py reference.
-"""
-
 from __future__ import annotations
 
+"""
+Resume Intelligence Extraction Engine
+======================================
+Minimal async parallel pipeline that:
+1. Reads PDF resumes from input_resumes/ folder
+2. Extracts text + embedded hyperlinks from each PDF
+3. Sends extracted content to GPT-5-mini with a strict system prompt
+4. Saves structured JSON output to output_json/ folder
+"""
+
+
+import asyncio
 import json
+import os
+import re
 import sys
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
-# Add parent directory for imports
-sys.path.append(str(Path(__file__).parent.parent))
-
+import fitz
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from pydantic import BaseModel
-from openai_client import get_async_openai_client
-
-MODEL_NAME = "gpt-5-mini"
-
 
 # ──────────────────────────────────────────────
-# PYDANTIC SCHEMA  (mirrors resume_parser.py)
+# CONFIG
+# ──────────────────────────────────────────────
+
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+MODEL_NAME = "gpt-5-mini"
+
+INPUT_DIR = Path("input_resumes")
+OUTPUT_DIR = Path("output_json")
+
+INPUT_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+
+# ──────────────────────────────────────────────
+# SAFE SCHEMA (NO SPACES, NO ALIASES)
 # ──────────────────────────────────────────────
 
 class MetricAI(BaseModel):
@@ -139,7 +159,7 @@ You MUST follow these rules:
   - If role says "Present", calculate until current date: """ + date.today().isoformat() + """.
   - Do not double count overlapping periods.
   - If dates are missing → exclude from total calculation.
-  - Employment_type must be exactly one of: Full Time, Part Time, Intern, Intern above 6 months, Contractual.
+  - Employment_type must be exactly one of: Full Time, Part Time,Intern,Intern above 6 months, Contractual.
 
 . Skills Rules
   - provided: Extract ONLY EXPLICIT HARD/TECHNICAL SKILLS from the resume. Do NOT include soft skills here.
@@ -173,7 +193,7 @@ You MUST follow these rules:
 
 . Strict Achievements Rules
   - Do NOT extract random hyperlinks, URLs, or labels (e.g. "Certificate Link", "Website link", "Demo Video") into Achievements.
-  - Do NOT extract bullet points that belong in Projects or Experience sections.
+  - Do NOT extract bullet points that belong in Projects or Experience sections. 
   - MERGE any publications, hackathons, and contests directly into the achievements array.
   - Only extract explicit awards, honors, competitive ranks, publications, or scholarships into achievements.
 
@@ -196,56 +216,118 @@ You MUST follow these rules:
 
 
 # ──────────────────────────────────────────────
-# LLM CALL
+# PDF EXTRACTION
 # ──────────────────────────────────────────────
 
-async def parse_resume_with_ai(
-    resume_text: str,
-    hyperlinks: list[str] = None,
-    jd_data: dict = None,
-) -> dict:
-    """
-    Parse resume using structured LLM extraction.
+def extract_pdf_content(pdf_path: str) -> tuple[str, list[str]]:
+    doc = fitz.open(pdf_path)
+    text = ""
+    links = set()
 
-    Args:
-        resume_text: Raw resume text
-        hyperlinks:  Embedded hyperlinks extracted from the PDF
-        jd_data:     Job description data (kept for API compatibility, not used)
+    for page in doc:
+        text += page.get_text()
+        for link in page.get_links():
+            uri = link.get("uri")
+            if uri:
+                links.add(uri)
 
-    Returns:
-        {'success': bool, 'parsed_data': dict} or {'success': False, 'error': str}
-    """
-    try:
-        client = get_async_openai_client()
+    doc.close()
+    return text.strip(), sorted(links)
 
-        links = hyperlinks or []
 
-        user_input = f"""Extract structured resume information.
+# ──────────────────────────────────────────────
+# METADATA
+# ──────────────────────────────────────────────
 
-RAW TEXT:
-{resume_text}
+STOPWORDS = {"the", "and", "is", "to", "of", "in", "for", "on", "with"}
 
-HYPERLINKS:
-{json.dumps(links)}
-"""
+def compute_metadata(raw_text: str) -> dict:
+    words = re.findall(r"[a-zA-Z]{2,}", raw_text.lower())
+    meaningful = [w for w in words if w not in STOPWORDS]
+    freq = dict(Counter(meaningful).most_common(20))
+    return {
+        "word_count": len(words),
+        "word_frequency": freq
+    }
 
-        response = await client.responses.parse(
-            model=MODEL_NAME,
-            input=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-            ],
-            text_format=ResumeExtraction,
-        )
 
-        parsed = response.output_parsed
-        return {
-            "success": True,
-            "parsed_data": parsed.model_dump(),
-        }
+# ──────────────────────────────────────────────
+# LLM CALL (STRUCTURED)
+# ──────────────────────────────────────────────
 
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Resume parsing failed: {str(e)}",
-        }
+async def extract_resume_data(raw_text: str, hyperlinks: list[str]) -> ResumeExtraction:
+
+  user_input = f"""
+  Extract structured resume information.
+
+  RAW TEXT:
+  {raw_text}
+
+  HYPERLINKS:
+  {json.dumps(hyperlinks)}
+  """
+
+  response = await client.responses.parse(
+        model=MODEL_NAME,
+        input=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_input},
+        ],
+        text_format=ResumeExtraction,
+    )
+
+  return response.output_parsed
+
+# ──────────────────────────────────────────────
+# CONVERT TO FINAL FORMAT
+# ──────────────────────────────────────────────
+
+def transform_output(data: ResumeExtraction, raw_text: str) -> dict:
+    result = data.model_dump()
+    result["processed_date"] = date.today().isoformat()
+    result["raw_text"] = raw_text.strip()
+    result["meta_data"] = compute_metadata(raw_text)
+    return result
+
+
+# ──────────────────────────────────────────────
+# PROCESS SINGLE RESUME
+# ──────────────────────────────────────────────
+
+async def process_single_resume(pdf_path: Path):
+    print(f"[PROCESSING] {pdf_path.name}")
+
+    raw_text, hyperlinks = extract_pdf_content(str(pdf_path))
+
+    if not raw_text:
+        result = {"error": "Invalid resume text"}
+    else:
+        structured = await extract_resume_data(raw_text, hyperlinks)
+        result = transform_output(structured, raw_text)
+
+    output_file = OUTPUT_DIR / f"{pdf_path.stem}.json"
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    print(f"[DONE] {pdf_path.name}")
+
+
+# ──────────────────────────────────────────────
+# PARALLEL PIPELINE
+# ──────────────────────────────────────────────
+
+async def run_pipeline():
+    pdf_files = list(INPUT_DIR.glob("*.pdf"))
+
+    if not pdf_files:
+        print("No resumes found.")
+        sys.exit(1)
+
+    await asyncio.gather(*[process_single_resume(pdf) for pdf in pdf_files])
+
+
+if __name__ == "__main__":
+    if sys.platform.startswith("win"):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(run_pipeline())

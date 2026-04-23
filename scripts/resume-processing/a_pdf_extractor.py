@@ -15,51 +15,59 @@ from pathlib import Path
 
 
 def extract_pdf_text(pdf_path: str) -> Dict[str, Any]:
-    """Extract text from PDF using PyMuPDF"""
+    """Extract text and embedded hyperlinks from PDF using PyMuPDF."""
     try:
         start_time = time.time()
-        
+
         doc = fitz.open(pdf_path)
         text_blocks = []
         total_chars = 0
-        
+        links: set = set()
+
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
             text = page.get_text()
-            
             if text.strip():
                 text_blocks.append(text)
                 total_chars += len(text)
-        
+            # Collect embedded hyperlinks
+            for link in page.get_links():
+                uri = link.get("uri")
+                if uri:
+                    links.add(uri)
+
         doc.close()
-        
+
         # If no text extracted, it's likely an image-based PDF
         if total_chars < 50:
             return {
                 'success': False,
                 'error': 'PDF appears to be image-based. OCR not supported.',
                 'text': '',
-                'method': 'text_extraction_failed'
+                'hyperlinks': [],
+                'method': 'text_extraction_failed',
             }
-        
+
         full_text = '\n\n'.join(text_blocks)
         processing_time = time.time() - start_time
-        
+
         return {
             'success': True,
             'text': full_text,
+            'hyperlinks': sorted(links),
             'method': 'pymupdf',
             'pages': len(text_blocks),
             'characters': total_chars,
-            'processing_time': processing_time
+            'processing_time': processing_time,
         }
-        
+
     except Exception as e:
         return {
             'success': False,
             'error': f"PDF text extraction failed: {str(e)}",
             'text': '',
-            'method': 'pymupdf_failed'
+            'hyperlinks': [],
+            'method': 'pymupdf_failed',
         }
 
 
@@ -123,25 +131,25 @@ def process_resume_file(file_path: str) -> Dict[str, Any]:
                 'text': ''
             }
         
-        # Extract text from PDF
+        # Extract text and hyperlinks from PDF
         result = extract_pdf_text(str(file_path))
-        
+
         if not result['success']:
             return result
-        
+
         # Clean the extracted text
         cleaned_text = clean_resume_text(result['text'])
-        
-        # NO VALIDATION - just return extracted text (matching old logic)
+
         return {
             'success': True,
             'text': cleaned_text,
+            'hyperlinks': result.get('hyperlinks', []),
             'metadata': {
                 'file_size': file_path.stat().st_size,
                 'pages': result.get('pages', 0),
                 'characters': len(cleaned_text),
-                'processing_time': result.get('processing_time', 0)
-            }
+                'processing_time': result.get('processing_time', 0),
+            },
         }
         
     except Exception as e:

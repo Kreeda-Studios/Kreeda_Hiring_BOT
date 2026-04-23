@@ -20,7 +20,7 @@ export interface ScoreResult {
 
 // ==================== JOB TYPES ====================
 
-export type JobStatus = 
+export type JobStatus =
   | "draft"
   | "jd_processing_started"
   | "jd_processing_failed"
@@ -31,8 +31,8 @@ export type JobStatus =
   | "ranking_started"
   | "ranking_completed"
   // Legacy statuses
-  | "active" 
-  | "completed" 
+  | "active"
+  | "completed"
   | "archived";
 
 export interface HRRequirements {
@@ -75,16 +75,40 @@ export interface Job {
 }
 
 export interface JDStructured {
-  role_title?: string;
-  seniority_level?: string;
-  required_skills?: string[];
-  preferred_skills?: string[];
-  experience?: {
-    min?: number;
-    max?: number;
+  job_profile: {
+    role?: string;
+    domain?: string;
+    location?: string;
+    work_mode?: string;
+    job_type?: string;
+    notice_period?: string;
   };
-  education?: string;
-  domain_tags?: string[];
+  experience_requirements: {
+    minimum_experience_months: number;
+    maximum_experience_months: number;
+  };
+  skills: {
+    required: string[];
+    preferred: string[];
+    soft_skills: string[];
+  };
+  tech_stack: {
+    languages: string[];
+    frameworks: string[];
+    libraries: string[];
+    databases: string[];
+    cloud: string[];
+    tools: string[];
+    ai_techniques: string[];
+  };
+  responsibilities: string[];
+  education_requirements: {
+    degrees: string[];
+    fields: string[];
+  };
+  certifications: string[];
+  mandatory_compliances: string[];
+  soft_compliances: string[];
 }
 
 export interface CreateJobData {
@@ -121,35 +145,62 @@ export interface Resume {
 }
 
 export interface ParsedResume {
-  name?: string;
-  email?: string;
-  phone?: string;
-  location?: string;
-  years_experience?: number;
-  skills?: string[];
-  education?: Education[];
-  experience?: Experience[];
-  projects?: Project[];
+  profile: {
+    name?: string;
+    contact?: string;
+    email?: string;
+    linkedin?: string;
+    github?: string;
+    leetcode?: string;
+    hackerrank?: string;
+    location?: string;
+  };
+  domain: string;
+  confidence: number;
+  skills: {
+    provided: string[];
+    inferred: string[];
+    soft_skills: string[];
+  };
+  experience: {
+    total_full_time_experience: number;
+    total_internship_experience_in_months: number;
+    details: Experience[];
+  };
+  projects: Project[];
+  educations: Education[];
+  certifications: string[];
+  achievements: string[];
 }
 
 export interface Education {
+  start?: string;
+  end?: string;
+  college?: string;
   degree?: string;
-  field?: string;
-  institution?: string;
-  year?: string;
+  department?: string;
+  grade?: string;
 }
 
 export interface Experience {
-  title?: string;
   company?: string;
-  duration?: string;
-  description?: string;
+  role?: string;
+  start?: string;
+  end?: string;
+  employment_type?: string;
+  impact: string[];
 }
 
 export interface Project {
-  name?: string;
-  description?: string;
-  tech_keywords?: string[];
+  title?: string;
+  demo_link?: string;
+  code_link?: string;
+  metric_ai: {
+    impact: number;
+    difficulty: number;
+    complexity: number;
+    domain_relevance: number;
+  };
 }
 
 // ==================== RESUME GROUP TYPES ====================
@@ -253,7 +304,7 @@ export interface PaginatedResponse<T> {
 
 // ==================== WEBSOCKET EVENT TYPES ====================
 
-export type WSEventType = 
+export type WSEventType =
   | "jd_progress"
   | "resume_progress"
   | "ranking_progress"

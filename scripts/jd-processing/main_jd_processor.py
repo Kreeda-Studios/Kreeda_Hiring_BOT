@@ -31,7 +31,6 @@ from common.bullmq_progress import ProgressTracker
 from a_pdf_text_extractor import extract_combined_text
 from b_ai_jd_parser import process_jd_with_ai, format_jd_analysis_payload
 from c_ai_embedding_generator import generate_and_format_embeddings
-from d_compliance_parser import validate_and_format_compliances
 
 
 def update_job_status(job_id: str, status: str, progress: int = None, error: str = None):
@@ -66,7 +65,6 @@ async def process_jd_complete(job) -> dict:
     processing_stages = {
         'job_fetch': {'completed': False, 'error': None},
         'text_extraction': {'completed': False, 'error': None},
-        'compliance_parsing': {'completed': False, 'error': None},
         'ai_parsing': {'completed': False, 'error': None},
         'save_analysis': {'completed': False, 'error': None},
         'embedding_generation': {'completed': False, 'error': None},
@@ -101,35 +99,12 @@ async def process_jd_complete(job) -> dict:
         sources = text_result.get('sources', [])
         processing_stages['text_extraction']['completed'] = True
         logger.progress(f"Extracted {text_result.get('char_count')} chars from: {', '.join(sources)}")
-        await tracker.update(30, "extracting_text", f"Text extracted: {text_result.get('char_count')} characters")
-        
-        # Step 3: Parse mandatory and soft compliances
-        await tracker.update(35, "parsing_compliance", "Parsing compliance requirements")
-        logger.progress("Parsing compliance requirements")
-        
-        compliance_result = validate_and_format_compliances(job_data)
-        updated_filter_requirements = compliance_result.get('filter_requirements')
-        
-        if compliance_result.get('success'):
-            stats = compliance_result.get('stats', {})
-            total = stats.get('total_count', 0)
-            if total > 0:
-                logger.progress(f"Parsed: {stats.get('mandatory_count')} mandatory, {stats.get('soft_count')} soft")
-                await tracker.update(40, "parsing_compliance", f"Compliance parsed: {total} fields")
-            else:
-                logger.progress("No compliances to parse")
-                await tracker.update(40, "parsing_compliance", "No compliances specified")
-            processing_stages['compliance_parsing']['completed'] = True
-        else:
-            error_msg = compliance_result.get('error')
-            logger.progress(f"Warning: {error_msg}")
-            processing_stages['compliance_parsing']['error'] = error_msg
-            await tracker.update(40, "parsing_compliance", f"Warning: {error_msg}")
-        
-        # Step 4: AI JD Parsing
-        await tracker.update(45, "ai_parsing", "Processing JD with AI (1-2 minutes)")
-        logger.progress("Parsing JD with GPT-4 (this may take 1-2 minutes)")
-        
+        await tracker.update(35, "extracting_text", f"Text extracted: {text_result.get('char_count')} characters")
+
+        # Step 3: AI JD Parsing (compliance extracted inline by the parser)
+        await tracker.update(40, "ai_parsing", "Processing JD with AI (1-2 minutes)")
+        logger.progress("Parsing JD with AI (this may take 1-2 minutes)")
+
         ai_result = await process_jd_with_ai(combined_text)
         
         if not ai_result.get('success'):
@@ -141,15 +116,17 @@ async def process_jd_complete(job) -> dict:
         
         processing_stages['ai_parsing']['completed'] = True
         parsed_jd = ai_result.get('parsed_data', {})
-        logger.progress(f"Parsed: {parsed_jd.get('role_title', 'N/A')} | {len(parsed_jd.get('required_skills', []))} skills")
+        role = (parsed_jd.get('job_profile') or {}).get('role', 'N/A')
+        skills_count = len((parsed_jd.get('skills') or {}).get('required', []))
+        logger.progress(f"Parsed: {role} | {skills_count} required skills")
         await tracker.update(60, "ai_parsing", "AI parsing completed")
         
         # Step 5: Save parsed data to DB using new API
         await tracker.update(65, "saving_analysis", "Saving parsed analysis to database")
         logger.progress("Saving parsed analysis to database")
         
-        jd_analysis_payload = format_jd_analysis_payload(parsed_jd, updated_filter_requirements)
-        
+        jd_analysis_payload = format_jd_analysis_payload(parsed_jd)
+
         api.post("/updates/jd/parsed", data={
             'job_id': job_id,
             'jd_analysis': jd_analysis_payload['jd_analysis']
@@ -157,14 +134,6 @@ async def process_jd_complete(job) -> dict:
         processing_stages['save_analysis']['completed'] = True
         logger.progress("Parsed analysis saved to database")
         await tracker.update(70, "saving_analysis", "Parsed analysis saved")
-        
-        # Save compliance requirements if available
-        if updated_filter_requirements:
-            api.post("/updates/jd/compliance", data={
-                'job_id': job_id,
-                'filter_requirements': updated_filter_requirements
-            })
-            logger.progress("Compliance requirements saved")
         
         # Step 6: Generate embeddings
         await tracker.update(75, "generating_embeddings", "Generating embeddings")
@@ -205,7 +174,7 @@ async def process_jd_complete(job) -> dict:
         logger.complete("JD processing completed successfully")
         await tracker.complete(summary={
             'jobId': job_id,
-            'skillsExtracted': len(parsed_jd.get('required_skills', [])),
+            'skillsExtracted': skills_count,
             'embeddingsGenerated': sections_count
         })
         

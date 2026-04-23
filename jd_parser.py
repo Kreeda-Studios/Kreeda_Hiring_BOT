@@ -1,26 +1,39 @@
-#!/usr/bin/env python3
-"""
-AI JD Parser — Pure LLM Structured Extraction
-==============================================
-Replaces old function-calling logic with client.responses.parse +
-a strict Pydantic schema. Model and API style match jd_parser.py reference.
-"""
-
+import asyncio
+import json
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional
 
-# Add parent directory for imports
-sys.path.append(str(Path(__file__).parent.parent))
-
+import fitz
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from pydantic import BaseModel
-from openai_client import get_async_openai_client
 
+# ──────────────────────────────────────────────
+# CONFIG
+# ──────────────────────────────────────────────
+
+# Resolve the directory where this script is located
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
+# Go up one directory to read the project's .env file
+load_dotenv(dotenv_path=SCRIPT_DIR.parent / ".env")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_NAME = "gpt-5-mini"
+
+INPUT_DIR = SCRIPT_DIR / "input_jds"
+OUTPUT_DIR = SCRIPT_DIR / "output_json"
+
+INPUT_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 
 # ──────────────────────────────────────────────
-# PYDANTIC SCHEMA
+# PYDANTIC SCHEMA FOR STRUCTURED OUTPUT
 # ──────────────────────────────────────────────
 
 class JobProfile(BaseModel):
@@ -66,8 +79,6 @@ class JDExtraction(BaseModel):
     responsibilities: List[str]
     education_requirements: EducationRequirements
     certifications: List[str]
-    mandatory_compliances: List[str]
-    soft_compliances: List[str]
 
 
 # ──────────────────────────────────────────────
@@ -99,74 +110,95 @@ You MUST follow these rules carefully:
   - tech_stack: Categorize ALL mentioned technical tools into their correct buckets (languages, frameworks, libraries, databases, cloud, tools, ai_techniques).
   - NOTE: Do not invent/hallucinate technologies that are NOT explicitly mentioned anywhere in the JD. Just categorize the ones that ARE present.
 
-. Compliance Extraction Rules
-  - mandatory_compliances: Extract ONLY requirements that are explicitly stated as MANDATORY, MUST-HAVE, or hard-filter criteria (by the JD or any HR filter text provided). Each item should be a concise, actionable criterion string. Examples: "Minimum 2 years Python experience", "Must have IT background", "React is mandatory". Return [] if none mentioned.
-  - soft_compliances: Extract requirements that are PREFERRED, NICE-TO-HAVE, or stated as soft preferences. Each item should be a concise, actionable criterion string. Examples: "Startup experience preferred", "React knowledge is a plus", "Fintech background preferred". Return [] if none mentioned.
-  - If no explicit compliance statements exist in the JD, return [] for both fields.
-
 . Schema Enforcement
   - Output ONLY valid JSON matching the exact schema.
   - Do not reorder, add, or rename any keys.
+
 """
 
 
 # ──────────────────────────────────────────────
-# LLM CALL
+# PDF EXTRACTION
 # ──────────────────────────────────────────────
 
-async def process_jd_with_ai(jd_text: str, filter_text: str = None) -> dict:
-    """
-    Parse JD text using structured LLM extraction.
+def extract_pdf_content(pdf_path: str) -> str:
+    """Extract raw text from a JD PDF file."""
+    doc = fitz.open(pdf_path)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    doc.close()
+    return text.strip()
 
-    Args:
-        jd_text: Raw JD text
-        filter_text: Optional HR filter/compliance text to append
 
-    Returns:
-        {'success': bool, 'parsed_data': dict} or {'success': False, 'error': str}
+# ──────────────────────────────────────────────
+# LLM CALL (STRUCTURED OUTPUT)
+# ──────────────────────────────────────────────
+
+async def extract_jd_data(raw_text: str) -> JDExtraction:
+    user_input = f"""
+    Extract structured job description information.
+
+    RAW TEXT:
+    {raw_text}
     """
+
+    response = await client.responses.parse(
+        model=MODEL_NAME,
+        input=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_input},
+        ],
+        text_format=JDExtraction,
+    )
+
+    return response.output_parsed
+
+
+# ──────────────────────────────────────────────
+# PROCESS SINGLE JD
+# ──────────────────────────────────────────────
+
+async def process_single_jd(pdf_path: Path):
+    print(f"[PROCESSING] {pdf_path.name}")
+
+    raw_text = extract_pdf_content(str(pdf_path))
+
+    if not raw_text:
+        print(f"[ERROR] Invalid or empty text in {pdf_path.name}")
+        return
+
     try:
-        client = get_async_openai_client()
+        structured = await extract_jd_data(raw_text)
+        result = structured.model_dump()
+        
+        output_file = OUTPUT_DIR / f"{pdf_path.stem}.json"
 
-        # Append HR filter text if provided — LLM extracts compliances from it
-        raw_input = jd_text
-        if filter_text and filter_text.strip():
-            raw_input += f"\n\n### HR FILTER REQUIREMENTS:\n{filter_text.strip()}"
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
 
-        user_input = f"""Extract structured job description information.
-
-RAW TEXT:
-{raw_input}
-"""
-
-        response = await client.responses.parse(
-            model=MODEL_NAME,
-            input=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_input},
-            ],
-            text_format=JDExtraction,
-        )
-
-        parsed = response.output_parsed
-        return {
-            "success": True,
-            "parsed_data": parsed.model_dump(),
-        }
-
+        print(f"[DONE] {pdf_path.name}")
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"JD parsing failed: {str(e)}",
-        }
+        print(f"[ERROR] Failed to process {pdf_path.name}: {e}")
 
 
 # ──────────────────────────────────────────────
-# PAYLOAD FORMATTER (keeps main_jd_processor compatible)
+# PIPELINE EXECUTION
 # ──────────────────────────────────────────────
 
-def format_jd_analysis_payload(parsed_jd: dict, filter_requirements: dict = None) -> dict:
-    """Format parsed JD data into database payload."""
-    return {
-        "jd_analysis": dict(parsed_jd),
-    }
+async def run_pipeline():
+    pdf_files = list(INPUT_DIR.glob("*.pdf"))
+
+    if not pdf_files:
+        print(f"No PDF files found in {INPUT_DIR.absolute()}.")
+        sys.exit(1)
+
+    print(f"[START] Found {len(pdf_files)} JDs to process.\n")
+    await asyncio.gather(*[process_single_jd(pdf) for pdf in pdf_files])
+    print("\n[COMPLETE] Extracted JSONs saved to output_json/")
+
+
+if __name__ == "__main__":
+    if sys.platform.startswith("win"):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(run_pipeline())

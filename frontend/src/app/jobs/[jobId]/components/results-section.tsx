@@ -467,8 +467,8 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                         <div className="flex items-center gap-2">
                           {candidate.rank <= 3 && (
                             <Trophy className={`h-4 w-4 ${candidate.rank === 1 ? 'text-yellow-500' :
-                                candidate.rank === 2 ? 'text-gray-400' :
-                                  'text-amber-600'
+                              candidate.rank === 2 ? 'text-gray-400' :
+                                'text-amber-600'
                               }`} />
                           )}
                           <span className="font-medium">{candidate.rank}</span>
@@ -576,8 +576,8 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => resumesAPI.openResume(candidate.resume_id)}
                           title="View Resume"

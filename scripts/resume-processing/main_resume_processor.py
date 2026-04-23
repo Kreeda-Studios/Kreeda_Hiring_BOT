@@ -163,20 +163,25 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         await tracker.update(25, "parsing", "Parsing resume with AI")
         logger.progress("Parsing resume with AI (1-2 minutes)")
         
-        parse_result = await parse_resume_with_ai(text_result['text'], jd_data)
+        parse_result = await parse_resume_with_ai(
+            text_result['text'],
+            text_result.get('hyperlinks', []),
+            jd_data,
+        )
         if not parse_result.get('success'):
             error_msg = f"AI parsing failed: {parse_result.get('error')}"
             logger.fail(error_msg)
             await tracker.failed(error_msg, "AIParsingError", "parsing")
             return {'success': False, 'error': error_msg}
-        
+
         parsed_resume = parse_result['parsed_data']
         # Save parsed resume using new API
         api.post("/updates/resume/parsed", data={
             'resume_id': resume_id,
             'parsed_content': parsed_resume
         })
-        logger.progress(f"Parsed: {parsed_resume.get('name', 'Unknown')}")
+        candidate_name = (parsed_resume.get('profile') or {}).get('name', 'Unknown')
+        logger.progress(f"Parsed: {candidate_name}")
         await tracker.update(40, "parsing", f"Resume parsed successfully")
         
         # Generate embeddings

@@ -10,82 +10,64 @@ import mongoose, { Document, Schema } from 'mongoose';
 // ==========================================
 
 interface IContact {
-  email: string;
+  email?: string;
   phone?: string;
   profile?: string;
 }
 
-interface ICanonicalSkills {
-  programming?: string[];
-  ml_ai?: string[];
-  frontend?: string[];
-  backend?: string[];
-  testing?: string[];
-  databases?: string[];
-  cloud?: string[];
-  infra?: string[];
-  devtools?: string[];
-  methodologies?: string[];
+interface IProfile {
+  name?: string;
+  contact?: string;
+  email?: string;
+  linkedin?: string;
+  github?: string;
+  leetcode?: string;
+  hackerrank?: string;
+  location?: string;
 }
 
-interface IInferredSkill {
-  skill: string;
-  confidence: number;
-  provenance: string[];
-}
-
-interface ISkillProficiency {
-  skill: string;
-  level: string;
-  years_last_used?: number;
-  provenance?: string[];
-}
-
-interface IProjectMetrics {
+interface IMetricAI {
+  impact: number;
   difficulty: number;
-  novelty: number;
-  skill_relevance: number;
   complexity: number;
-  technical_depth: number;
   domain_relevance: number;
-  execution_quality: number;
 }
 
 interface IProject {
-  name: string;
-  duration_start?: string;
-  duration_end?: string;
+  title?: string;
+  demo_link?: string;
+  code_link?: string;
+  metric_ai: IMetricAI;
+}
+
+interface IExperienceDetail {
+  company?: string;
   role?: string;
-  domain?: string;
-  tech_keywords?: string[];
-  approach?: string;
-  impact_metrics?: Record<string, any>;
-  primary_skills?: string[];
-  metrics?: IProjectMetrics;
+  start?: string;
+  end?: string;
+  employment_type?: string;
+  impact: string[];
 }
 
-interface IProvenanceSpan {
-  start: number;
-  end: number;
-  text: string;
+interface IExperience {
+  total_full_time_experience: number;
+  total_internship_experience_in_months: number;
+  details: IExperienceDetail[];
 }
 
-interface IExperienceEntry {
-  company: string;
-  title: string;
-  period_start?: string;
-  period_end?: string;
-  responsibilities_keywords?: string[];
-  achievements?: string[];
-  primary_tech?: string[];
-  provenance_spans?: IProvenanceSpan[];
+interface ISkills {
+  provided: string[];
+  inferred: string[];
+  soft_skills: string[];
 }
 
 interface IEducation {
-  degree: string;
-  field: string;
-  institution: string;
-  year?: string;
+  start?: string;
+  end?: string;
+  college?: string;
+  degree?: string;
+  department?: string;
+  grade?: string;
 }
 
 interface IEmbeddingHints {
@@ -106,24 +88,21 @@ interface IMeta {
 }
 
 interface IParsedContent {
+  profile: IProfile;
+  domain: string;
+  confidence: number;
+  skills: ISkills;
+  experience: IExperience;
+  projects: IProject[];
+  educations: IEducation[];
+  certifications: string[];
+  achievements: string[];
+
+  // Internal fields
   candidate_id: string;
-  name: string;
-  role_claim?: string;
-  years_experience?: number;
-  location?: string;
-  contact: IContact;
-  domain_tags?: string[];
-  profile_keywords_line: string;
-  canonical_skills: ICanonicalSkills;
-  inferred_skills?: IInferredSkill[];
-  skill_proficiency?: ISkillProficiency[];
-  projects?: IProject[];
-  experience_entries?: IExperienceEntry[];
-  education?: IEducation[];
-  ats_boost_line: string;
-  embedding_hints?: IEmbeddingHints;
-  explainability?: IExplainability;
-  meta?: IMeta;
+  processed_date?: string;
+  raw_text?: string;
+  meta_data?: any;
 }
 
 interface IResumeEmbedding {
@@ -189,96 +168,62 @@ export interface IResume extends Document {
 
 // Parsed Content Schema
 const parsedContentSchema = new Schema({
-  candidate_id: { type: String, required: true },
-  name: { type: String, required: true },
-  role_claim: String,
-  years_experience: Number,
-  location: String,
-  contact: {
-    email: { type: String, required: true },
-    phone: String,
-    profile: String
-  },
-  domain_tags: [String],
-  profile_keywords_line: { type: String, required: true },
-  canonical_skills: {
-    programming: [String],
-    ml_ai: [String],
-    frontend: [String],
-    backend: [String],
-    testing: [String],
-    databases: [String],
-    cloud: [String],
-    infra: [String],
-    devtools: [String],
-    methodologies: [String]
-  },
-  inferred_skills: [{
-    skill: String,
-    confidence: Number,
-    provenance: [String]
-  }],
-  skill_proficiency: [{
-    skill: String,
-    level: String,
-    years_last_used: Number,
-    provenance: [String]
-  }],
-  projects: [{
+  profile: {
     name: String,
-    duration_start: String,
-    duration_end: String,
-    role: String,
-    domain: String,
-    tech_keywords: [String],
-    approach: String,
-    impact_metrics: Schema.Types.Mixed,
-    primary_skills: [String],
-    metrics: {
+    contact: String,
+    email: String,
+    linkedin: String,
+    github: String,
+    leetcode: String,
+    hackerrank: String,
+    location: String
+  },
+  domain: { type: String, required: true },
+  confidence: { type: Number, required: true },
+  skills: {
+    provided: [String],
+    inferred: [String],
+    soft_skills: [String]
+  },
+  experience: {
+    total_full_time_experience: Number,
+    total_internship_experience_in_months: Number,
+    details: [{
+      company: String,
+      role: String,
+      start: String,
+      end: String,
+      employment_type: String,
+      impact: [String]
+    }]
+  },
+  projects: [{
+    title: String,
+    demo_link: String,
+    code_link: String,
+    metric_ai: {
+      impact: Number,
       difficulty: Number,
-      novelty: Number,
-      skill_relevance: Number,
       complexity: Number,
-      technical_depth: Number,
-      domain_relevance: Number,
-      execution_quality: Number
+      domain_relevance: Number
     }
   }],
-  experience_entries: [{
-    company: String,
-    title: String,
-    period_start: String,
-    period_end: String,
-    responsibilities_keywords: [String],
-    achievements: [String],
-    primary_tech: [String],
-    provenance_spans: [{
-      start: Number,
-      end: Number,
-      text: String
-    }]
-  }],
-  education: [{
+  educations: [{
+    start: String,
+    end: String,
+    college: String,
     degree: String,
-    field: String,
-    institution: String,
-    year: String
+    department: String,
+    grade: String
   }],
-  ats_boost_line: { type: String, required: true },
-  embedding_hints: {
-    profile_embed: String,
-    projects_embed: String,
-    skills_embed: String
-  },
-  explainability: {
-    top_matched_sentences: [String],
-    top_matched_keywords: [String]
-  },
-  meta: {
-    raw_text_length: Number,
-    keyword_occurrences: Schema.Types.Mixed,
-    last_updated: String
-  }
+  certifications: [String],
+  achievements: [String],
+
+  // Internal fields
+  candidate_id: { type: String, required: true },
+  processed_date: String,
+  raw_text: String,
+  meta_data: Schema.Types.Mixed
 }, { _id: false });
 
 // Resume Embedding Schema
@@ -378,13 +323,13 @@ const resumeSchema = new Schema<IResume>({
 resumeSchema.index({ job_id: 1, status: 1 });
 resumeSchema.index({ job_id: 1, hard_requirements_met: 1 });
 resumeSchema.index({ candidate_name: 1 });
-resumeSchema.index({ 'parsed_content.contact.email': 1 });
+resumeSchema.index({ 'parsed_content.profile.email': 1 });
 resumeSchema.index({ bullmq_job_id: 1 });
 resumeSchema.index({ createdAt: -1 });
 
 // Virtual for candidate email
 resumeSchema.virtual('candidate_email').get(function () {
-  return this.parsed_content?.contact?.email || '';
+  return this.parsed_content?.profile?.email || '';
 });
 
 // Ensure virtuals are included in JSON output

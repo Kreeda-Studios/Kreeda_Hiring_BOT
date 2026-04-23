@@ -143,57 +143,84 @@ async def generate_section_embeddings(texts: List[str], section_name: str) -> Di
 def extract_sections_from_jd(jd: dict) -> Dict[str, List[str]]:
     """
     Extract text content from JD fields and organize into 6 semantic sections.
-    Each section returns a list of strings (not a single concatenated string).
-    
+    Maps from the new JDExtraction schema (b_ai_jd_parser.py).
+
+    New field paths:
+      - job_profile.role / job_profile.domain  → profile
+      - skills.required / skills.preferred + tech_stack.*  → skills
+      - tech_stack (frameworks, ai_techniques, libraries) → projects (proxy)
+      - responsibilities                         → responsibilities
+      - education_requirements.degrees/fields + certifications → education
+      - combined summary                         → overall
+
     Returns:
         dict: {
-            'profile': [str, str, ...],
-            'skills': [str, str, ...],
-            'projects': [str, str, ...],
-            'responsibilities': [str, str, ...],
-            'education': [str, str, ...],
-            'overall': [str, str, ...]
+            'profile': [str, ...],
+            'skills': [str, ...],
+            'projects': [str, ...],
+            'responsibilities': [str, ...],
+            'education': [str, ...],
+            'overall': [str, ...]
         }
     """
-    sections = {k: [] for k in ["profile","skills","projects","responsibilities","education","overall"]}
+    sections = {k: [] for k in ["profile", "skills", "projects", "responsibilities", "education", "overall"]}
 
-    # PROFILE: Role title and high-level summary
-    if jd.get("role_title"): 
-        sections["profile"] += sentence_split(jd["role_title"])
-    if jd.get("embedding_hints", {}).get("overall_embed"):
-        sections["overall"] += sentence_split(jd["embedding_hints"]["overall_embed"])
-    
-    # RESPONSIBILITIES: Job duties (each responsibility broken into sentences)
-    if jd.get("responsibilities"):
-        for r in jd["responsibilities"]: 
-            sections["responsibilities"] += sentence_split(r)
-    
-    # SKILLS: Required and preferred technical skills
-    if jd.get("required_skills"):
-        sections["skills"] += [norm(x) for x in jd["required_skills"]]
-    if jd.get("preferred_skills"):
-        sections["skills"] += [norm(x) for x in jd["preferred_skills"]]
-    
-    # PROJECTS: Project-related expectations
-    if jd.get("embedding_hints", {}).get("projects_embed"):
-        sections["projects"] += sentence_split(jd["embedding_hints"]["projects_embed"])
-    
-    # EDUCATION: Certifications and degree requirements
-    if jd.get("certifications_required"):
-        sections["education"] += [norm(x) for x in jd["certifications_required"]]
-    if jd.get("education_requirements"):
-        sections["education"] += [norm(x) for x in jd["education_requirements"]]
-    
-    # Fallback: If skills section is empty, use keywords_flat
-    if jd.get("keywords_flat") and not sections["skills"]:
-        sections["skills"] += [norm(x) for x in jd["keywords_flat"]]
+    # ── PROFILE: role + domain ──────────────────────────────────────────────
+    job_profile = jd.get("job_profile") or {}
+    role = job_profile.get("role")
+    domain = job_profile.get("domain")
+    if role:
+        sections["profile"] += sentence_split(role)
+    if domain:
+        sections["profile"].append(norm(domain))
 
-    # Deduplicate items within each section while preserving order
+    # ── SKILLS: required + preferred + flattened tech_stack ───────────────
+    skills = jd.get("skills") or {}
+    for s in safe_list(skills.get("required")):
+        sections["skills"].append(norm(s))
+    for s in safe_list(skills.get("preferred")):
+        sections["skills"].append(norm(s))
+
+    tech_stack = jd.get("tech_stack") or {}
+    for bucket in ("languages", "frameworks", "libraries", "databases", "cloud", "tools", "ai_techniques"):
+        for item in safe_list(tech_stack.get(bucket)):
+            sections["skills"].append(norm(item))
+
+    # ── PROJECTS: use ai_techniques + frameworks as project-context proxy ──
+    for item in safe_list(tech_stack.get("ai_techniques")):
+        sections["projects"].append(norm(item))
+    for item in safe_list(tech_stack.get("frameworks")):
+        sections["projects"].append(norm(item))
+    for item in safe_list(tech_stack.get("libraries")):
+        sections["projects"].append(norm(item))
+
+    # ── RESPONSIBILITIES: raw responsibility strings ────────────────────────
+    for r in safe_list(jd.get("responsibilities")):
+        sections["responsibilities"] += sentence_split(r)
+
+    # ── EDUCATION: degrees + fields + certifications ────────────────────────
+    edu_req = jd.get("education_requirements") or {}
+    for d in safe_list(edu_req.get("degrees")):
+        sections["education"].append(norm(d))
+    for f in safe_list(edu_req.get("fields")):
+        sections["education"].append(norm(f))
+    for c in safe_list(jd.get("certifications")):
+        sections["education"].append(norm(c))
+
+    # ── OVERALL: role + required skills + top responsibilities ─────────────
+    if role:
+        sections["overall"].append(norm(role))
+    for s in safe_list(skills.get("required"))[:20]:
+        sections["overall"].append(norm(s))
+    for r in safe_list(jd.get("responsibilities"))[:10]:
+        sections["overall"] += sentence_split(r)
+
+    # Deduplicate within each section while preserving order
     for k in sections:
         dedup, out = set(), []
         for s in sections[k]:
             key = s.lower().strip()
-            if key not in dedup:
+            if key and key not in dedup:
                 dedup.add(key)
                 out.append(s)
         sections[k] = out

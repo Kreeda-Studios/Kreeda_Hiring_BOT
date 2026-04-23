@@ -207,84 +207,99 @@ def norm(s):
 
 def extract_sections_from_resume(resume: dict) -> Dict[str, List[str]]:
     """
-    Extract text sections from parsed resume for embedding generation
-    
-    Field mappings match AI parser schema:
-    - profile_keywords_line → profile section
-    - canonical_skills + inferred_skills → skills section
-    - projects.approach + projects.tech_keywords → projects section
-    - experience_entries.responsibilities_keywords + achievements → responsibilities section
-    - education → education section
-    - Combined fields → overall section
-    
+    Extract text sections from parsed resume for embedding generation.
+    Maps from the new ResumeExtraction schema (b_ai_parser.py).
+
+    New field paths:
+      - profile.name + domain          → profile
+      - skills.provided + inferred     → skills
+      - projects[].title               → projects
+      - experience.details[].impact    → responsibilities
+      - educations[].degree/dept/college + certifications → education
+      - combined summary               → overall
+
     Args:
-        resume: Parsed resume dictionary from AI parser
-        
+        resume: Parsed resume dict (model_dump() of ResumeExtraction)
+
     Returns:
         Dictionary with 6 section keys, each containing list of text strings
     """
     sections = {k: [] for k in ["profile", "skills", "projects", "responsibilities", "education", "overall"]}
 
-    # Profile section
-    profile_line = resume.get("profile_keywords_line")
-    if profile_line:
-        sections["profile"] += sentence_split(profile_line)
+    # ── PROFILE: name + domain + location ────────────────────────────────
+    profile = resume.get("profile") or {}
+    domain  = resume.get("domain") or ""
+    name    = norm(profile.get("name") or "")
+    loc     = norm(profile.get("location") or "")
+    if name:
+        sections["profile"].append(name)
+    if domain:
+        sections["profile"].append(domain)
+    if loc:
+        sections["profile"].append(loc)
 
-    # Skills section: canonical + inferred (confidence >= 0.6)
-    canonical = resume.get("canonical_skills") or {}
-    for skill_list in canonical.values():
-        if isinstance(skill_list, list):
-            sections["skills"] += [norm(v) for v in skill_list if v]
+    # ── SKILLS: provided (explicit) + inferred ────────────────────────────
+    skills = resume.get("skills") or {}
+    for s in safe_list(skills.get("provided")):
+        v = norm(s)
+        if v:
+            sections["skills"].append(v)
+    for s in safe_list(skills.get("inferred")):
+        v = norm(s)
+        if v:
+            sections["skills"].append(v)
 
-    for inferred in safe_list(resume.get("inferred_skills")):
-        if inferred.get("skill") and inferred.get("confidence", 0) >= 0.6:
-            sections["skills"].append(norm(inferred["skill"]))
-
-    # Projects section: name + approach + tech_keywords
+    # ── PROJECTS: title of each project + achievements as supplementary ───
     for proj in safe_list(resume.get("projects")):
-        if proj.get("name"):
-            sections["projects"] += sentence_split(proj["name"])
-        if proj.get("approach"):
-            sections["projects"] += sentence_split(proj["approach"])
-        if proj.get("tech_keywords"):
-            sections["projects"] += [norm(x) for x in proj["tech_keywords"]]
+        title = norm(proj.get("title") or "")
+        if title:
+            sections["projects"] += sentence_split(title)
 
-    # Responsibilities section: responsibilities + achievements + primary_tech
-    for exp in safe_list(resume.get("experience_entries")):
-        for resp in safe_list(exp.get("responsibilities_keywords")):
-            if resp:
-                sections["responsibilities"] += sentence_split(resp)
-        for ach in safe_list(exp.get("achievements")):
-            if ach:
-                sections["responsibilities"] += sentence_split(ach)
-        for tech in safe_list(exp.get("primary_tech")):
-            if tech:
-                sections["responsibilities"].append(norm(tech))
+    for ach in safe_list(resume.get("achievements")):
+        v = norm(ach)
+        if v:
+            sections["projects"].append(v)
 
-    # Education section: string entries only
-    for edu in safe_list(resume.get("education")):
-        if isinstance(edu, str):
-            sections["education"] += sentence_split(edu)
+    # ── RESPONSIBILITIES: impact bullets across all experience entries ─────
+    experience = resume.get("experience") or {}
+    for detail in safe_list(experience.get("details")):
+        role_title = norm(detail.get("role") or "")
+        if role_title:
+            sections["responsibilities"].append(role_title)
+        for bullet in safe_list(detail.get("impact")):
+            v = norm(bullet)
+            if v:
+                sections["responsibilities"] += sentence_split(v)
 
-    # Fallback: use ats_boost_line for empty education
-    ats = resume.get("ats_boost_line") or ""
-    if ats and not sections["education"]:
-        parts = [x.strip() for x in ats.split(",") if x.strip()]
-        sections["education"] += parts[:20]
+    # ── EDUCATION: degree + department + college per education entry ───────
+    for edu in safe_list(resume.get("educations")):
+        parts = [
+            norm(edu.get("degree") or ""),
+            norm(edu.get("department") or ""),
+            norm(edu.get("college") or ""),
+        ]
+        edu_line = " ".join(p for p in parts if p).strip()
+        if edu_line:
+            sections["education"].append(edu_line)
 
-    # Overall section: comprehensive combination
-    overall_parts = []
-    if resume.get("profile_keywords_line"):
-        overall_parts.append(resume["profile_keywords_line"])
-    for proj in safe_list(resume.get("projects")):
-        if proj.get("approach"):
-            overall_parts.append(proj["approach"])
-    for exp in safe_list(resume.get("experience_entries")):
-        if exp.get("responsibilities_keywords"):
-            overall_parts += exp["responsibilities_keywords"]
-    if ats:
-        overall_parts.append(ats)
-    sections["overall"] = [s for part in overall_parts for s in sentence_split(part)]
+    for cert in safe_list(resume.get("certifications")):
+        v = norm(cert)
+        if v:
+            sections["education"].append(v)
+
+    # ── OVERALL: name + domain + provided skills + top impact bullets ──────
+    overall_parts: list[str] = []
+    if name:
+        overall_parts.append(name)
+    if domain:
+        overall_parts.append(domain)
+    overall_parts += [norm(s) for s in safe_list(skills.get("provided"))[:20] if norm(s)]
+    for detail in safe_list(experience.get("details"))[:3]:
+        for bullet in safe_list(detail.get("impact"))[:3]:
+            v = norm(bullet)
+            if v:
+                overall_parts += sentence_split(v)
+    sections["overall"] = [p for p in overall_parts if p]
 
     # Truncate all sections to MAX_SENT
     for key in sections:
