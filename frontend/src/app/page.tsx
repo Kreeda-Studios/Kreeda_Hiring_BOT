@@ -5,8 +5,8 @@ import { useTheme } from "next-themes";
 import Image from "next/image";
 import { PageContainer } from "@/components/common";
 
-import lightImg from "@/public/KreedaHiringBot_Light.jpg";
-import darkImg from "@/public/KreedaHiringBot_Dark.jpg";
+import lightImg from "@/images/KreedaHiringBot_Light.jpg";
+import darkImg from "@/images/KreedaHiringBot_Dark.jpg";
 
 export default function DashboardPage() {
   const { resolvedTheme } = useTheme();
