@@ -25,7 +25,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           sidebarCollapsed ? "pl-[68px]" : "pl-[280px]"
         )}
       >
-        <div className="p-6">{children}</div>
+        <div className="">{children}</div>
       </main>
     </div>
   );

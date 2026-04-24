@@ -88,14 +88,6 @@ export function ProgressSection({ jobId }: ProgressSectionProps) {
     }
   };
 
-  useEffect(() => {
-    fetchStatus();
-    
-    // Poll for updates every 10 seconds if processing
-    const interval = setInterval(fetchStatus, 10000);
-    return () => clearInterval(interval);
-  }, [jobId]);
-
   const handleRefresh = () => {
     setRefreshing(true);
     fetchStatus();

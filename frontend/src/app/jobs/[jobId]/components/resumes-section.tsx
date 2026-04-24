@@ -19,12 +19,15 @@ import {
 import type { Resume, ResumeStatus } from "@/lib/types";
 import { jobsAPI, resumesAPI, processingAPI } from "@/lib/api";
 import { useJobStatus } from "@/hooks/useJobStatus";
+import { useStatusRefreshTrigger } from "@/hooks/useStatusRefreshTrigger";
 
 interface ResumesSectionProps {
   jobId: string;
+  currentTab?: string;
+  onRefreshStatus?: () => void;
 }
 
-export function ResumesSection({ jobId }: ResumesSectionProps) {
+export function ResumesSection({ jobId, currentTab, onRefreshStatus }: ResumesSectionProps) {
   // Use status hook for real-time tracking
   const { 
     statusData, 
@@ -33,6 +36,18 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
     canStartResumeProcessing, 
     refetch: refetchStatus 
   } = useJobStatus(jobId);
+  
+  // Use refresh trigger to call refetch manually
+  const { triggerRefresh } = useStatusRefreshTrigger({
+    onRefresh: async () => {
+      console.log('🔄 [ResumesSection] Refreshing status via useStatusRefreshTrigger');
+      await refetchStatus();
+      if (onRefreshStatus) {
+        console.log('📞 [ResumesSection] Calling parent onRefreshStatus');
+        onRefreshStatus();
+      }
+    }
+  });
   
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,9 +139,23 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
       const result = await response.json();
       
       if (result.success && result.data) {
-        // Use overall_progress which combines resume (0-70%) and ranking (70-95%)
-        setProcessingProgress(result.data.overall_progress || 0);
-        setProcessingPhase(result.data.phase || 'not_started');
+        // Adjust progress mapping:
+        // Original: Resume (0-70), Ranking (70-95), Completion (100)
+        // New: Resume (0-90), Ranking (90-98), Final (98-100)
+        let progress = result.data.overall_progress || 0;
+        const phase = result.data.phase || 'not_started';
+
+        if (phase === 'resume_processing') {
+          // Map 0-70 to 0-90
+          progress = (progress / 70) * 90;
+        } else if (phase === 'ranking') {
+          // Map 70-95 to 90-98
+          // progress - 70 gives 0-25 range. (0-25 / 25) * 8 gives 0-8. + 90 = 90-98.
+          progress = 90 + ((progress - 70) / 25) * 8;
+        }
+
+        setProcessingProgress(Math.round(progress));
+        setProcessingPhase(phase);
         
         // Use resume_stats for display
         const resumeStats = result.data.resume_stats || {};
@@ -140,13 +169,14 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
         const isCompleted = result.data.phase === 'completed' || result.data.overall_progress >= 100;
         
         if (isCompleted) {
+          console.log('✅ [Resumes Progress] Processing completed, triggering refresh');
           if (progressIntervalRef.current) {
             clearInterval(progressIntervalRef.current);
             progressIntervalRef.current = null;
           }
           // Delay refresh slightly to ensure polling is fully stopped
-          setTimeout(() => {
-            refetchStatus(); // Refresh job status
+          setTimeout(async () => {
+            await triggerRefresh(); // Refresh job status
             fetchResumes(); // Refresh resume list
           }, 500);
         }
@@ -301,6 +331,10 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
     setProcessing(true);
     setError(null);
     
+    // Trigger refresh on start
+    console.log('🔄 [Resumes Process] Triggering initial refresh');
+    await triggerRefresh();
+    
     try {
       const response = await processingAPI.processResumes(jobId);
       if (response.success) {
@@ -390,10 +424,10 @@ export function ResumesSection({ jobId }: ResumesSectionProps) {
                     : 'Resume Processing Status'}
                 </span>
                 {processingPhase === 'ranking' && (
-                  <Badge variant="outline" className="ml-2">Ranking Phase (70-95%)</Badge>
+                  <Badge variant="outline" className="ml-2">Ranking Phase (90-98%)</Badge>
                 )}
                 {processingPhase === 'resume_processing' && (
-                  <Badge variant="outline" className="ml-2">Resume Phase (0-70%)</Badge>
+                  <Badge variant="outline" className="ml-2">Resume Phase (0-90%)</Badge>
                 )}
               </div>
               <span className="font-bold text-lg tabular-nums">{processingProgress}%</span>

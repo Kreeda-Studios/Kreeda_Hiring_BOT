@@ -247,9 +247,19 @@ router.post('/ranking/:jobId', async (req: Request, res: Response): Promise<void
     }).select('_id scores');
 
     if (resumes.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'No completed resumes with hard requirements met found for this job'
+      // Update job status to ranking completed since there are no resumes to rank
+      job.status = getNextStatus(job.status, 'RANKING_COMPLETE');
+      await job.save();
+
+      res.json({
+        success: true,
+        data: {
+          job_id: jobId,
+          total_resumes: 0,
+          total_batches: 0,
+          ranking_status: job.status
+        },
+        message: 'No completed resumes with hard requirements met found for this job. Skipping ranking phase.'
       });
       return;
     }

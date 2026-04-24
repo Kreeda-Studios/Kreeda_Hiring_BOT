@@ -1,17 +1,25 @@
 import { PageContainer } from "@/components/common";
+import Image from "next/image";
 
 export default function DashboardPage() {
   return (
-    <PageContainer>
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
-            Welcome to Kreeda Hiring Bot
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-md mx-auto">
-            AI-powered resume screening platform to streamline your hiring process
-          </p>
-        </div>
+    <PageContainer className="relative min-h-[calc(100vh-4rem)] w-full max-w-none px-0">
+      <div className="relative w-full h-[calc(100vh-4rem)]">
+        <Image
+          src="/KreedaHiringBot_Light.jpg"
+          alt="Kreeda Hiring Bot"
+          fill
+          priority
+          className="object-cover object-bottom block dark:hidden"
+        />
+        <Image
+          src="/KreedaHiringBot_Dark.jpg"
+          alt="Kreeda Hiring Bot"
+          fill
+          priority
+          className="object-cover object-bottom hidden dark:block"
+        />
+      
       </div>
     </PageContainer>
   );
