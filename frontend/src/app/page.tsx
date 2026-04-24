@@ -17,7 +17,7 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  // Reset loading state when the theme (and thus the image src) changes
+  // Force reset when theme changes so the new image doesn't "slice"
   useEffect(() => {
     setIsLoaded(false);
   }, [resolvedTheme]);
@@ -28,34 +28,44 @@ export default function DashboardPage() {
 
   return (
     <PageContainer className="relative min-h-[calc(100vh-4rem)] w-full max-w-none px-0">
-      <div className="relative w-full h-[calc(100vh-4rem)] overflow-hidden bg-gray-200 dark:bg-gray-800">
+      {/* 1. Background Layer: 
+         A solid color prevents the "white" or transparent gap while the blur is generating 
+      */}
+      <div className="relative w-full h-[calc(100vh-4rem)] overflow-hidden bg-[#f0f0f0] dark:bg-[#0a0a0a]">
         
-        {/* 1. The Blur Placeholder */}
-        {/* We keep this visible until the main image is 100% ready */}
-        <Image
-          src={imgSrc}
-          alt="Loading..."
-          fill
-          priority
-          placeholder="blur"
-          className={`object-cover object-bottom transition-opacity duration-1000 ${
-            isLoaded ? "opacity-0" : "opacity-100"
-          }`}
-          style={{ filter: "blur(20px)" }} // Extra blur boost
-        />
-
-        {/* 2. The Sharp Main Image */}
+        {/* 2. The Sharp Main Image (Hidden until Ready) 
+           We place this FIRST in the DOM so it stays behind the blur layer 
+           until we fade the blur out.
+        */}
         <Image
           src={imgSrc}
           alt="Kreeda Hiring Bot"
           fill
           priority
-          // 'onLoad' triggers only after the image is fully downloaded and decoded
           onLoad={() => setIsLoaded(true)}
-          className={`object-cover object-bottom transition-opacity duration-1000 ${
-            isLoaded ? "opacity-100" : "opacity-0"
-          }`}
+          className="object-cover object-bottom"
+          // We don't use opacity here; we just let it load behind the blur
         />
+
+        {/* 3. The "Solid" Blur Layer 
+           This sits on TOP of the sharp image. 
+           It only disappears once isLoaded is true.
+        */}
+        <div 
+          className={`absolute inset-0 z-10 transition-opacity duration-700 ease-in-out ${
+            isLoaded ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+        >
+          <Image
+            src={imgSrc}
+            alt="placeholder"
+            fill
+            priority
+            placeholder="blur"
+            className="object-cover object-bottom blur-2xl scale-110" 
+            // 'scale-110' hides the white edges often caused by heavy blurring
+          />
+        </div>
       </div>
     </PageContainer>
   );
