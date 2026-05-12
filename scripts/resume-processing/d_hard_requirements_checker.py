@@ -61,30 +61,47 @@ def _parse_experience_range(text: str) -> Optional[Dict[str, Optional[int]]]:
 
     Returns None if no experience range is found in the text.
     """
+    result = None
+
     # "X months to Y year(s)"
     m = re.search(r'(\d+)\s*months?\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
     if m:
-        return {"min_months": int(m.group(1)), "max_months": int(m.group(2)) * 12}
+        result = {"min_months": int(m.group(1)), "max_months": int(m.group(2)) * 12}
 
     # "X year(s) to Y year(s)"
-    m = re.search(r'(\d+)\s*years?\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
-    if m:
-        return {"min_months": int(m.group(1)) * 12, "max_months": int(m.group(2)) * 12}
+    if not result:
+        m = re.search(r'(\d+)\s*years?\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
+        if m:
+            result = {"min_months": int(m.group(1)) * 12, "max_months": int(m.group(2)) * 12}
 
     # "X months to Y months"
-    m = re.search(r'(\d+)\s*months?\s+to\s+(\d+)\s*months?', text, re.IGNORECASE)
-    if m:
-        return {"min_months": int(m.group(1)), "max_months": int(m.group(2))}
+    if not result:
+        m = re.search(r'(\d+)\s*months?\s+to\s+(\d+)\s*months?', text, re.IGNORECASE)
+        if m:
+            result = {"min_months": int(m.group(1)), "max_months": int(m.group(2))}
 
     # "X to Y months"
-    m = re.search(r'(\d+)\s+to\s+(\d+)\s*months?', text, re.IGNORECASE)
-    if m:
-        return {"min_months": int(m.group(1)), "max_months": int(m.group(2))}
+    if not result:
+        m = re.search(r'(\d+)\s+to\s+(\d+)\s*months?', text, re.IGNORECASE)
+        if m:
+            result = {"min_months": int(m.group(1)), "max_months": int(m.group(2))}
 
     # "X to Y years"
-    m = re.search(r'(\d+)\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
-    if m:
-        return {"min_months": int(m.group(1)) * 12, "max_months": int(m.group(2)) * 12}
+    if not result:
+        m = re.search(r'(\d+)\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
+        if m:
+            result = {"min_months": int(m.group(1)) * 12, "max_months": int(m.group(2)) * 12}
+
+    if result:
+        # Determine the type of experience required
+        text_lower = text.lower()
+        if "internship experience" in text_lower or "intern experience" in text_lower:
+            result["exp_type"] = "internship"
+        elif "full time experience" in text_lower or "full-time experience" in text_lower:
+            result["exp_type"] = "full_time"
+        else:
+            result["exp_type"] = "total"
+        return result
 
     return None
 
@@ -102,9 +119,9 @@ def _extract_skill_keywords(raw_prompt: str) -> List[str]:
       "RAG, GenAI, LangChain"
       -> ["RAG", "GenAI", "LangChain"]
     """
-    # Remove "Total experience..." prefix up to the next comma or end of string
+    # Remove "[Type] experience..." prefix up to the next comma or end of string
     cleaned = re.sub(
-        r'total\s+experience[^,]*(?:,|$)',
+        r'(?:total|internship|full\s*-?\s*time)\s+experience[^,]*(?:,|$)',
         '',
         raw_prompt,
         flags=re.IGNORECASE,
@@ -112,6 +129,9 @@ def _extract_skill_keywords(raw_prompt: str) -> List[str]:
 
     skills = [s.strip() for s in cleaned.split(',') if s.strip()]
     return skills
+
+
+
 
 
 def _check_experience_python(
@@ -132,22 +152,42 @@ def _check_experience_python(
     exp_data = resume.get('experience') or {}
     ft_months = int(exp_data.get('total_full_time_experience') or 0)
     intern_months = int(exp_data.get('total_internship_experience_in_months') or 0)
-    total = ft_months + intern_months
+    
+    exp_type = exp_range.get('exp_type', 'total')
+    
+    if exp_type == 'internship':
+        if ft_months > 0:
+            return {
+                'passed': False,
+                'total_months': intern_months,
+                'reason': (
+                    f"Role is strictly for internship candidates, but candidate has "
+                    f"{ft_months} month{'s' if ft_months != 1 else ''} of full-time experience."
+                ),
+            }
+        value_to_check = intern_months
+        type_str = "Internship experience"
+    elif exp_type == 'full_time':
+        value_to_check = ft_months
+        type_str = "Full-time experience"
+    else:
+        value_to_check = ft_months + intern_months
+        type_str = "Total experience"
 
     min_m = exp_range.get('min_months', 0)
     max_m = exp_range.get('max_months')  # None -> no upper limit
 
-    if total < min_m:
+    if value_to_check < min_m:
         return {
             'passed': False,
-            'total_months': total,
+            'total_months': value_to_check,
             'reason': (
-                f"Total experience is {total} month{'s' if total != 1 else ''}, "
+                f"{type_str} is {value_to_check} month{'s' if value_to_check != 1 else ''}, "
                 f"below the minimum requirement of {min_m} months."
             ),
         }
 
-    if max_m is not None and total > max_m:
+    if max_m is not None and value_to_check > max_m:
         max_display = (
             f"{max_m // 12} year{'s' if max_m >= 24 else ''}"
             if max_m % 12 == 0
@@ -155,14 +195,14 @@ def _check_experience_python(
         )
         return {
             'passed': False,
-            'total_months': total,
+            'total_months': value_to_check,
             'reason': (
-                f"Total experience is {total} months, "
+                f"{type_str} is {value_to_check} months, "
                 f"exceeding the maximum requirement of {max_display}."
             ),
         }
 
-    return {'passed': True, 'total_months': total, 'reason': None}
+    return {'passed': True, 'total_months': value_to_check, 'reason': None, 'type_str': type_str}
 
 
 # -----------------------------------------------------------------------------
@@ -434,7 +474,7 @@ def check_hard_requirements(
                     # Hard fail -- reject immediately, no LLM call needed
                     return _fail_result(
                         requirements_met=[],
-                        requirements_missing=[f"Experience: {exp_check['reason']}"],
+                        requirements_missing=[f"{exp_check.get('type_str', 'Experience').split()[0]}: {exp_check['reason']}"],
                         filter_reason=exp_check['reason'],
                     )
 
@@ -442,13 +482,15 @@ def check_hard_requirements(
                 total = exp_check['total_months']
                 min_m = exp_range['min_months']
                 max_m = exp_range.get('max_months')
+                type_str = exp_check.get('type_str', 'Total experience')
+                
                 max_display = (
                     f"{max_m // 12} year{'s' if max_m >= 24 else ''}"
                     if max_m is not None and max_m % 12 == 0
                     else (f"{max_m} months" if max_m is not None else "no upper limit")
                 )
                 requirements_met.append(
-                    f"Experience: {total} months is within the required range "
+                    f"{type_str}: {total} months is within the required range "
                     f"({min_m} months - {max_display})"
                 )
 
