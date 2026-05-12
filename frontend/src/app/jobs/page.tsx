@@ -121,7 +121,7 @@ export default function JobsPage() {
 
   if (loading) {
     return (
-      <PageContainer>
+      <PageContainer className="p-6">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -131,7 +131,7 @@ export default function JobsPage() {
 
   if (error) {
     return (
-      <PageContainer>
+      <PageContainer className="p-6">
         <EmptyState
           icon={<Briefcase className="h-8 w-8" />}
           title="Failed to load jobs"
@@ -147,7 +147,7 @@ export default function JobsPage() {
   }
 
   return (
-    <PageContainer>
+    <PageContainer className="p-6">
       {/* Search Bar - Top Row */}
       <div className="flex justify-center mb-4">
         <div className="w-full max-w-sm">

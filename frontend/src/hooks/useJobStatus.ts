@@ -34,6 +34,7 @@ export function useJobStatus(jobId: string) {
     if (!jobId) return;
 
     try {
+      console.log('📡 [useJobStatus] Polling status for:', jobId);
       setLoading(true);
       setError(null);
 
@@ -53,6 +54,7 @@ export function useJobStatus(jobId: string) {
       const resumesResult = resumesResponse.ok ? await resumesResponse.json() : { data: [], count: 0 };
       
       if (jobResult.success) {
+        console.log('✅ [useJobStatus] Status fetched:', jobResult.data.status);
         setStatusData({
           job: jobResult.data,
           resumes: resumesResult.data || [],

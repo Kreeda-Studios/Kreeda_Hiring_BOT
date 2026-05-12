@@ -12,6 +12,7 @@ import { FileText, Loader2, CheckCircle2, FileUp, Play, AlertTriangle } from "lu
 import type { Job } from "@/lib/types";
 import { processingAPI, jobsAPI, resumeGroupsAPI } from "@/lib/api";
 import { useJobStatus } from "@/hooks/useJobStatus";
+import { useStatusRefreshTrigger } from "@/hooks/useStatusRefreshTrigger";
 
 interface ProgressUpdate {
   stage: string;
@@ -24,12 +25,25 @@ interface JDSectionProps {
   job: Job;
   jobId: string;
   onJobUpdate?: (updatedJob: Job) => void;
+  onRefreshStatus?: () => void;
 }
 
-export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
+export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectionProps) {
   // Use status hook for real-time tracking
   const { statusData, isJDProcessingInProgress, canStartJDProcessing, refetch: refetchStatus } = useJobStatus(jobId);
   
+  // Use refresh trigger to call refetch manually
+  const { triggerRefresh } = useStatusRefreshTrigger({
+    onRefresh: async () => {
+      console.log('🔄 [JDSection] Refreshing status via useStatusRefreshTrigger');
+      await refetchStatus();
+      if (onRefreshStatus) {
+        console.log('📞 [JDSection] Calling parent onRefreshStatus');
+        onRefreshStatus();
+      }
+    }
+  });
+
   const [isLocked, setIsLocked] = useState(job.locked || false);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
 
@@ -112,16 +126,18 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
       const result = await response.json();
       
       if (result.success && result.data) {
-        setProcessingProgress(result.data.progress || 0);
+        const progress = result.data.progress || 0;
+        setProcessingProgress(progress);
         setProcessingMessage(result.data.progress_details?.message || result.data.state || "Processing...");
         
         // If completed, stop polling
         if (result.data.state === 'completed' || result.data.state === 'failed') {
+          console.log(`✅ [JD Progress] Processing ${result.data.state}, triggering refresh`);
           if (progressIntervalRef.current) {
             clearInterval(progressIntervalRef.current);
             progressIntervalRef.current = null;
           }
-          refetchStatus(); // Refresh job status
+          await triggerRefresh(); // Refresh job status
         }
       }
     } catch (error) {
@@ -194,6 +210,10 @@ export function JDSection({ job, jobId, onJobUpdate }: JDSectionProps) {
     setIsProcessing(true);
     setProcessingProgress(0); // Reset progress
     setProcessingMessage("Starting JD processing...");
+    
+    // Trigger refresh on start
+    console.log('🔄 [JD Process] Triggering initial refresh');
+    await triggerRefresh();
     
     try {
       // Save JD and compliance data first

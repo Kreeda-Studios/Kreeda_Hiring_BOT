@@ -55,20 +55,22 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  useEffect(() => {
-    async function fetchJob() {
-      try {
-        setLoading(true);
-        const response = await jobsAPI.getById(jobId);
-        if (response.success) {
-          setJob(response.data);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load job");
-      } finally {
-        setLoading(false);
+  async function fetchJob() {
+    try {
+      console.log('📡 [JobDetailPage] Fetching job status for:', jobId);
+      const response = await jobsAPI.getById(jobId);
+      if (response.success) {
+        console.log('✅ [JobDetailPage] Job status updated:', response.data.status);
+        setJob(response.data);
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load job");
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     fetchJob();
   }, [jobId]);
 
@@ -102,7 +104,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
 
   if (error || !job) {
     return (
-      <PageContainer>
+      <PageContainer className="p-6">
         <EmptyState
           icon={<FileText className="h-8 w-8" />}
           title="Job not found"
@@ -120,7 +122,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
 
 
   return (
-    <PageContainer>
+    <PageContainer className="p-6">
       {/* Back button */}
       <div className="mb-6">
         <Button variant="ghost" size="sm" asChild className="px-0 cursor-pointer h-auto py-1 -mx-2">
@@ -189,11 +191,11 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
         </TabsList>
 
         <TabsContent value="jd">
-          <JDSection job={job} jobId={jobId} onJobUpdate={setJob} />
+          <JDSection job={job} jobId={jobId} onJobUpdate={setJob} onRefreshStatus={fetchJob} />
         </TabsContent>
 
         <TabsContent value="resumes">
-          <ResumesSection jobId={jobId} />
+          <ResumesSection jobId={jobId} onRefreshStatus={fetchJob} />
         </TabsContent>
 
         <TabsContent value="results">
