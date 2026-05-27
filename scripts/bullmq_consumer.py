@@ -430,17 +430,17 @@ class KreedaJobProcessor:
         self.workers.append(jd_worker)
         logger.info("✅ Started JD Processing Worker (concurrency: 1)")
         
-        # Resume Processing Worker (concurrency: 4 as requested)
+        # Resume Processing Worker (concurrency: 16 as requested)
         resume_worker = Worker(
             "resume-processing", 
             self.process_resume_job, 
             {
                 "connection": self.redis_config,
-                "concurrency": 4
+                "concurrency": 16
             }
         )
         self.workers.append(resume_worker)
-        logger.info("✅ Started Resume Processing Worker (concurrency: 4)")
+        logger.info("✅ Started Resume Processing Worker (concurrency: 16)")
         
         # Ranking Worker (concurrency: 2)
         ranking_worker = Worker(
