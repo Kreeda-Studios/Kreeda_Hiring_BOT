@@ -40,6 +40,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger('bullmq_consumer')
 
+# Guardrail timeout so one hung child resume job cannot block parent flow forever.
+RESUME_CHILD_TIMEOUT_SEC = int(os.getenv('RESUME_CHILD_TIMEOUT_SEC', '1200'))
+
 class KreedaJobProcessor:
     """Async job processor for Kreeda Hiring Bot using proper BullMQ"""
     
@@ -115,24 +118,77 @@ class KreedaJobProcessor:
                 
                 # Update job status to completed
                 logger.info(f"📡 Updating job {job_id} status to resume_processing_completed")
-                api.post("/updates/resume/status", data={'job_id': job_id, 'success': True})
-                
-                logger.info(f"✅ Job {job_id} status updated to completed")
+                status_updated = False
+                last_status_error = None
+
+                for attempt in range(1, 4):
+                    try:
+                        api.post(
+                            "/updates/resume/status",
+                            data={'job_id': job_id, 'success': True},
+                            timeout=120
+                        )
+                        status_updated = True
+                        logger.info(f"✅ Job {job_id} status updated to completed")
+                        break
+                    except Exception as status_err:
+                        last_status_error = status_err
+                        logger.warning(
+                            f"⚠️ Status update attempt {attempt}/3 failed for job {job_id}: {status_err}"
+                        )
+                        if attempt < 3:
+                            await asyncio.sleep(attempt * 1.5)
+
+                # If status call timed out but backend may have completed, verify current DB status.
+                if not status_updated:
+                    try:
+                        latest_job = api.get(f"/updates/job/{job_id}", timeout=30)
+                        if latest_job.get('status') == 'resume_processing_completed':
+                            status_updated = True
+                            logger.info(
+                                f"✅ Job {job_id} already in resume_processing_completed after timeout/retry"
+                            )
+                    except Exception as verify_err:
+                        logger.warning(f"⚠️ Could not verify latest job state for {job_id}: {verify_err}")
+
+                if not status_updated:
+                    raise Exception(
+                        f"Failed to update resume status for job {job_id}: {last_status_error}"
+                    )
                 
                 # Automatically trigger ranking processing
                 logger.info(f"🚀 Auto-triggering ranking for job {job_id}")
-                try:
-                    ranking_response = api.post(f"/process/ranking/{job_id}")
-                    if ranking_response.get('success'):
-                        logger.info(f"✅ Ranking process triggered successfully: {ranking_response.get('data', {}).get('total_batches', 0)} batches")
-                    else:
-                        logger.error(f"⚠️ Failed to trigger ranking: {ranking_response.get('error')}")
-                except Exception as rank_err:
-                    logger.error(f"⚠️ Failed to auto-trigger ranking: {str(rank_err)}")
+                ranking_triggered = False
+                last_ranking_error = None
+
+                for attempt in range(1, 4):
+                    try:
+                        ranking_response = api.post(f"/process/ranking/{job_id}", timeout=120)
+                        # APIClient returns result['data'] when backend sends { success, data }.
+                        # So a successful call may not contain a 'success' key at this point.
+                        ranking_triggered = True
+                        logger.info(
+                            "✅ Ranking process triggered successfully: "
+                            f"{ranking_response.get('total_batches', 0)} batches"
+                        )
+                        break
+                    except Exception as rank_err:
+                        last_ranking_error = rank_err
+                        logger.warning(
+                            f"⚠️ Ranking trigger attempt {attempt}/3 failed for job {job_id}: {rank_err}"
+                        )
+                        if attempt < 3:
+                            await asyncio.sleep(attempt * 1.5)
+
+                if not ranking_triggered:
+                    raise Exception(
+                        f"Failed to trigger ranking for job {job_id}: {last_ranking_error}"
+                    )
                 
             except Exception as e:
                 logger.error(f"❌ Failed to update job status: {str(e)}")
-                # Still return success for parent job itself
+                # Fail parent job instead of silently succeeding to avoid hidden stuck states.
+                raise
             
             # Parent job just waits for children to complete
             return {
@@ -164,7 +220,10 @@ class KreedaJobProcessor:
             logger.info(f"🚀 {resume_label} Calling process_resume_pipeline for resume {resume_id}")
             
             # Call with job object (ProgressTracker handles BullMQ updates)
-            result = await process_resume_pipeline(job)
+            result = await asyncio.wait_for(
+                process_resume_pipeline(job),
+                timeout=RESUME_CHILD_TIMEOUT_SEC
+            )
             
             logger.info(f"📊 Result: success={result.get('success')}, score={result.get('final_score')}")
             
@@ -184,6 +243,39 @@ class KreedaJobProcessor:
                     'resume_id': resume_id
                 }
                 
+        except asyncio.TimeoutError:
+            timeout_msg = (
+                f"Resume processing timed out after {RESUME_CHILD_TIMEOUT_SEC}s "
+                f"for resume_id={resume_id}, job_id={job_id}"
+            )
+            logger.error(f"❌ {timeout_msg}")
+
+            # Best effort: persist failed status for this resume to avoid it staying in processing.
+            try:
+                from common.api_client import APIClient
+                api = APIClient()
+                api.post(
+                    "/updates/resume/status/single",
+                    data={
+                        'resume_id': resume_id,
+                        'success': False,
+                        'error': timeout_msg
+                    },
+                    timeout=30
+                )
+                logger.info(f"📝 Marked timed-out resume {resume_id} as failed")
+            except Exception as status_err:
+                logger.warning(f"⚠️ Could not mark timed-out resume {resume_id} as failed: {status_err}")
+
+            # Keep BullMQ child in completed state so parent flow can continue.
+            return {
+                'success': True,
+                'processing_failed': True,
+                'timed_out': True,
+                'error': timeout_msg,
+                'resume_id': resume_id
+            }
+
         except Exception as e:
             import traceback
             error_trace = traceback.format_exc()
@@ -224,12 +316,35 @@ class KreedaJobProcessor:
                 
                 # Update job status to completed
                 logger.info(f"📡 Updating job {job_id} status to ranking_completed")
-                api.post("/updates/ranking/status", data={'job_id': job_id, 'success': True})
-                
-                logger.info(f"✅ Job {job_id} ranking status updated to completed")
+                status_updated = False
+                last_status_error = None
+
+                for attempt in range(1, 4):
+                    try:
+                        api.post(
+                            "/updates/ranking/status",
+                            data={'job_id': job_id, 'success': True},
+                            timeout=120
+                        )
+                        status_updated = True
+                        logger.info(f"✅ Job {job_id} ranking status updated to completed")
+                        break
+                    except Exception as status_err:
+                        last_status_error = status_err
+                        logger.warning(
+                            f"⚠️ Ranking status update attempt {attempt}/3 failed for job {job_id}: {status_err}"
+                        )
+                        if attempt < 3:
+                            await asyncio.sleep(attempt * 1.5)
+
+                if not status_updated:
+                    raise Exception(
+                        f"Failed to update ranking status for job {job_id}: {last_status_error}"
+                    )
             except Exception as e:
                 logger.error(f"❌ Failed to update ranking status: {str(e)}")
-                # Still return success for parent job itself
+                # Fail parent job instead of silently succeeding to avoid hidden stuck states.
+                raise
             
             # Parent job just waits for children to complete
             return {
@@ -321,7 +436,7 @@ class KreedaJobProcessor:
             self.process_resume_job, 
             {
                 "connection": self.redis_config,
-                "concurrency": 16  # Set to 4 as requested
+                "concurrency": 4
             }
         )
         self.workers.append(resume_worker)
