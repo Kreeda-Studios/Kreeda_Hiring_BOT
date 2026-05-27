@@ -137,7 +137,9 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-8">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">{job.title}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {job.title ? job.title.charAt(0).toUpperCase() + job.title.slice(1) : job.title}
+            </h1>
             <JobStatusBadge status={job.status} />
           </div>
           {job.description && (
