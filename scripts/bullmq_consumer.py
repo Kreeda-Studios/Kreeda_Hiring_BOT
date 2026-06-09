@@ -233,12 +233,36 @@ class KreedaJobProcessor:
             else:
                 error_msg = result.get('error', 'Unknown error')
                 logger.error(f"❌ Resume processing failed: {error_msg}")
-                # TEMP FIX: Return success to BullMQ to prevent parent Flow from getting stuck
-                # Database already marked as failed, so this only affects Flow dependency tracking
-                logger.warning(f"⚠️ Returning success to BullMQ despite failure (to unblock parent Flow job)")
+                
+                # Check retry status
+                max_attempts = job.opts.get('attempts', 1) if job.opts else 1
+                attempts_made = getattr(job, 'attemptsMade', 0)
+                is_final_attempt = (attempts_made + 1) >= max_attempts
+                
+                if not is_final_attempt:
+                    logger.info(f"🔁 Attempt {attempts_made + 1}/{max_attempts} failed. Raising exception for BullMQ retry...")
+                    raise Exception(f"Resume processing failed (will retry): {error_msg}")
+                
+                # Final attempt: mark failed in database but return success to BullMQ to unblock parent
+                logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} failed. Marking in database and returning success to unblock parent.")
+                try:
+                    from common.api_client import APIClient
+                    api = APIClient()
+                    api.post(
+                        "/updates/resume/status/single",
+                        data={
+                            'resume_id': resume_id,
+                            'success': False,
+                            'error': error_msg
+                        },
+                        timeout=30
+                    )
+                except Exception as status_err:
+                    logger.warning(f"⚠️ Could not mark resume {resume_id} as failed: {status_err}")
+                    
                 return {
-                    'success': True,  # Tell BullMQ this is "completed" not "failed"
-                    'processing_failed': True,  # But include flag that processing actually failed
+                    'success': True,
+                    'processing_failed': True,
                     'error': error_msg,
                     'resume_id': resume_id
                 }
@@ -250,7 +274,17 @@ class KreedaJobProcessor:
             )
             logger.error(f"❌ {timeout_msg}")
 
-            # Best effort: persist failed status for this resume to avoid it staying in processing.
+            # Check retry status
+            max_attempts = job.opts.get('attempts', 1) if job.opts else 1
+            attempts_made = getattr(job, 'attemptsMade', 0)
+            is_final_attempt = (attempts_made + 1) >= max_attempts
+            
+            if not is_final_attempt:
+                logger.info(f"🔁 Attempt {attempts_made + 1}/{max_attempts} timed out. Raising exception for BullMQ retry...")
+                raise Exception(timeout_msg)
+
+            # Final attempt: mark failed in DB and return success to BullMQ
+            logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} timed out. Marking in database and returning success to unblock parent.")
             try:
                 from common.api_client import APIClient
                 api = APIClient()
@@ -263,11 +297,9 @@ class KreedaJobProcessor:
                     },
                     timeout=30
                 )
-                logger.info(f"📝 Marked timed-out resume {resume_id} as failed")
             except Exception as status_err:
                 logger.warning(f"⚠️ Could not mark timed-out resume {resume_id} as failed: {status_err}")
 
-            # Keep BullMQ child in completed state so parent flow can continue.
             return {
                 'success': True,
                 'processing_failed': True,
@@ -282,12 +314,35 @@ class KreedaJobProcessor:
             logger.error(f"❌ Resume job {job.id} failed with exception: {type(e).__name__}: {str(e)}")
             logger.error(f"📋 Traceback:\n{error_trace}")
             
-            # TEMP FIX: Return success to BullMQ to prevent parent Flow from getting stuck
-            # The resume should already be marked as failed in the database
-            logger.warning(f"⚠️ Returning success to BullMQ despite exception (to unblock parent Flow job)")
+            # Check retry status
+            max_attempts = job.opts.get('attempts', 1) if job.opts else 1
+            attempts_made = getattr(job, 'attemptsMade', 0)
+            is_final_attempt = (attempts_made + 1) >= max_attempts
+            
+            if not is_final_attempt:
+                logger.info(f"🔁 Attempt {attempts_made + 1}/{max_attempts} crashed. Raising exception for BullMQ retry...")
+                raise e
+
+            # Final attempt: mark failed in DB and return success to BullMQ
+            logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} crashed. Marking in database and returning success to unblock parent.")
+            try:
+                from common.api_client import APIClient
+                api = APIClient()
+                api.post(
+                    "/updates/resume/status/single",
+                    data={
+                        'resume_id': resume_id,
+                        'success': False,
+                        'error': f"{type(e).__name__}: {str(e)}"
+                    },
+                    timeout=30
+                )
+            except Exception as status_err:
+                logger.warning(f"⚠️ Could not mark crashed resume {resume_id} as failed: {status_err}")
+
             return {
-                'success': True,  # Tell BullMQ this is "completed" not "failed"
-                'processing_failed': True,  # But include flag that processing actually failed
+                'success': True,
+                'processing_failed': True,
                 'error': str(e),
                 'exception_type': type(e).__name__,
                 'resume_id': resume_id
@@ -397,13 +452,44 @@ class KreedaJobProcessor:
             else:
                 error_msg = result.get('error', 'Unknown error')
                 logger.error(f"❌ Ranking batch {batch_index}/{total_batches} failed: {error_msg}")
-                raise Exception(f"Ranking processing failed: {error_msg}")
+                
+                # Check retry status
+                max_attempts = job.opts.get('attempts', 1) if job.opts else 1
+                attempts_made = getattr(job, 'attemptsMade', 0)
+                is_final_attempt = (attempts_made + 1) >= max_attempts
+                
+                if not is_final_attempt:
+                    logger.info(f"🔁 Attempt {attempts_made + 1}/{max_attempts} failed. Raising exception for BullMQ retry...")
+                    raise Exception(f"Ranking processing failed (will retry): {error_msg}")
+                
+                logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} failed. Returning success to unblock parent.")
+                return {
+                    'success': True,
+                    'processing_failed': True,
+                    'error': error_msg
+                }
                 
         except Exception as e:
             import traceback
             logger.error(f"❌ Ranking job {job.id} failed: {type(e).__name__}: {str(e)}")
             logger.error(f"📋 Traceback:\n{traceback.format_exc()}")
-            raise e
+            
+            # Check retry status
+            max_attempts = job.opts.get('attempts', 1) if job.opts else 1
+            attempts_made = getattr(job, 'attemptsMade', 0)
+            is_final_attempt = (attempts_made + 1) >= max_attempts
+            
+            if not is_final_attempt:
+                logger.info(f"🔁 Attempt {attempts_made + 1}/{max_attempts} crashed. Raising exception for BullMQ retry...")
+                raise e
+                
+            logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} crashed. Returning success to unblock parent.")
+            return {
+                'success': True,
+                'processing_failed': True,
+                'error': str(e),
+                'exception_type': type(e).__name__
+            }
     
     def setup_signal_handlers(self):
         """Setup graceful shutdown signal handlers"""
