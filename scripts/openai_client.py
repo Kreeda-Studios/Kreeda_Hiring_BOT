@@ -57,7 +57,7 @@ def get_async_openai_client():
 def create_chat_completion(
     messages: List[Dict[str, str]],
     model: str = "gpt-4o-mini",
-    temperature: float = 0.7,
+    temperature: float = 0.0,
     max_tokens: int = 4000,
     response_format: Optional[Dict] = None
 ) -> str:
@@ -177,7 +177,8 @@ async def create_embeddings_batch_async(texts: List[str], model: str = "text-emb
 def parse_json_response(
     prompt: str,
     system_prompt: str = "You are a helpful assistant that responds only in valid JSON format.",
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.0
 ) -> Dict[str, Any]:
     """
     Get a JSON response from OpenAI
@@ -198,6 +199,7 @@ def parse_json_response(
             {"role": "user", "content": prompt}
         ],
         model=model,
+        temperature=temperature,
         response_format={"type": "json_object"}
     )
     

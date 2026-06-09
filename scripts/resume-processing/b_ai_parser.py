@@ -42,15 +42,18 @@ class Project(BaseModel):
 
 
 class ExperienceDetail(BaseModel):
-    company: Optional[str]
     role: Optional[str]
+    company: Optional[str]
+    employment_type: Optional[str]
+    location: Optional[str]
     start: Optional[str]
     end: Optional[str]
-    employment_type: Optional[str]
+    duration_in_months: Optional[int]
     impact: List[str]
 
 
 class Experience(BaseModel):
+    date_calculation_scratchpad: str
     total_full_time_experience: int
     total_internship_experience_in_months: int
     details: List[ExperienceDetail]
@@ -133,11 +136,13 @@ You MUST follow these rules:
   Do not invent domain outside the allowed list.
 
 . Experience Rules
+  - Use "date_calculation_scratchpad" to explicitly list out each job role, its start/end dates, and calculate the duration in months BEFORE outputting the final integer values. 
+  - MATHEMATICAL RULE: Always use INCLUSIVE month counting. For example, "May 2023 to June 2024" is calculated as: (2024 - 2023)*12 + (6 - 5) + 1 = 14 months.
   - Convert all experience durations into months (integer values).
   - "total_full_time_experience" must be in months.
   - "total_internship_experience_in_months" must be in months.
   - If role says "Present", calculate until current date: """ + date.today().isoformat() + """.
-  - Do not double count overlapping periods.
+  - Do not double count overlapping periods. If periods overlap, only count the distinct chronological months once.
   - If dates are missing → exclude from total calculation.
   - Employment_type must be exactly one of: Full Time, Part Time, Intern, Intern above 6 months, Contractual.
 

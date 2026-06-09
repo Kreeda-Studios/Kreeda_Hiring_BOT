@@ -150,6 +150,7 @@ async def extract_jd_data(raw_text: str) -> JDExtraction:
             {"role": "user", "content": user_input},
         ],
         text_format=JDExtraction,
+        temperature=0.0,
     )
 
     return response.output_parsed

@@ -274,6 +274,7 @@ async def extract_resume_data(raw_text: str, hyperlinks: list[str]) -> ResumeExt
             {"role": "user", "content": user_input},
         ],
         text_format=ResumeExtraction,
+        temperature=0.0,
     )
 
   return response.output_parsed

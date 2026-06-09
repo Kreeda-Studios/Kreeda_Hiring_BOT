@@ -52,25 +52,7 @@ BACKEND_API_URL = os.getenv('BACKEND_API_URL', 'http://localhost:3001/api')
 BACKEND_API_KEY = os.getenv('BACKEND_API_KEY', '')
 
 
-def normalize_score(score: float, min_score: float, max_score: float) -> float:
-    """
-    Normalize a score to 0-1 range using min-max normalization.
-    
-    Args:
-        score: The score to normalize
-        min_score: Minimum score in the dataset
-        max_score: Maximum score in the dataset
-        
-    Returns:
-        Normalized score between 0 and 1
-    """
-    if max_score == min_score:
-        # All scores are the same, return 0.5 as neutral
-        return 0.5
-    
-    normalized = (score - min_score) / (max_score - min_score)
-    # Clamp to [0, 1] range
-    return max(0.0, min(1.0, normalized))
+
 
 
 def get_resumes_batch_via_api(resume_ids: List[str]) -> List[Dict]:
@@ -411,8 +393,7 @@ Return validated requirements_met and requirements_missing for each candidate.""
                 {"role": "user", "content": user_msg}
             ],
             functions=[RE_RANK_FUNCTION],
-            function_call={"name": "re_rank_candidates"},
-            temperature=0.3
+            function_call={"name": "re_rank_candidates"}
         )
         
         # Parse response - exact same logic as old archive
@@ -636,13 +617,13 @@ def process_ranking_batch(
             semantic_score = scores.get('semantic_score', 0.0)
             project_score = scores.get('project_score', 0.0)
             
-            # Normalize keyword and semantic scores
-            normalized_keyword = normalize_score(keyword_score, min_keyword_score, max_keyword_score)
-            normalized_semantic = normalize_score(semantic_score, min_semantic_score, max_semantic_score)
+            # Use raw scores directly without min-max normalization batching artifacts
+            normalized_keyword = keyword_score
+            normalized_semantic = semantic_score
             
             print(f"   - Resume {resume_id[:8]}...")
-            print(f"     Keyword: {keyword_score:.3f} -> {normalized_keyword:.3f}")
-            print(f"     Semantic: {semantic_score:.3f} -> {normalized_semantic:.3f}")
+            print(f"     Keyword: {keyword_score:.3f}")
+            print(f"     Semantic: {semantic_score:.3f}")
             
             # Recalculate final score using composite scorer
             composite_result = calculate_composite_score(
