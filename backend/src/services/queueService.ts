@@ -61,7 +61,11 @@ export class QueueService {
             totalResumes: totalResumes  // Total count
           },
           opts: {
-            attempts: 1,  // No retries
+            attempts: 3,  // Retry up to 3 times
+            backoff: {
+              type: 'exponential',
+              delay: 5000, // Wait 5s, then 10s, etc.
+            },
             removeOnComplete: 100,
             removeOnFail: 100,  // Keep last 100 failed jobs
           },
@@ -110,7 +114,11 @@ export class QueueService {
             totalBatches: totalBatches  // Total count
           },
           opts: {
-            attempts: 1,  // No retries
+            attempts: 3,  // Retry up to 3 times
+            backoff: {
+              type: 'exponential',
+              delay: 5000, // Wait 5s, then 10s, etc.
+            },
             removeOnComplete: 100,
             removeOnFail: 100,  // Keep last 100 failed jobs
           },

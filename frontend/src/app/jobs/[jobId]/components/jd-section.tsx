@@ -31,7 +31,7 @@ interface JDSectionProps {
 export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectionProps) {
   // Use status hook for real-time tracking
   const { statusData, isJDProcessingInProgress, canStartJDProcessing, refetch: refetchStatus } = useJobStatus(jobId);
-  
+
   // Use refresh trigger to call refetch manually
   const { triggerRefresh } = useStatusRefreshTrigger({
     onRefresh: async () => {
@@ -80,14 +80,14 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
     const processing = isJDProcessingInProgress();
     const currentStatus = statusData?.job.status || job.status;
     setIsProcessing(processing);
-    
+
     // Set progress based on job status
-    if (currentStatus === 'jd_processing_completed' || 
-        currentStatus === 'resume_processing_started' ||
-        currentStatus === 'resume_processing_completed' ||
-        currentStatus === 'resume_processing_failed' ||
-        currentStatus === 'ranking_started' ||
-        currentStatus === 'ranking_completed') {
+    if (currentStatus === 'jd_processing_completed' ||
+      currentStatus === 'resume_processing_started' ||
+      currentStatus === 'resume_processing_completed' ||
+      currentStatus === 'resume_processing_failed' ||
+      currentStatus === 'ranking_started' ||
+      currentStatus === 'ranking_completed') {
       // JD already completed - show 100%
       setProcessingProgress(100);
       setProcessingMessage("JD Processing Complete");
@@ -102,7 +102,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
       setProcessingProgress(0);
       setProcessingMessage("Ready to process");
     }
-    
+
     // Stop polling when processing completes
     if (!processing && progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
@@ -124,12 +124,12 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
       const response = await fetch(`${API_BASE_URL}/progress/jd/${jobId}`);
       const result = await response.json();
-      
+
       if (result.success && result.data) {
         const progress = result.data.progress || 0;
         setProcessingProgress(progress);
         setProcessingMessage(result.data.progress_details?.message || result.data.state || "Processing...");
-        
+
         // If completed, stop polling
         if (result.data.state === 'completed' || result.data.state === 'failed') {
           console.log(`✅ [JD Progress] Processing ${result.data.state}, triggering refresh`);
@@ -149,19 +149,19 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
   const handlePDFUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
     // Validation
     if (file.type !== 'application/pdf') {
       setUploadError('Please select a PDF file');
       setUploadSuccess(null);
       return;
     }
-    
+
     // Clear previous messages
     setUploadError(null);
     setUploadSuccess(null);
     setIsUploading(true);
-    
+
     try {
       const response = await jobsAPI.uploadJD(jobId, file);
       if (response.success && response.data.filename) {
@@ -171,13 +171,13 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
         setJdPdfFilename(filename);
         setUploadSuccess(`PDF uploaded successfully: ${filename}`);
         setUploadError(null);
-        
+
         // Update parent component if callback provided
         if (onJobUpdate) {
           const updatedJob = { ...job, jd_pdf_filename: filename };
           onJobUpdate(updatedJob);
         }
-        
+
         // Clear success message after 5 seconds
         setTimeout(() => setUploadSuccess(null), 5000);
       }
@@ -210,11 +210,11 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
     setIsProcessing(true);
     setProcessingProgress(0); // Reset progress
     setProcessingMessage("Starting JD processing...");
-    
+
     // Trigger refresh on start
     console.log('🔄 [JD Process] Triggering initial refresh');
     await triggerRefresh();
-    
+
     try {
       // Save JD and compliance data first
       console.log('💾 [Process] Saving JD data...');
@@ -228,7 +228,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
         throw new Error('Failed to save JD data before processing.');
       }
       console.log('✅ [Process] JD data saved successfully');
-      
+
       // Create/replace resume group for this job
       console.log('📁 [Process] Creating resume group...');
       try {
@@ -239,7 +239,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
         });
         if (resumeGroupResponse.success) {
           console.log('✅ [Process] Resume group created:', resumeGroupResponse.data._id);
-          
+
           // Attach the resume group to the job using PATCH
           console.log('🔗 [Process] Attaching resume group to job...');
           try {
@@ -252,7 +252,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
                 resume_groups: [resumeGroupResponse.data]
               })
             });
-            
+
             if (patchResponse.ok) {
               console.log('✅ [Process] Resume group attached to job successfully');
             } else {
@@ -265,7 +265,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
       } catch (groupError) {
         console.warn('⚠️ [Process] Resume group creation failed, continuing with JD processing:', groupError);
       }
-      
+
       // Now trigger JD processing
       console.log('⚙️ [Process] Triggering JD processing queue...');
       const processResponse = await processingAPI.processJD(jobId);
@@ -273,15 +273,15 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
         throw new Error(processResponse.message || 'Failed to start JD processing');
       }
       console.log('✅ [Process] JD processing queued:', processResponse.data);
-      
+
       // Check if job is now locked
       if (processResponse.data.locked) {
         console.log('🔒 [Process] Job is now locked');
         setIsLocked(true);
       }
-      
+
       // SSE subscription will handle the rest via useEffect
-      
+
       // Refresh status after short delay to get updated BullMQ job ID
       setTimeout(() => {
         refetchStatus();
@@ -408,7 +408,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
               value={jdText}
               onChange={e => !isLocked && setJdText(e.target.value)}
               rows={15}
-              className="font-mono text-sm"
+              className=""
               disabled={isLocked}
             />
             <p className="text-xs text-muted-foreground">
@@ -482,7 +482,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
             )}
             {isProcessing ? 'Processing JD...' : isLocked ? 'JD Processed' : 'Process JD'}
           </Button>
-          
+
           {/* Status Messages */}
           {statusData?.job.status === 'jd_processing_completed' && (
             <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
@@ -509,7 +509,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
           )}
         </CardContent>
       </Card>
-      
+
       {/* Warning Dialog before processing */}
       <AlertDialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>
         <AlertDialogContent>

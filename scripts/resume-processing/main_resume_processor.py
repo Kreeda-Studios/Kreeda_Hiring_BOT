@@ -101,6 +101,11 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
     logger = JobLogger.for_resume(resume_id, index, total)
     tracker = ProgressTracker(job)
     
+    # Determine retry/fail policy
+    max_attempts = job.opts.get('attempts', 1) if job.opts else 1
+    attempts_made = getattr(job, 'attemptsMade', 0)
+    is_final_attempt = (attempts_made + 1) >= max_attempts
+    
     # Update resume status to processing
     update_resume_status(resume_id, 'processing', 0, job_id=job.id)
     
@@ -345,7 +350,8 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         error_msg = f"API error: {e.message}"
         logger.fail(error_msg)
         # NOTE: Do NOT update job status - only individual resume status
-        update_resume_status(resume_id, 'failed', error=error_msg)
+        if is_final_attempt:
+            update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(error_msg, "APIError", "processing")
         return {'success': False, 'error': error_msg, 'final_score': 0.0}
     except Exception as e:
@@ -355,6 +361,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         logger.fail(error_msg)
         print(f"📋 Full error traceback:\n{error_traceback}")
         # NOTE: Do NOT update job status - only individual resume status
-        update_resume_status(resume_id, 'failed', error=error_msg)
+        if is_final_attempt:
+            update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(str(e), type(e).__name__, "processing")
         return {'success': False, 'error': str(e), 'final_score': 0.0}
