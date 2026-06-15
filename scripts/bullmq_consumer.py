@@ -501,7 +501,7 @@ class KreedaJobProcessor:
         signal.signal(signal.SIGINT, signal_handler)
     
     async def start_workers(self):
-        """Start all BullMQ workers with proper concurrency"""
+        """Start all BullMQ workers with proper concurrency and lock management"""
         logger.info("🚀 Starting Kreeda BullMQ Workers")
         
         # JD Processing Worker (concurrency: 1)
@@ -510,7 +510,9 @@ class KreedaJobProcessor:
             self.process_jd_job, 
             {
                 "connection": self.redis_config,
-                "concurrency": 1
+                "concurrency": 1,
+                "lockDuration": 300000,  # 5 minutes (JD processing can be slow due to AI/embeddings)
+                "maxStalledCount": 3     # Allow up to 3 stalls before marking as failed
             }
         )
         self.workers.append(jd_worker)
@@ -522,7 +524,9 @@ class KreedaJobProcessor:
             self.process_resume_job, 
             {
                 "connection": self.redis_config,
-                "concurrency": 16
+                "concurrency": 16,
+                "lockDuration": 180000,  # 3 minutes (highly concurrent, API calls can delay heartbeats)
+                "maxStalledCount": 3     # Allow up to 3 stalls before marking as failed
             }
         )
         self.workers.append(resume_worker)
@@ -534,7 +538,9 @@ class KreedaJobProcessor:
             self.process_ranking_job, 
             {
                 "connection": self.redis_config,
-                "concurrency": 2
+                "concurrency": 2,
+                "lockDuration": 120000,  # 2 minutes
+                "maxStalledCount": 3     # Allow up to 3 stalls before marking as failed
             }
         )
         self.workers.append(ranking_worker)

@@ -49,7 +49,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 try:
-    from openai_client import create_embedding_async
+    from openai_client import create_embeddings_batch_async
 except ImportError:
     #print("❌ Failed to import OpenAI client")
     sys.exit(1)
@@ -90,7 +90,7 @@ def safe_list(x):
 # -----------------------
 async def generate_section_embeddings(texts: List[str], section_name: str) -> Dict[str, Any]:
     """
-    Generate embeddings for multiple text items in a section.
+    Generate embeddings for multiple text items in a section in batch.
     Creates one embedding vector per text item for fine-grained semantic matching.
     
     Args:
@@ -115,17 +115,25 @@ async def generate_section_embeddings(texts: List[str], section_name: str) -> Di
                 'count': 0
             }
         
-        # Generate one embedding per text item to create 2D array
-        embeddings = []
-        for text in texts:
-            if text and text.strip():
-                emb = await create_embedding_async(text.strip())  # Returns 1D: [f1, f2, ..., f1536]
-                embeddings.append(emb)  # Append to create 2D: [[f1, f2, ..., f1536], [f1, f2, ...]]
+        # Clean up and filter out empty texts
+        cleaned_texts = [text.strip() for text in texts if text and text.strip()]
+        
+        if not cleaned_texts:
+            return {
+                'success': True,
+                'embeddings': [],
+                'dimension': 1536,
+                'section': section_name,
+                'count': 0
+            }
+        
+        # Generate embeddings in a single batch API call
+        embeddings = await create_embeddings_batch_async(cleaned_texts)
         
         return {
             'success': True,
             'embeddings': embeddings,
-            'dimension': len(embeddings[0]) if embeddings else 1536,  # Get dimension from first embedding
+            'dimension': len(embeddings[0]) if embeddings else 1536,
             'section': section_name,
             'count': len(embeddings)
         }
