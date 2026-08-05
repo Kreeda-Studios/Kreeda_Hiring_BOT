@@ -61,6 +61,7 @@ services:
         MAX_FILE_SIZE: 10485760
       volumes:
         - ./backend:/app
+        - /app/node_modules
         - ./uploads:/app/uploads
 
       depends_on:
@@ -86,6 +87,8 @@ services:
         NEXT_PUBLIC_API_URL: http://localhost:3002/api
       volumes:
         - ./frontend:/app
+        - /app/node_modules
+        - /app/.next
       depends_on:
         backend-dev:
           condition: service_healthy

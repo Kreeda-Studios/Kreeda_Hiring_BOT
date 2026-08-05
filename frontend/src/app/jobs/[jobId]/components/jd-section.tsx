@@ -518,15 +518,17 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
               <AlertTriangle className="h-5 w-5 text-orange-500" />
               Warning: Job Will Be Locked
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3 text-left">
-              <p>Once you start processing, this job will be <strong>locked</strong> and you will <strong>NOT</strong> be able to:</p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Upload a different JD PDF</li>
-                <li>Modify the JD text</li>
-                <li>Change mandatory compliance requirements</li>
-                <li>Change soft compliance requirements</li>
-              </ul>
-              <p className="font-semibold text-foreground mt-4">Are you sure you want to proceed with processing?</p>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3 text-left">
+                <p>Once you start processing, this job will be <strong>locked</strong> and you will <strong>NOT</strong> be able to:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Upload a different JD PDF</li>
+                  <li>Modify the JD text</li>
+                  <li>Change mandatory compliance requirements</li>
+                  <li>Change soft compliance requirements</li>
+                </ul>
+                <p className="font-semibold text-foreground mt-4">Are you sure you want to proceed with processing?</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

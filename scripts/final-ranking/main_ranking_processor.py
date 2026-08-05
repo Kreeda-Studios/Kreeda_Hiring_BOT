@@ -228,8 +228,10 @@ def create_candidate_summary(candidate: dict, resume_json: dict = None) -> dict:
     
     # Add resume data if available
     if resume_json:
-        summary["exp"] = resume_json.get("years_experience")
-        summary["loc"] = resume_json.get("location", "")
+        exp_data = resume_json.get("experience") or {}
+        ft_months = exp_data.get("total_full_time_experience") if isinstance(exp_data, dict) else None
+        summary["exp"] = round(ft_months / 12, 1) if ft_months is not None else resume_json.get("years_experience")
+        summary["loc"] = (resume_json.get("profile") or {}).get("location") or resume_json.get("location", "")
         summary["role"] = resume_json.get("role_claim", "")
         
         # Top skills (limit to 10)

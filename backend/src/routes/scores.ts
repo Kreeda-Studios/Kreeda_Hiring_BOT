@@ -34,8 +34,10 @@ router.get('/resumes/:jobId', async (req: Request, res: Response) => {
           phone: parsedContent?.profile?.contact?.replace(/^tel:/, '') || '',
           profile: parsedContent?.profile?.linkedin || '', // LinkedIn/GitHub/Portfolio
         },
-        location: parsedContent?.location || '',
-        years_experience: parsedContent?.years_experience || 0,
+        location: parsedContent?.profile?.location || parsedContent?.location || '',
+        years_experience: typeof parsedContent?.experience?.total_full_time_experience === 'number'
+          ? Math.round((parsedContent.experience.total_full_time_experience / 12) * 10) / 10
+          : (parsedContent?.years_experience || 0),
         // Scores
         project_score: resume.scores?.project_score || 0,
         keyword_score: resume.scores?.keyword_score || 0,

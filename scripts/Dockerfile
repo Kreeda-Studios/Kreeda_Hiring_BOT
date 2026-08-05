@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 
 # Copy processing scripts
 COPY common/ ./common/
