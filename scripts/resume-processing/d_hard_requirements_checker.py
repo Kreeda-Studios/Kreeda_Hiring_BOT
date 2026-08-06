@@ -330,6 +330,7 @@ def _check_jd_compliances_llm(
 
     resume_summary = {
         "domain": resume.get("domain"),
+        "location": (resume.get('profile') or {}).get('location') or "",
         "total_full_time_experience_months": int(exp_data.get('total_full_time_experience') or 0),
         "total_internship_experience_months": int(exp_data.get('total_internship_experience_in_months') or 0),
         "skills_provided": skills_data.get('provided') or [],
@@ -348,7 +349,21 @@ def _check_jd_compliances_llm(
         "all the mandatory requirements listed.\n"
         "Use synonym and abbreviation matching for skill terms.\n"
         "For experience requirements: use the numeric month fields provided -- "
-        "do not re-estimate or infer experience independently.\n\n"
+        "do not re-estimate or infer experience independently. "
+        "If a requirement specifies a maximum experience cap (e.g. '0-1 year' -> max 12 months) and the candidate has MORE experience than the maximum, mark them as failing due to OVERQUALIFICATION. "
+        "The filter_reason MUST explicitly state 'Candidate has X months of experience, exceeding the maximum requirement of Y', NEVER say 'does not have experience' for candidates who have experience.\n\n"
+        "For on-site / work location requirements, apply these rules in order:\n"
+        "  1. FAIL: If the resume explicitly mentions 'remote', 'remote only', "
+        "'work from home', 'WFH', 'remote preferred', or any similar phrase "
+        "indicating the candidate only works remotely.\n"
+        "  2. PASS: If the candidate's location field contains the required city "
+        "name or is clearly within the same city/metro area "
+        "(e.g. 'Pune', 'Pune, Maharashtra', 'Hadapsar, Pune', 'Pune 411032' all "
+        "satisfy a requirement for on-site work in Pune).\n"
+        "  3. PASS: If the candidate's location field is empty or absent -- "
+        "give benefit of the doubt; do NOT reject solely because location is missing.\n"
+        "Never reject a candidate for on-site availability unless they have explicitly "
+        "stated they work remotely only.\n\n"
         "Return ONLY this JSON:\n"
         "{\n"
         "  \"meets_all_requirements\": true/false,\n"

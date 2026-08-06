@@ -136,15 +136,21 @@ You MUST follow these rules:
   Do not invent domain outside the allowed list.
 
 . Experience Rules
-  - Use "date_calculation_scratchpad" to explicitly list out each job role, its start/end dates, and calculate the duration in months BEFORE outputting the final integer values. 
+  - Use "date_calculation_scratchpad" to explicitly list out each job role, its start/end dates, state any month assumptions made (e.g. "assumed Dec 2024 for end month"), and calculate the duration in months BEFORE outputting the final integer values. 
   - MATHEMATICAL RULE: Always use INCLUSIVE month counting. For example, "May 2023 to June 2024" is calculated as: (2024 - 2023)*12 + (6 - 5) + 1 = 14 months.
   - Convert all experience durations into months (integer values).
   - "total_full_time_experience" must be in months.
   - "total_internship_experience_in_months" must be in months.
   - If role says "Present", calculate until current date: """ + date.today().isoformat() + """.
   - Do not double count overlapping periods. If periods overlap, only count the distinct chronological months once.
-  - If dates are missing → exclude from total calculation.
+  - DATE FALLBACK RULES (Partial & Year-Only Dates):
+    * If start month is given but end month is missing (e.g. "March 2023 - 2024"), assume December for the end month ("March 2023 to Dec 2024"). Note this assumption in the scratchpad.
+    * If end month is given but start month is missing (e.g. "2023 - March 2024"), assume January for the start month ("Jan 2023 to March 2024"). Note this assumption in the scratchpad.
+    * If BOTH start and end months are missing for a year range (e.g. "2023 - 2024"), calculate duration as (EndYear - StartYear) * 12 months (e.g. 2023 to 2024 = 12 months). If end is "Present" (e.g. "2023 - Present"), assume January for start month ("Jan 2023 to current date"). Note this calculation in the scratchpad.
+  - If explicit duration is stated (e.g. "3 Month", "6 months", "1 year") without start/end dates, use that stated duration directly as duration_in_months and include it in total experience.
+  - If dates and duration are completely absent → exclude from total calculation.
   - Employment_type must be exactly one of: Full Time, Part Time, Intern, Intern above 6 months, Contractual.
+  - DEFAULT EMPLOYMENT TYPE: If employment_type is not explicitly specified as Intern, Part Time, or Contractual in the resume text, default employment_type to "Full Time" and include its duration in total_full_time_experience.
 
 . Skills Rules
   - provided: Extract ONLY EXPLICIT HARD/TECHNICAL SKILLS from the resume. Do NOT include soft skills here.
