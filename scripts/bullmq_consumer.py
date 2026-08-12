@@ -123,7 +123,7 @@ class KreedaJobProcessor:
 
                 for attempt in range(1, 4):
                     try:
-                        api.post(
+                        await api.post_async(
                             "/updates/resume/status",
                             data={'job_id': job_id, 'success': True},
                             timeout=120
@@ -142,7 +142,7 @@ class KreedaJobProcessor:
                 # If status call timed out but backend may have completed, verify current DB status.
                 if not status_updated:
                     try:
-                        latest_job = api.get(f"/updates/job/{job_id}", timeout=30)
+                        latest_job = await api.get_async(f"/updates/job/{job_id}", timeout=30)
                         if latest_job.get('status') == 'resume_processing_completed':
                             status_updated = True
                             logger.info(
@@ -163,7 +163,7 @@ class KreedaJobProcessor:
 
                 for attempt in range(1, 4):
                     try:
-                        ranking_response = api.post(f"/process/ranking/{job_id}", timeout=120)
+                        ranking_response = await api.post_async(f"/process/ranking/{job_id}", timeout=120)
                         # APIClient returns result['data'] when backend sends { success, data }.
                         # So a successful call may not contain a 'success' key at this point.
                         ranking_triggered = True
@@ -248,7 +248,7 @@ class KreedaJobProcessor:
                 try:
                     from common.api_client import APIClient
                     api = APIClient()
-                    api.post(
+                    await api.post_async(
                         "/updates/resume/status/single",
                         data={
                             'resume_id': resume_id,
@@ -288,7 +288,7 @@ class KreedaJobProcessor:
             try:
                 from common.api_client import APIClient
                 api = APIClient()
-                api.post(
+                await api.post_async(
                     "/updates/resume/status/single",
                     data={
                         'resume_id': resume_id,
@@ -328,7 +328,7 @@ class KreedaJobProcessor:
             try:
                 from common.api_client import APIClient
                 api = APIClient()
-                api.post(
+                await api.post_async(
                     "/updates/resume/status/single",
                     data={
                         'resume_id': resume_id,
@@ -376,7 +376,7 @@ class KreedaJobProcessor:
 
                 for attempt in range(1, 4):
                     try:
-                        api.post(
+                        await api.post_async(
                             "/updates/ranking/status",
                             data={'job_id': job_id, 'success': True},
                             timeout=120

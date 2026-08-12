@@ -315,19 +315,13 @@ def extract_sections_from_resume(resume: dict) -> Dict[str, List[str]]:
 
 async def generate_resume_embeddings(parsed_resume: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Generate embeddings for all resume sections
+    Generate embeddings for all resume sections in a single batch call.
     
     Args:
         parsed_resume: Parsed resume dictionary from AI parser
         
     Returns:
-        Dictionary containing:
-        - success: bool
-        - section_embeddings: dict with 6 section keys, each with embedding matrix
-        - section_texts: dict with original text lists per section
-        - model_used: str
-        - dimension: int
-        - error: str (if success=False)
+        Dictionary containing success, section_embeddings, section_texts, etc.
     """
     try:
         client = get_async_openai_client()
@@ -335,13 +329,33 @@ async def generate_resume_embeddings(parsed_resume: Dict[str, Any]) -> Dict[str,
 
         resume_sections = extract_sections_from_resume(parsed_resume)
 
+        flat_texts = []
+        section_slices = {}
+
+        # Flatten sections and track index bounds
+        for section_name, text_list in resume_sections.items():
+            if text_list:
+                start_idx = len(flat_texts)
+                flat_texts.extend(text_list)
+                end_idx = len(flat_texts)
+                section_slices[section_name] = (start_idx, end_idx)
+            else:
+                section_slices[section_name] = None
+
+        # Generate embeddings in one batch call
+        print(f"📊 [EMBEDDING BATCHING] Flattened 6 resume sections into {len(flat_texts)} total strings. Sending 1 single API call to OpenAI.")
+        flat_embeddings = await embed_texts(cache, client, flat_texts)
+        print(f"✅ [EMBEDDING BATCHING] Successfully generated {len(flat_embeddings)} embeddings in a single API call.")
+
         section_embeddings = {}
         section_texts = {}
 
-        for section_name, text_list in resume_sections.items():
-            if text_list:
-                section_embeddings[section_name] = await embed_texts(cache, client, text_list)
-                section_texts[section_name] = text_list
+        # Slice the giant flat embeddings matrix back into their original sections
+        for section_name, slice_info in section_slices.items():
+            if slice_info is not None:
+                start, end = slice_info
+                section_embeddings[section_name] = flat_embeddings[start:end]
+                section_texts[section_name] = resume_sections[section_name]
             else:
                 section_embeddings[section_name] = np.zeros((0, EMBEDDING_DIMENSION), dtype=np.float32)
                 section_texts[section_name] = []

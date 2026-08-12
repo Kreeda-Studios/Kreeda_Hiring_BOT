@@ -342,19 +342,39 @@ async def process_jd_embeddings(parsed_jd: Dict[str, Any]) -> Dict[str, Any]:
         # Extract text content organized by section
         sections = extract_sections_from_jd(parsed_jd)
         
-        # Generate embeddings for each section
+        # Generate embeddings for all sections in a single batch call
         results = {}
         section_names = ['profile', 'skills', 'projects', 'responsibilities', 'education', 'overall']
         
+        flat_texts = []
+        section_slices = {}
+        
         for section in section_names:
             texts = sections.get(section, [])
-            result = await generate_section_embeddings(texts, section)
-            
-            if not result['success']:
-                # Use empty array as fallback (won't break scoring)
-                results[f'{section}_embedding'] = []
+            cleaned_texts = [t.strip() for t in texts if t and t.strip()]
+            if cleaned_texts:
+                start_idx = len(flat_texts)
+                flat_texts.extend(cleaned_texts)
+                end_idx = len(flat_texts)
+                section_slices[section] = (start_idx, end_idx)
             else:
-                results[f'{section}_embedding'] = result['embeddings']
+                section_slices[section] = None
+        
+        # Generate embeddings in one batch API call
+        if flat_texts:
+            print(f"📊 [EMBEDDING BATCHING] Flattened 6 Job Description sections into {len(flat_texts)} total strings. Sending 1 single API call to OpenAI.")
+            flat_embeddings = await create_embeddings_batch_async(flat_texts)
+            print(f"✅ [EMBEDDING BATCHING] Successfully generated {len(flat_embeddings)} embeddings in a single API call.")
+        else:
+            flat_embeddings = []
+            
+        for section in section_names:
+            slice_info = section_slices.get(section)
+            if slice_info is not None and flat_embeddings:
+                start, end = slice_info
+                results[f'{section}_embedding'] = flat_embeddings[start:end]
+            else:
+                results[f'{section}_embedding'] = []
         
         processing_time = time.time() - start_time
         

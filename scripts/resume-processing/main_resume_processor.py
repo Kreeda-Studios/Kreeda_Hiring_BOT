@@ -33,7 +33,7 @@ class ResumeProcessingError(Exception):
     pass
 
 
-def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None, hard_requirements_met: bool = None):
+async def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None, hard_requirements_met: bool = None):
     """Update resume processing status in database via /updates/resume/status/single endpoint"""
     try:
         # Only use success/failed boolean approach
@@ -48,7 +48,7 @@ def update_resume_status(resume_id: str, status: str, progress: int = None, erro
         if hard_requirements_met is not None:
             payload['hard_requirements_met'] = hard_requirements_met
         
-        api.post("/updates/resume/status/single", data=payload)
+        await api.post_async("/updates/resume/status/single", data=payload)
     except Exception as e:
         print(f"⚠️ Failed to update resume status: {e}")
 
@@ -107,7 +107,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
     is_final_attempt = (attempts_made + 1) >= max_attempts
     
     # Update resume status to processing
-    update_resume_status(resume_id, 'processing', 0, job_id=job.id)
+    await update_resume_status(resume_id, 'processing', 0, job_id=job.id)
     
     try:
         # Fetch resume data
@@ -247,7 +247,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
             })
             
             # Update resume status to completed with hard_requirements_met=False
-            update_resume_status(resume_id, 'success', 100, hard_requirements_met=False)
+            await update_resume_status(resume_id, 'success', 100, hard_requirements_met=False)
             
             logger.complete(f"Completed: Hard requirements not met - Score 0.00")
             await tracker.update(100, "complete", "Job completed - Hard requirements not met")
@@ -329,7 +329,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         # Parent job will update job status when ALL resumes complete
         
         # Update resume status to success with hard_requirements_met=True
-        update_resume_status(resume_id, 'success', 100, hard_requirements_met=True)
+        await update_resume_status(resume_id, 'success', 100, hard_requirements_met=True)
         
         logger.complete(f"Completed: Score {final_score:.2f}")
         await tracker.complete(summary={
@@ -351,7 +351,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         logger.fail(error_msg)
         # NOTE: Do NOT update job status - only individual resume status
         if is_final_attempt:
-            update_resume_status(resume_id, 'failed', error=error_msg)
+            await update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(error_msg, "APIError", "processing")
         return {'success': False, 'error': error_msg, 'final_score': 0.0}
     except Exception as e:
@@ -362,6 +362,6 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         print(f"📋 Full error traceback:\n{error_traceback}")
         # NOTE: Do NOT update job status - only individual resume status
         if is_final_attempt:
-            update_resume_status(resume_id, 'failed', error=error_msg)
+            await update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(str(e), type(e).__name__, "processing")
         return {'success': False, 'error': str(e), 'final_score': 0.0}
