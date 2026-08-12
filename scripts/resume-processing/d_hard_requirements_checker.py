@@ -40,7 +40,7 @@ parent_dir = script_dir.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
-from openai_client import parse_json_response
+from openai_client import parse_json_response, parse_json_response_async
 
 
 # -----------------------------------------------------------------------------
@@ -209,7 +209,7 @@ def _check_experience_python(
 # PHASE 2 HELPER  --  LLM, skill label + synonym + compound matching
 # -----------------------------------------------------------------------------
 
-def _check_skills_llm(
+async def _check_skills_llm(
     resume: Dict[str, Any],
     required_skills: List[str],
 ) -> Dict[str, Any]:
@@ -304,7 +304,7 @@ def _check_skills_llm(
         f"For each required skill: apply Rule 1 first, then Rule 2. Return the JSON."
     )
 
-    return parse_json_response(
+    return await parse_json_response_async(
         prompt=user_prompt,
         system_prompt=system_prompt,
         model="gpt-4o-mini",
@@ -315,7 +315,7 @@ def _check_skills_llm(
 # FALLBACK HELPER  --  LLM qualitative check against jd_analysis list
 # -----------------------------------------------------------------------------
 
-def _check_jd_compliances_llm(
+async def _check_jd_compliances_llm(
     resume: Dict[str, Any],
     compliances: List[str],
 ) -> Dict[str, Any]:
@@ -380,7 +380,7 @@ def _check_jd_compliances_llm(
         f"Evaluate compliance and return the JSON."
     )
 
-    return parse_json_response(
+    return await parse_json_response_async(
         prompt=user_prompt,
         system_prompt=system_prompt,
         model="gpt-4o-mini",
@@ -425,7 +425,7 @@ def _fail_result(
 # PUBLIC ENTRY POINT
 # -----------------------------------------------------------------------------
 
-def check_hard_requirements(
+async def check_hard_requirements(
     resume: Dict[str, Any],
     jd_data: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -513,7 +513,7 @@ def check_hard_requirements(
             skill_keywords = _extract_skill_keywords(raw_prompt)
 
             if skill_keywords:
-                skill_result = _check_skills_llm(resume, skill_keywords)
+                skill_result = await _check_skills_llm(resume, skill_keywords)
                 skills_check: List[Dict] = skill_result.get('skills_check') or []
 
                 for item in skills_check:
@@ -542,7 +542,7 @@ def check_hard_requirements(
         # ==================================================================
         # FALLBACK PATH: No HR filter text -- use jd_analysis list
         # ==================================================================
-        result = _check_jd_compliances_llm(resume, jd_compliances)
+        result = await _check_jd_compliances_llm(resume, jd_compliances)
         return {
             "success": True,
             "meets_all_requirements": bool(result.get('meets_all_requirements', True)),

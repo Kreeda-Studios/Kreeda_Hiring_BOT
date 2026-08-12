@@ -114,7 +114,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         await tracker.update(5, "fetching_resume", "Fetching resume data")
         logger.progress("Fetching resume data")
         
-        resume_data = api.get(f"/updates/resume/{resume_id}")
+        resume_data = await api.get_async(f"/updates/resume/{resume_id}")
         
         # Construct file path from job_id and filename
         job_id = resume_data.get('job_id')
@@ -144,7 +144,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         
         # Fetch job data
         await tracker.update(10, "fetching_job", "Fetching job data")
-        jd_data = api.get(f"/updates/job/{job_id}")
+        jd_data = await api.get_async(f"/updates/job/{job_id}")
         
         logger.progress(f"Processing: {os.path.basename(resume_file_path)}")
         await tracker.update(12, "starting", f"Starting resume processing")
@@ -181,7 +181,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
 
         parsed_resume = parse_result['parsed_data']
         # Save parsed resume using new API
-        api.post("/updates/resume/parsed", data={
+        await api.post_async("/updates/resume/parsed", data={
             'resume_id': resume_id,
             'parsed_content': parsed_resume
         })
@@ -202,7 +202,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
             section_embeddings = embed_result.get('section_embeddings', {})
             embedding_data = update_resume_embeddings(resume_id, section_embeddings)
             # Save embeddings using new API
-            api.post("/updates/resume/embeddings", data={
+            await api.post_async("/updates/resume/embeddings", data={
                 'resume_id': resume_id,
                 'resume_embedding': embedding_data['resume_embedding']
             })
@@ -214,7 +214,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         logger.progress("Calculating scores")
         
         # Hard requirements check
-        hard_req_result = check_hard_requirements(parsed_resume, jd_data)
+        hard_req_result = await check_hard_requirements(parsed_resume, jd_data)
         if not hard_req_result.get('success'):
             hard_req_result = {'meets_all_requirements': True, 'compliance_score': 1.0}
         
@@ -229,7 +229,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
             await tracker.update(95, "saving_scores", f"Saving failed compliance scores: {reason}")
             
             # Save failed compliance scores
-            api.post("/updates/resume/scores", data={
+            await api.post_async("/updates/resume/scores", data={
                 'resume_id': resume_id,
                 'scores': {
                     'hard_requirements': {
@@ -308,7 +308,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         await tracker.update(95, "saving_scores", "Saving scores to database")
         logger.progress("Saving scores to database")
         
-        api.post("/updates/resume/scores", data={
+        await api.post_async("/updates/resume/scores", data={
             'resume_id': resume_id,
             'scores': {
                 'hard_requirements': {

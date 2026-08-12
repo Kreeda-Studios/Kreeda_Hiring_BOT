@@ -51,3 +51,6 @@ __pycache__/
 *.tmp
 *.temp
 *.pkl
+
+# Documentation & Codebase Analysis docs
+/codebase-analysis-docs/

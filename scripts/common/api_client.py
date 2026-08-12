@@ -22,6 +22,7 @@ Usage:
 
 import os
 import requests
+import httpx
 from typing import Dict, Any, Optional, Union
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -81,6 +82,8 @@ class APIClient:
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
+        
+        self._async_client = None
     
     def _get_headers(self, extra_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         """Build request headers with authentication"""
@@ -99,7 +102,7 @@ class APIClient:
         endpoint = endpoint.lstrip('/')
         return f"{self.base_url}/{endpoint}"
     
-    def _handle_response(self, response: requests.Response, endpoint: str) -> Any:
+    def _handle_response(self, response: Union[requests.Response, httpx.Response], endpoint: str) -> Any:
         """
         Handle API response and extract data.
         
@@ -130,7 +133,7 @@ class APIClient:
                 # Not JSON, return text
                 return response.text
         
-        except requests.exceptions.HTTPError as e:
+        except (requests.exceptions.HTTPError, httpx.HTTPStatusError) as e:
             # Try to extract error message from response
             try:
                 error_data = response.json()
@@ -224,7 +227,94 @@ class APIClient:
                     endpoint=endpoint
                 ) from e
             raise
-    
+            
+    def _get_async_client(self) -> httpx.AsyncClient:
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(timeout=self.timeout)
+        return self._async_client
+
+    async def get_async(
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None
+    ) -> Any:
+        """
+        GET request (async version).
+        
+        Args:
+            endpoint: API endpoint
+            params: Query parameters
+            headers: Extra headers
+            timeout: Custom timeout
+            
+        Returns:
+            Response data
+        """
+        url = self._build_url(endpoint)
+        client = self._get_async_client()
+        
+        try:
+            logger.debug(f"GET [async] {url}")
+            response = await client.get(
+                url,
+                params=params,
+                headers=self._get_headers(headers),
+                timeout=timeout or self.timeout
+            )
+            return self._handle_response(response, endpoint)
+        
+        except httpx.HTTPError as e:
+            raise APIError(
+                f"Request failed: {str(e)}",
+                endpoint=endpoint
+            ) from e
+
+    async def post_async(
+        self,
+        endpoint: str,
+        data: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None
+    ) -> Any:
+        """
+        POST request (async version).
+        
+        Args:
+            endpoint: API endpoint
+            data: Request body
+            headers: Extra headers
+            timeout: Custom timeout
+            
+        Returns:
+            Response data
+        """
+        url = self._build_url(endpoint)
+        client = self._get_async_client()
+        
+        try:
+            logger.debug(f"POST [async] {url}")
+            response = await client.post(
+                url,
+                json=data,
+                headers=self._get_headers(headers),
+                timeout=timeout or self.timeout
+            )
+            return self._handle_response(response, endpoint)
+        
+        except httpx.HTTPError as e:
+            raise APIError(
+                f"Request failed: {str(e)}",
+                endpoint=endpoint
+            ) from e
+
+    async def close_async(self) -> None:
+        """Close async client session if open"""
+        if self._async_client:
+            await self._async_client.aclose()
+            self._async_client = None
+
     def put(
         self,
         endpoint: str,

@@ -204,3 +204,37 @@ def parse_json_response(
     )
     
     return json.loads(response)
+
+
+async def parse_json_response_async(
+    prompt: str,
+    system_prompt: str = "You are a helpful assistant that responds only in valid JSON format.",
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.0
+) -> Dict[str, Any]:
+    """
+    Get a JSON response from OpenAI (async version)
+    
+    Args:
+        prompt: User prompt
+        system_prompt: System prompt
+        model: Model to use
+        
+    Returns:
+        Parsed JSON dictionary
+    """
+    import json
+    
+    client = get_async_openai_client()
+    
+    response = await client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=temperature,
+        response_format={"type": "json_object"}
+    )
+    
+    return json.loads(response.choices[0].message.content)
