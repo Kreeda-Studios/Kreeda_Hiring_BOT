@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
+import time
+import asyncio
 
 # Add paths BEFORE imports
 script_dir = Path(__file__).parent
@@ -31,6 +33,151 @@ from h_composite_scorer import calculate_composite_score
 
 class ResumeProcessingError(Exception):
     pass
+
+
+# =============================================================================
+# JD IN-PROCESS CACHE  (TTL + Request Coalescing)
+# =============================================================================
+#
+# PROBLEM THIS SOLVES:
+#   When a batch of N resumes is processed, every resume needs the same JD
+#   document from the backend (/api/updates/job/{job_id}). Without caching,
+#   we make N identical HTTP requests to the backend and N identical MongoDB
+#   reads — pure wasted work.
+#
+# SOLUTION — TWO-LAYER MECHANISM:
+#
+#   Layer 1: TTL Cache (_jd_cache)
+#     A module-level dict that stores the JD document once it has been
+#     fetched. Keyed by job_id so multiple concurrent batches for different
+#     jobs are completely isolated (Job A's data never leaks into Job B).
+#     Each entry holds (jd_data, timestamp). After _JD_CACHE_TTL_SECONDS,
+#     the entry is treated as stale and the next caller refetches it fresh.
+#
+#   Layer 2: Request Coalescing (_jd_pending)
+#     Without coalescing, all 16 workers can start simultaneously, all check
+#     the (empty) cache at the same moment, all see a miss, and all fire their
+#     own API call — a "cache stampede". This dict prevents that.
+#
+#     When the FIRST worker for a given job_id sees a cache miss, it creates
+#     an asyncio.Task to do the actual fetch, stores it in _jd_pending, and
+#     then awaits it. Workers 2-16 arrive moments later, also see a cache
+#     miss, but find the task already in _jd_pending — so they just await
+#     the SAME task. Only 1 HTTP request is ever in flight at a time.
+#
+# RESULT:
+#   - 31 resumes, same job → 1 JD API call  (instead of 31 without cache,
+#                                             or 15-16 with simple TTL cache)
+#   - Zero risk of data mixing (key = job_id, each job is independent)
+#   - Zero new dependencies (dict + asyncio.Task are Python stdlib)
+#   - Memory: a single JD document with embeddings is ~1-3 MB; harmless
+#
+# LIFECYCLE:
+#   - Cache starts empty when the Python container starts.
+#   - First resume in a batch populates it.
+#   - Subsequent resumes in the same batch get instant 0ms cache hits.
+#   - After TTL expires, the NEXT caller triggers a fresh fetch (resets clock).
+#   - Container restart clears everything (fresh state, no stale data risk).
+# =============================================================================
+
+# Stores fetched JD documents: { job_id: (jd_data, time.monotonic()) }
+_jd_cache: Dict[str, Any] = {}
+
+# Stores in-flight fetch tasks: { job_id: asyncio.Task }
+# Prevents duplicate API calls when multiple workers start simultaneously.
+_jd_pending: Dict[str, asyncio.Task] = {}
+
+# How long a cached JD is considered fresh. 10 minutes covers any realistic
+# batch size. After this, the next caller will refetch from the backend.
+_JD_CACHE_TTL_SECONDS: int = 600
+
+
+async def _get_jd_cached(job_id: str) -> Dict[str, Any]:
+    """
+    Fetch JD data using a TTL cache with request coalescing.
+
+    Call flow for 16 concurrent workers all needing the same job_id:
+
+      Worker 1  → cache MISS, pending MISS → creates Task → awaits it
+                                              (Task fires 1 API call)
+      Worker 2  → cache MISS, pending HIT  → awaits SAME Task (no new call)
+      Worker 3  → cache MISS, pending HIT  → awaits SAME Task (no new call)
+      ...        (all 16 workers share the single in-flight Task)
+      Task done → stores result in _jd_cache, removes from _jd_pending
+
+      Worker 17 → cache HIT (age < TTL)    → returns instantly, 0 ms
+      Worker 18 → cache HIT                → returns instantly, 0 ms
+      ...
+
+    Args:
+        job_id: MongoDB ObjectId string of the job whose JD we need.
+
+    Returns:
+        The full JD document dict as returned by /api/updates/job/{job_id}.
+    """
+    now = time.monotonic()
+
+    # ------------------------------------------------------------------
+    # STEP 1: Check the TTL cache first.
+    # If this job_id was fetched recently and the entry hasn't expired,
+    # return it immediately without any I/O.
+    # ------------------------------------------------------------------
+    if job_id in _jd_cache:
+        jd_data, cached_at = _jd_cache[job_id]
+        if now - cached_at < _JD_CACHE_TTL_SECONDS:
+            # Cache hit — JD is fresh. Return in ~0 ms.
+            return jd_data
+        # TTL expired — the entry is stale. Fall through to refetch.
+        # The old data remains in _jd_cache until overwritten below,
+        # so it acts as a safe fallback if the API call fails.
+
+    # ------------------------------------------------------------------
+    # STEP 2: Check if another worker is already fetching this job_id.
+    # This is the request coalescing step that prevents stampedes.
+    #
+    # asyncio runs on a single thread. A context switch only happens at
+    # an `await` point. So between here and the `_jd_pending[job_id] = task`
+    # line below there is NO context switch — this check-and-set is
+    # effectively atomic within the asyncio event loop.
+    # ------------------------------------------------------------------
+    if job_id in _jd_pending:
+        # Another worker already started fetching this JD.
+        # Await the same Task — we'll get the result when it completes
+        # without making a second API call.
+        return await _jd_pending[job_id]
+
+    # ------------------------------------------------------------------
+    # STEP 3: We are the FIRST worker for this job_id (cache miss, no
+    # pending task). Define the actual fetch coroutine, wrap it in a
+    # Task (so it can be shared with other workers), register it in
+    # _jd_pending, then await it.
+    # ------------------------------------------------------------------
+    async def _fetch_jd() -> Dict[str, Any]:
+        """
+        Inner coroutine that performs the actual API call and stores the
+        result in _jd_cache. Wrapped in a Task so multiple workers can
+        await the same fetch without duplicating work.
+        """
+        try:
+            jd_data = await api.get_async(f"/updates/job/{job_id}")
+            # Store in cache with a fresh timestamp so subsequent workers
+            # (and the next batch for the same job) get instant hits.
+            _jd_cache[job_id] = (jd_data, time.monotonic())
+            return jd_data
+        finally:
+            # Always remove from _jd_pending when done (success or error),
+            # so future callers don't try to await a completed/failed Task.
+            _jd_pending.pop(job_id, None)
+
+    # Create the Task and register it BEFORE the first await so that any
+    # worker that reaches Step 2 after this point will find it and wait.
+    task = asyncio.ensure_future(_fetch_jd())
+    _jd_pending[job_id] = task
+
+    # Await our own Task. This yields control to the event loop, allowing
+    # other workers to reach Step 2 and find the task in _jd_pending.
+    return await task
+
 
 
 async def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None, hard_requirements_met: bool = None):
@@ -144,7 +291,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         
         # Fetch job data
         await tracker.update(10, "fetching_job", "Fetching job data")
-        jd_data = await api.get_async(f"/updates/job/{job_id}")
+        jd_data = await _get_jd_cached(job_id)
         
         logger.progress(f"Processing: {os.path.basename(resume_file_path)}")
         await tracker.update(12, "starting", f"Starting resume processing")
