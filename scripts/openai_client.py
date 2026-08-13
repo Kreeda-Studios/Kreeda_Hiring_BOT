@@ -15,9 +15,288 @@ except ImportError:
     OpenAI = None
     AsyncOpenAI = None
 
-# Singleton client instances
+import time
+import asyncio
+import logging
+import redis.asyncio as aioredis
+
+logger = logging.getLogger(__name__)
+
+# Singleton client instances for reuse across threads/event loops
 _client_instance = None
 _async_client_instance = None
+_rate_limiter = None
+
+
+# ============================================================================
+# DISTRIBUTED RATE LIMITER (Redis Token Bucket / Fixed Window)
+# ============================================================================
+
+class OpenAIRateLimiter:
+    """
+    Distributed rate limiter using Redis to enforce RPM (Requests Per Minute)
+    and TPM (Tokens Per Minute) limit pools across multiple Python worker containers.
+    
+    Uses an atomic Lua script to prevent race conditions during parallel requests.
+    """
+    
+    def __init__(self):
+        self.redis_client = None
+        # Retrieve scale thresholds from environment variables (defaults to Tier 1 limits)
+        self.max_rpm = int(os.getenv('OPENAI_MAX_RPM', '500'))
+        self.max_tpm = int(os.getenv('OPENAI_MAX_TPM', '200000'))
+        
+        # Redis connection config from BullMQ environment setup
+        self.redis_host = os.getenv('REDIS_HOST', 'localhost')
+        self.redis_port = int(os.getenv('REDIS_PORT', '6379'))
+        self.redis_password = os.getenv('REDIS_PASSWORD', 'password123')
+        
+        # Lua script executes atomically within Redis to evaluate RPM and TPM counters.
+        # Key 1: RPM counter for current minute.
+        # Key 2: TPM counter for current minute.
+        self.lua_script = """
+        local rpm_key = KEYS[1]
+        local tpm_key = KEYS[2]
+        local current_time = tonumber(ARGV[1])
+        local tokens_needed = tonumber(ARGV[2])
+        local max_rpm = tonumber(ARGV[3])
+        local max_tpm = tonumber(ARGV[4])
+
+        local current_rpm = tonumber(redis.call('GET', rpm_key) or '0')
+        local current_tpm = tonumber(redis.call('GET', tpm_key) or '0')
+
+        if current_rpm + 1 > max_rpm or current_tpm + tokens_needed > max_tpm then
+            local seconds_left = 60 - (current_time % 60)
+            return {0, seconds_left}
+        else
+            redis.call('INCRBY', rpm_key, 1)
+            redis.call('INCRBY', tpm_key, tokens_needed)
+            redis.call('EXPIRE', rpm_key, 60)
+            redis.call('EXPIRE', tpm_key, 60)
+            return {1, 0}
+        end
+        """
+        self._lua_sha = None
+
+    async def _get_redis(self):
+        """Lazy initialization of async Redis client connection pool"""
+        if self.redis_client is None:
+            try:
+                self.redis_client = aioredis.Redis(
+                    host=self.redis_host,
+                    port=self.redis_port,
+                    password=self.redis_password,
+                    decode_responses=True,
+                    socket_connect_timeout=5
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Redis connection failed: {e}. Failing open...")
+                self.redis_client = False
+        return self.redis_client
+
+    async def acquire(self, tokens_needed: int) -> int:
+        """
+        Acquires rate limiting tokens. If limits are hit, pauses/sleeps and retries.
+        Fails open if Redis is down or unreachable to protect service availability.
+        """
+        redis = await self._get_redis()
+        if not redis:
+            return tokens_needed
+
+        current_time = int(time.time())
+        minute_bucket = current_time // 60
+        rpm_key = f"openai:limiter:RPM:{minute_bucket}"
+        tpm_key = f"openai:limiter:TPM:{minute_bucket}"
+
+        attempt = 0
+        while attempt < 30: # Hard limit on loop iterations to prevent hanging workers indefinitely
+            try:
+                if self._lua_sha is None:
+                    self._lua_sha = await redis.script_load(self.lua_script)
+                
+                result = await redis.evalsha(
+                    self._lua_sha,
+                    2,
+                    rpm_key,
+                    tpm_key,
+                    current_time,
+                    tokens_needed,
+                    self.max_rpm,
+                    self.max_tpm
+                )
+                
+                allowed, wait_seconds = result[0], result[1]
+                if allowed == 1:
+                    return tokens_needed
+                
+                wait_seconds = max(1, wait_seconds)
+                logger.info(f"⏳ OpenAI Rate Limiter: Limit reached. Waiting {wait_seconds}s...")
+                await asyncio.sleep(wait_seconds)
+                
+                # Recalculate time coordinates for retry window
+                current_time = int(time.time())
+                minute_bucket = current_time // 60
+                rpm_key = f"openai:limiter:RPM:{minute_bucket}"
+                tpm_key = f"openai:limiter:TPM:{minute_bucket}"
+                attempt += 1
+            except Exception as e:
+                logger.warning(f"⚠️ Redis Rate Limiter error: {e}. Failing open...")
+                return tokens_needed
+                
+        return tokens_needed
+
+    async def refund(self, tokens_to_refund: int):
+        """Refund unused tokens back to the current Redis minute bucket"""
+        if tokens_to_refund <= 0:
+            return
+        redis = await self._get_redis()
+        if not redis:
+            return
+            
+        current_time = int(time.time())
+        minute_bucket = current_time // 60
+        tpm_key = f"openai:limiter:TPM:{minute_bucket}"
+        
+        try:
+            exists = await redis.exists(tpm_key)
+            if exists:
+                current_tpm = int(await redis.get(tpm_key) or '0')
+                to_decr = min(tokens_to_refund, current_tpm)
+                if to_decr > 0:
+                    await redis.decrby(tpm_key, to_decr)
+        except Exception as e:
+            logger.warning(f"⚠️ Redis Rate Limiter refund error: {e}")
+
+
+# ============================================================================
+# RATE LIMITED CLIENT PROXY WRAPPERS
+# ============================================================================
+
+class RateLimitedAsyncOpenAI:
+    """
+    Proxy wrapper for AsyncOpenAI client.
+    Intercepts target namespaces (chat, embeddings, responses) to route
+    calls through the Redis rate limiter automatically.
+    """
+    def __init__(self, client, limiter):
+        self._client = client
+        self._limiter = limiter
+        self.chat = RateLimitedChat(client.chat, limiter)
+        self.embeddings = RateLimitedEmbeddings(client.embeddings, limiter)
+        if hasattr(client, "responses"):
+            self.responses = RateLimitedResponses(client.responses, limiter)
+            
+    def __getattr__(self, name):
+        # Fallback to standard client attributes and methods
+        return getattr(self._client, name)
+
+
+class RateLimitedChat:
+    def __init__(self, chat, limiter):
+        self.completions = RateLimitedCompletions(chat.completions, limiter)
+
+
+class RateLimitedCompletions:
+    def __init__(self, completions, limiter):
+        self._completions = completions
+        self._limiter = limiter
+
+    async def create(self, *args, **kwargs):
+        # Estimate input prompt tokens using whitespace heuristics
+        messages = kwargs.get("messages", [])
+        prompt_text = ""
+        for m in messages:
+            if isinstance(m, dict):
+                prompt_text += m.get("content", "")
+                
+        input_tokens = int(len(prompt_text.split()) * 1.3)
+        max_tokens = kwargs.get("max_tokens", 4000) or 4000
+        estimated_tokens = input_tokens + max_tokens
+        
+        logger.info(f"🔑 [RATE LIMIT] Acquiring tokens for Completion (Est: {estimated_tokens} | Input: {input_tokens})")
+        acquired_tpm = await self._limiter.acquire(estimated_tokens)
+        
+        try:
+            response = await self._completions.create(*args, **kwargs)
+            # Refund unused buffer back to the token pool
+            if hasattr(response, "usage") and response.usage and response.usage.total_tokens:
+                actual = response.usage.total_tokens
+                logger.info(f"💸 [RATE LIMIT] Completion Used: {actual} tokens | Refunded: {acquired_tpm - actual} unused tokens.")
+                if actual < acquired_tpm:
+                    await self._limiter.refund(acquired_tpm - actual)
+            else:
+                logger.info(f"💸 [RATE LIMIT] Completion succeeded (Usage metadata missing).")
+            return response
+        except Exception as e:
+            # Reclaim locked capacity on error
+            await self._limiter.refund(acquired_tpm)
+            raise e
+
+
+class RateLimitedEmbeddings:
+    def __init__(self, embeddings, limiter):
+        self._embeddings = embeddings
+        self._limiter = limiter
+
+    async def create(self, *args, **kwargs):
+        input_val = kwargs.get("input", "")
+        if isinstance(input_val, list):
+            input_text = " ".join([str(t) for t in input_val])
+        else:
+            input_text = str(input_val)
+            
+        estimated_tokens = int(len(input_text.split()) * 1.3)
+        estimated_tokens = max(1, estimated_tokens)
+        
+        logger.info(f"🔑 [RATE LIMIT] Acquiring {estimated_tokens} tokens for Embeddings request.")
+        await self._limiter.acquire(estimated_tokens)
+        
+        try:
+            response = await self._embeddings.create(*args, **kwargs)
+            logger.info(f"💸 [RATE LIMIT] Embeddings completed.")
+            return response
+        except Exception as e:
+            await self._limiter.refund(estimated_tokens)
+            raise e
+
+
+class RateLimitedResponses:
+    def __init__(self, responses, limiter):
+        self._responses = responses
+        self._limiter = limiter
+
+    async def parse(self, *args, **kwargs):
+        messages = kwargs.get("input", [])
+        prompt_text = ""
+        for m in messages:
+            if isinstance(m, dict):
+                prompt_text += m.get("content", "")
+                
+        input_tokens = int(len(prompt_text.split()) * 1.3)
+        max_tokens = kwargs.get("max_tokens", 4000) or 4000
+        estimated_tokens = input_tokens + max_tokens
+        
+        logger.info(f"🔑 [RATE LIMIT] Acquiring tokens for Structured Parse (Est: {estimated_tokens} | Input: {input_tokens})")
+        acquired_tpm = await self._limiter.acquire(estimated_tokens)
+        
+        try:
+            response = await self._responses.parse(*args, **kwargs)
+            if hasattr(response, "usage") and response.usage and response.usage.total_tokens:
+                actual = response.usage.total_tokens
+                logger.info(f"💸 [RATE LIMIT] Structured Parse Used: {actual} tokens | Refunded: {acquired_tpm - actual} unused tokens.")
+                if actual < acquired_tpm:
+                    await self._limiter.refund(acquired_tpm - actual)
+            else:
+                logger.info(f"💸 [RATE LIMIT] Structured Parse succeeded (Usage metadata missing).")
+            return response
+        except Exception as e:
+            await self._limiter.refund(acquired_tpm)
+            raise e
+
+
+# ============================================================================
+# CLIENT INITIALIZERS
+# ============================================================================
 
 def get_openai_client():
     """Get or create OpenAI client instance"""
@@ -39,8 +318,8 @@ openai_client = get_openai_client
 
 
 def get_async_openai_client():
-    """Get or create async OpenAI client instance"""
-    global _async_client_instance
+    """Get or create async OpenAI client instance (Rate Limited)"""
+    global _async_client_instance, _rate_limiter
     
     if not OPENAI_AVAILABLE:
         raise ImportError("OpenAI package not installed. Run: pip install openai")
@@ -49,7 +328,13 @@ def get_async_openai_client():
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
-        _async_client_instance = AsyncOpenAI(api_key=api_key)
+        
+        raw_client = AsyncOpenAI(api_key=api_key)
+        
+        if _rate_limiter is None:
+            _rate_limiter = OpenAIRateLimiter()
+            
+        _async_client_instance = RateLimitedAsyncOpenAI(raw_client, _rate_limiter)
     
     return _async_client_instance
 

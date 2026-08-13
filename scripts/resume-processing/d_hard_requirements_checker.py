@@ -47,61 +47,76 @@ from openai_client import parse_json_response, parse_json_response_async
 # PHASE 1 HELPERS  --  Pure Python, no LLM
 # -----------------------------------------------------------------------------
 
+def _build_exp_dict(min_m: float, max_m: Optional[float], text: str) -> Dict[str, Any]:
+    """Helper to structure the experience requirement dictionary and cast values to integer months"""
+    text_lower = text.lower()
+    if "internship experience" in text_lower or "intern experience" in text_lower:
+        exp_type = "internship"
+    elif "full time experience" in text_lower or "full-time experience" in text_lower:
+        exp_type = "full_time"
+    else:
+        exp_type = "total"
+        
+    return {
+        "min_months": int(min_m),
+        "max_months": int(max_m) if max_m is not None else None,
+        "exp_type": exp_type
+    }
+
+
 def _parse_experience_range(text: str) -> Optional[Dict[str, Optional[int]]]:
     """
-    Extract a numeric experience range from an HR filter text string.
+    Extract a numeric experience range or boundary constraint from HR filter text.
+    Supports integers, decimals (e.g. 3.5 years), ranges, and open-ended phrasing.
 
-    Handles all common phrasings:
-      "2 months to 1 year"      -> {min_months: 2,  max_months: 12}
-      "6 months to 2 years"     -> {min_months: 6,  max_months: 24}
-      "2 months to 12 months"   -> {min_months: 2,  max_months: 12}
-      "1 year to 3 years"       -> {min_months: 12, max_months: 36}
-      "6 to 12 months"          -> {min_months: 6,  max_months: 12}
-      "1 to 2 years"            -> {min_months: 12, max_months: 24}
+    Handles phrasings:
+      - Ranges: "6 months to 3.5 years", "1.5 to 3 years", "6 to 12 months"
+      - Minimums: "3+ years", "at least 1.5 years", "minimum 6 months"
+      - Maximums: "up to 2 years", "maximum 2.5 years", "under 12 months"
 
     Returns None if no experience range is found in the text.
     """
-    result = None
+    # Normalize consecutive spaces to single spaces
+    text = re.sub(r'\s+', ' ', text.strip())
 
-    # "X months to Y year(s)"
-    m = re.search(r'(\d+)\s*months?\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
+    # 1. RANGE CHECKERS (Evaluate ranges first so they don't get matched by single-bound rules)
+    
+    # "X months to Y years" (e.g. "6 months to 3.5 years")
+    m = re.search(r'(\d+(?:\.\d+)?)\s*months?\s+(?:to|-)\s+(\d+(?:\.\d+)?)\s*years?', text, re.IGNORECASE)
     if m:
-        result = {"min_months": int(m.group(1)), "max_months": int(m.group(2)) * 12}
+        return _build_exp_dict(float(m.group(1)), float(m.group(2)) * 12, text)
 
-    # "X year(s) to Y year(s)"
-    if not result:
-        m = re.search(r'(\d+)\s*years?\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
-        if m:
-            result = {"min_months": int(m.group(1)) * 12, "max_months": int(m.group(2)) * 12}
+    # "X years to Y years" (e.g. "1.5 to 3 years" or "1.5 years to 3 years")
+    m = re.search(r'(\d+(?:\.\d+)?)\s*(?:years?)?\s+(?:to|-)\s+(\d+(?:\.\d+)?)\s*years?', text, re.IGNORECASE)
+    if m:
+        return _build_exp_dict(float(m.group(1)) * 12, float(m.group(2)) * 12, text)
 
-    # "X months to Y months"
-    if not result:
-        m = re.search(r'(\d+)\s*months?\s+to\s+(\d+)\s*months?', text, re.IGNORECASE)
-        if m:
-            result = {"min_months": int(m.group(1)), "max_months": int(m.group(2))}
+    # "X months to Y months" (e.g. "6 to 12 months" or "6 months to 12 months")
+    m = re.search(r'(\d+(?:\.\d+)?)\s*(?:months?)?\s+(?:to|-)\s+(\d+(?:\.\d+)?)\s*months?', text, re.IGNORECASE)
+    if m:
+        return _build_exp_dict(float(m.group(1)), float(m.group(2)), text)
 
-    # "X to Y months"
-    if not result:
-        m = re.search(r'(\d+)\s+to\s+(\d+)\s*months?', text, re.IGNORECASE)
-        if m:
-            result = {"min_months": int(m.group(1)), "max_months": int(m.group(2))}
+    # 2. SINGLE BOUND CHECKERS (Evaluate after ranges fail)
 
-    # "X to Y years"
-    if not result:
-        m = re.search(r'(\d+)\s+to\s+(\d+)\s*years?', text, re.IGNORECASE)
-        if m:
-            result = {"min_months": int(m.group(1)) * 12, "max_months": int(m.group(2)) * 12}
+    # Minimum bounds for years (e.g. "3+ years", "at least 1.5 years", "minimum 2 years", "above 2 years", "> 2 years")
+    m = re.search(r'(?:at\s+least|minimum|min|above|>|>=)?\s*(\d+(?:\.\d+)?)\s*(?:\+|plus)?\s*years?', text, re.IGNORECASE)
+    if m and ("minimum" in text.lower() or "least" in text.lower() or "+" in text or "above" in text or "min" in text or ">" in text):
+        return _build_exp_dict(float(m.group(1)) * 12, None, text)
 
-    if result:
-        # Determine the type of experience required
-        text_lower = text.lower()
-        if "internship experience" in text_lower or "intern experience" in text_lower:
-            result["exp_type"] = "internship"
-        elif "full time experience" in text_lower or "full-time experience" in text_lower:
-            result["exp_type"] = "full_time"
-        else:
-            result["exp_type"] = "total"
-        return result
+    # Minimum bounds for months (e.g. "6+ months", "at least 6 months", "minimum 3 months")
+    m = re.search(r'(?:at\s+least|minimum|min|above|>|>=)?\s*(\d+(?:\.\d+)?)\s*(?:\+|plus)?\s*months?', text, re.IGNORECASE)
+    if m and ("minimum" in text.lower() or "least" in text.lower() or "+" in text or "above" in text or "min" in text or ">" in text):
+        return _build_exp_dict(float(m.group(1)), None, text)
+
+    # Maximum bounds for years (e.g. "up to 2 years", "maximum 2.5 years", "max 3 years", "under 3 years", "less than 2 years")
+    m = re.search(r'(?:up\s+to|maximum|max|under|less\s+than|<=|<)\s*(\d+(?:\.\d+)?)\s*years?', text, re.IGNORECASE)
+    if m:
+        return _build_exp_dict(0, float(m.group(1)) * 12, text)
+
+    # Maximum bounds for months (e.g. "up to 6 months", "maximum 18 months", "under 12 months")
+    m = re.search(r'(?:up\s+to|maximum|max|under|less\s+than|<=|<)\s*(\d+(?:\.\d+)?)\s*months?', text, re.IGNORECASE)
+    if m:
+        return _build_exp_dict(0, float(m.group(1)), text)
 
     return None
 
@@ -486,7 +501,8 @@ async def check_hard_requirements(
                 exp_check = _check_experience_python(resume, exp_range)
 
                 if not exp_check['passed']:
-                    # Hard fail -- reject immediately, no LLM call needed
+                    # Log the rejection reason as a clean one-liner
+                    print(f"📊 [COMPLIANCE] Experience Rejection: {exp_check['reason']}")
                     return _fail_result(
                         requirements_met=[],
                         requirements_missing=[f"{exp_check.get('type_str', 'Experience').split()[0]}: {exp_check['reason']}"],
@@ -504,6 +520,10 @@ async def check_hard_requirements(
                     if max_m is not None and max_m % 12 == 0
                     else (f"{max_m} months" if max_m is not None else "no upper limit")
                 )
+                
+                # Log success verification as a clean one-liner
+                print(f"📊 [COMPLIANCE] Experience Passed: {type_str} is {total} months (Required: {min_m} to {max_display})")
+                
                 requirements_met.append(
                     f"{type_str}: {total} months is within the required range "
                     f"({min_m} months - {max_display})"
@@ -554,6 +574,7 @@ async def check_hard_requirements(
         }
 
     except Exception as e:
+        print(f"⚠️ [COMPLIANCE] Engine error: {e}")
         return {
             "success": False,
             "meets_all_requirements": False,
