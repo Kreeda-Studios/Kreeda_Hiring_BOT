@@ -126,6 +126,8 @@ services:
       REDIS_PASSWORD: password123
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       BACKEND_API_URL: ${BACKEND_API_URL}
+      OPENAI_MAX_RPM: ${OPENAI_MAX_RPM}
+      OPENAI_MAX_TPM: ${OPENAI_MAX_TPM}
     volumes:
       - ./uploads:/app/uploads
 
