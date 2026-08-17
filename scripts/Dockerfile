@@ -4,13 +4,15 @@ FROM python:3.11-slim-bookworm
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt ./
-RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout 30 --retries 5 -r requirements.txt
 
 # Copy processing scripts
 COPY common/ ./common/

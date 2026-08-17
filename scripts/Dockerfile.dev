@@ -4,15 +4,17 @@ FROM python:3.11-slim-bookworm
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout 30 --retries 5 -r requirements.txt
 
 # Install development tools
-RUN pip install --default-timeout=100 --no-cache-dir watchdog
+RUN pip install --no-cache-dir --timeout 30 --retries 5 watchdog
 
 # Default command - run the BullMQ consumer with hot reload
 # Note: Running as root in dev for hot reload to work properly with mounted volumes

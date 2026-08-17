@@ -37,7 +37,14 @@ import {
   Filter,
   Loader2,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { RankedCandidate } from "@/lib/types";
 
 interface ScoreData {
@@ -109,33 +116,71 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   // Convert scores to rankings for display
   const convertScoresToRankings = (scoreData: ScoreData[]): RankedCandidate[] => {
     return scoreData
-      .sort((a, b) => b.final_score - a.final_score) // Sort by final_score descending
-      .map((score, index) => ({
-        rank: index + 1,
-        resume_id: score.resume_id._id,
-        candidate_name: score.resume_id.candidate_name ||
-          score.resume_id.filename?.replace(/\.(pdf|doc|docx)$/i, '') ||
-          `Candidate ${index + 1}`,
-        email: score.contact?.email || '',
-        phone: score.contact?.phone || '',
-        profile: score.contact?.profile || '',
-        location: score.location || '',
-        years_experience: score.years_experience || 0,
-        final_score: score.final_score,
-        keyword_score: score.keyword_score,
-        semantic_score: score.semantic_score,
-        project_score: score.project_score,
-        compliance_score: score.recalculated_llm_score,
-        is_compliant: score.hard_requirements_met,
-        filter_reason: score.filter_reason || "Reason not specified" ,
-        compliance_status: {
-          hard_compliance: score.hard_requirements_met,
-          soft_compliance_score: score.recalculated_llm_score,
-          requirements_met: score.scores?.hard_requirements?.requirements_met || [],
-          requirements_missing: score.scores?.hard_requirements?.requirements_missing || [],
-        },
-        group_name: undefined,
-      }));
+      .sort((a, b) => b.final_score - a.final_score)
+      .map((score, index) => {
+        const secScores = (score as any).scores?.section_scores || score.score_breakdown?.section_scores || {};
+        const rawSkills = secScores.skills !== undefined ? secScores.skills : score.keyword_score;
+        const rawEdu = secScores.education !== undefined ? secScores.education : score.semantic_score;
+        const rawExp = secScores.responsibilities !== undefined ? secScores.responsibilities : score.semantic_score;
+
+        const backendReason = (score.scores?.hard_requirements as any)?.selection_reason || (score as any).selection_reason;
+        
+        // Build dynamic 1-liner selection reason based on actual strengths if backend reason is generic
+        let reason = backendReason;
+        if (!reason || reason.includes("Matched mandatory compliance criteria")) {
+          const pPct = Math.round(score.project_score > 1 ? score.project_score : score.project_score * 100);
+          const sPct = Math.round(rawSkills > 1 ? rawSkills : rawSkills * 100);
+          const ePct = Math.round(rawExp > 1 ? rawExp : rawExp * 100);
+
+          const strengths = [];
+          if (sPct >= 50) strengths.push("matched required skills");
+          if (pPct >= 50) strengths.push("strong project execution");
+          if (ePct >= 40) strengths.push("relevant work experience");
+
+          if (strengths.length > 0) {
+            reason = `Selected due to ${strengths.join(", ")}.`;
+          } else {
+            reason = `Candidate met all mandatory requirements and matched key job profile criteria.`;
+          }
+        }
+
+        return {
+          rank: index + 1,
+          resume_id: score.resume_id._id,
+          candidate_name: score.resume_id.candidate_name ||
+            score.resume_id.filename?.replace(/\.(pdf|doc|docx)$/i, '') ||
+            `Candidate ${index + 1}`,
+          email: score.contact?.email || '',
+          phone: score.contact?.phone || '',
+          profile: score.contact?.profile || '',
+          location: score.location || '',
+          years_experience: score.years_experience || 0,
+          final_score: score.final_score,
+          keyword_score: score.keyword_score,
+          semantic_score: score.semantic_score,
+          project_score: score.project_score,
+          skills_score: rawSkills,
+          education_score: rawEdu,
+          experience_score: rawExp,
+          compliance_score: score.recalculated_llm_score,
+          is_compliant: score.hard_requirements_met,
+          filter_reason: score.filter_reason || "Reason not specified",
+          selection_reason: reason,
+          compliance_status: {
+            hard_compliance: score.hard_requirements_met,
+            soft_compliance_score: score.recalculated_llm_score,
+            requirements_met: score.scores?.hard_requirements?.requirements_met || [],
+            requirements_missing: score.scores?.hard_requirements?.requirements_missing || [],
+          },
+          group_name: undefined,
+        };
+      });
+  };
+
+  const formatPercent = (val: number | undefined): string => {
+    if (val === undefined || val === null || isNaN(val)) return "0%";
+    const pct = val > 1 ? val : val * 100;
+    return `${Math.round(pct)}%`;
   };
 
   const fetchScores = async () => {
@@ -149,7 +194,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
         const convertedRankings = convertScoresToRankings(response.data);
         setRankings(convertedRankings);
       } else {
-        console.log('No scores found for job:', jobId);
         setScores([]);
         setRankings([]);
       }
@@ -159,70 +203,32 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
       setRankings([]);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const fetchRankings = fetchScores; // Alias for compatibility
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchScores();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     fetchScores();
-    // Reset selection when tab/jobId changes
-    setSelectedResumes(new Set());
   }, [jobId]);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    // Reset checkbox selections when refreshing
-    setSelectedResumes(new Set());
-    fetchScores();
-  };
+  const validRankings = rankings.filter(r => r.is_compliant);
+  const filteredOutCandidates = rankings.filter(r => !r.is_compliant);
 
-  const handleProcessRanking = async () => {
-    setProcessing(true);
-    try {
-      const response = await processingAPI.processRanking(jobId);
-      if (response.success) {
-        // Wait a bit then refresh rankings
-        setTimeout(() => {
-          handleRefresh();
-        }, 2000);
-      }
-    } catch (error) {
-      console.error("Failed to process ranking:", error);
-    } finally {
-      setProcessing(false);
-    }
-  };
+  const filteredRankings = validRankings.filter((candidate) => {
+    const matchesSearch =
+      candidate.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      candidate.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      candidate.location.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  });
 
-  // Separate candidates into filtered (hard requirements failed) and valid rankings
-  const validRankings = rankings.filter(candidate => candidate.final_score > 0.0 || candidate.is_compliant);
-  const filteredOutCandidates = rankings.filter(candidate => candidate.final_score === 0.0 && !candidate.is_compliant);
-
-  const filteredRankings = validRankings
-    .filter((candidate) => {
-      const matchesSearch = candidate.candidate_name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-      const matchesCompliance =
-        filterCompliant === "all" ||
-        (filterCompliant === "compliant" && candidate.is_compliant) ||
-        (filterCompliant === "non-compliant" && !candidate.is_compliant);
-      return matchesSearch && matchesCompliance;
-    })
-    .sort((a, b) => {
-      const key = sortBy as keyof RankedCandidate;
-      if (typeof a[key] === "number" && typeof b[key] === "number") {
-        return sortBy === "rank"
-          ? (a[key] as number) - (b[key] as number)
-          : (b[key] as number) - (a[key] as number);
-      }
-      return 0;
-    });
-
-  // Selection handlers
   const toggleSelectAll = () => {
-    if (selectedResumes.size === filteredRankings.length && filteredRankings.length > 0) {
+    if (selectedResumes.size === filteredRankings.length) {
       setSelectedResumes(new Set());
     } else {
       setSelectedResumes(new Set(filteredRankings.map(r => r.resume_id)));
@@ -230,78 +236,39 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   };
 
   const toggleSelectResume = (resumeId: string) => {
-    const newSelection = new Set(selectedResumes);
-    if (newSelection.has(resumeId)) {
-      newSelection.delete(resumeId);
+    const next = new Set(selectedResumes);
+    if (next.has(resumeId)) {
+      next.delete(resumeId);
     } else {
-      newSelection.add(resumeId);
+      next.add(resumeId);
     }
-    setSelectedResumes(newSelection);
+    setSelectedResumes(next);
   };
 
   const handleBulkDownload = async () => {
-    if (selectedResumes.size === 0) {
-      alert('Please select resumes to download');
-      return;
-    }
-
-    setDownloadingBulk(true);
+    if (selectedResumes.size === 0) return;
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
-      const response = await fetch(`${API_BASE_URL}/resumes/bulk-download`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resumeIds: Array.from(selectedResumes)
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to download resumes');
-      }
-
-      // Get the blob and download it
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `resumes-${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      // Clear selection after download
-      setSelectedResumes(new Set());
+      setDownloadingBulk(true);
+      await resumesAPI.downloadBulkResumes(Array.from(selectedResumes));
     } catch (error) {
       console.error('Error downloading resumes:', error);
-      alert('Failed to download resumes. Please try again.');
     } finally {
       setDownloadingBulk(false);
     }
   };
 
-
   const handleExportCSV = () => {
-    if (filteredRankings.length === 0) {
-      alert('No data to export');
-      return;
-    }
-
-    // CSV with contact details first, then scores
-    const headers = ['Rank', 'Name', 'Phone', 'Email', 'Profile/LinkedIn', 'Final Score', 'Keyword', 'Semantic', 'Project'];
+    const headers = ['Rank', 'Name', 'Email', 'Phone', 'Location', 'Overall Score', 'Skills Score', 'Project Score', 'Experience Score'];
     const rows = filteredRankings.map(r => [
       r.rank,
-      r.candidate_name,
-      r.phone || '',
-      r.email || '',
-      r.profile || '',
-      r.final_score.toFixed(1),
-      r.keyword_score.toFixed(1),
-      r.semantic_score.toFixed(1),
-      r.project_score.toFixed(1)
+      `"${r.candidate_name}"`,
+      `"${r.email}"`,
+      `"${r.phone}"`,
+      `"${r.location}"`,
+      formatPercent(r.final_score),
+      formatPercent(r.skills_score),
+      formatPercent(r.project_score),
+      formatPercent(r.experience_score)
     ]);
 
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -327,7 +294,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
 
   return (
     <div className="space-y-6">
-      {/* Rankings Table */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -379,7 +345,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -390,38 +355,8 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 className="pl-10"
               />
             </div>
-            {/* <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-45">
-                <ArrowUpDown className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                {sortOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select> */}
-            {/*
-            <Select 
-              value={filterCompliant} 
-              onValueChange={(v) => setFilterCompliant(v as "all" | "compliant" | "non-compliant")}
-            >
-              <SelectTrigger className="w-45">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Candidates</SelectItem>
-                <SelectItem value="compliant">Compliant Only</SelectItem>
-                <SelectItem value="non-compliant">Non-Compliant</SelectItem>
-              </SelectContent>
-            </Select>
-            */}
           </div>
 
-          {/* Table */}
           {filteredRankings.length === 0 ? (
             <EmptyState
               icon={<Trophy className="h-6 w-6" />}
@@ -446,10 +381,10 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                     <TableHead>Candidate</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
-                    <TableHead className="text-center">Final</TableHead>
-                    <TableHead className="text-center">Keyword</TableHead>
-                    <TableHead className="text-center">Semantic</TableHead>
-                    <TableHead className="text-center">Project</TableHead>
+                    <TableHead className="text-center">Overall Score</TableHead>
+                    <TableHead className="text-center">Skills Score</TableHead>
+                    <TableHead className="text-center">Project Score</TableHead>
+                    <TableHead className="text-center">Experience Score</TableHead>
                     <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -476,8 +411,23 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{candidate.candidate_name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">{candidate.candidate_name}</span>
+                          {candidate.selection_reason && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center justify-center p-1 rounded-full bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 cursor-pointer transition-colors">
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-xs text-xs">
+                                  <p className="font-semibold text-green-400 mb-1">Selection Reason</p>
+                                  <p>{candidate.selection_reason}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -497,28 +447,25 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`font-bold ${getScoreColor(candidate.final_score / 100)}`}>
-                          {candidate.final_score.toFixed(1)}
+                        <span className={`font-bold ${getScoreColor(candidate.final_score > 1 ? candidate.final_score / 100 : candidate.final_score)}`}>
+                          {formatPercent(candidate.final_score)}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={getScoreColor(candidate.keyword_score / 100)}>
-                          {candidate.keyword_score.toFixed(1)}
+                        <span className={getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}>
+                          {formatPercent(candidate.skills_score)}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={getScoreColor(candidate.semantic_score / 100)}>
-                          {candidate.semantic_score.toFixed(1)}
+                        <span className={getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}>
+                          {formatPercent(candidate.project_score)}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={getScoreColor(candidate.project_score / 100)}>
-                          {candidate.project_score.toFixed(1)}
+                        <span className={getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}>
+                          {formatPercent(candidate.experience_score)}
                         </span>
                       </TableCell>
-                      {/* <TableCell className="text-center">
-                        <ComplianceBadge isCompliant={candidate.is_compliant} />
-                      </TableCell> */}
                       <TableCell className="text-center">
                         <Button
                           variant="ghost"

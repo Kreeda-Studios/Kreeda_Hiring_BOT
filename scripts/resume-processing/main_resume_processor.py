@@ -556,11 +556,13 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
                     'compliance_score': hard_req_result.get('compliance_score', 1.0),
                     'requirements_met': hard_req_result.get('requirements_met', []),
                     'requirements_missing': hard_req_result.get('requirements_missing', []),
-                    'filter_reason': hard_req_result.get('filter_reason')
+                    'filter_reason': hard_req_result.get('filter_reason'),
+                    'selection_reason': hard_req_result.get('selection_reason')
                 },
                 'project_score': project_result.get('overall_score', 0.0),
                 'keyword_score': keyword_result.get('overall_score', 0.0),
                 'semantic_score': semantic_result.get('overall_semantic_score', 0.0),
+                'section_scores': semantic_result.get('section_scores', {}),
                 'composite_score': composite_result.get('final_score', 0.0)
             }
         })

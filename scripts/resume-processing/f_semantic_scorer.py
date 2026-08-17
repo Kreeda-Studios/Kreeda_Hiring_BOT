@@ -169,10 +169,13 @@ def calculate_semantic_scores(resume_embeddings: Dict[str, Any], jd_embeddings: 
             for section, weight in SECTION_WEIGHTS.items()
         )
         
+        sec_scores_dict = {k: round(v, 3) for k, v in section_scores.items()}
+        sec_scores_dict['experience'] = sec_scores_dict.get('responsibilities', 0.0)
+
         return {
             'success': True,
             'overall_semantic_score': round(overall_score, 3),
-            'section_scores': {k: round(v, 3) for k, v in section_scores.items()},
+            'section_scores': sec_scores_dict,
             'section_details': section_details,
             'error': None
         }

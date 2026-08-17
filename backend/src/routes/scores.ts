@@ -48,7 +48,10 @@ router.get('/resumes/:jobId', async (req: Request, res: Response) => {
         rank: index + 1,
         filter_reason: resume.scores?.hard_requirements?.filter_reason || "Reason not specified",
         adjusted_score: resume.scores?.composite_score || 0,
-        score_breakdown: {},
+        scores: resume.scores,
+        score_breakdown: {
+          section_scores: (resume.scores as any)?.section_scores || {}
+        },
         createdAt: resume.createdAt,
         updatedAt: resume.updatedAt
       };

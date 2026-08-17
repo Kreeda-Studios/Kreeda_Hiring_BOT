@@ -482,7 +482,8 @@ async def _check_jd_compliances_llm(
         "  \"compliance_score\": 0.0-1.0,\n"
         "  \"requirements_met\": [\"...\"],\n"
         "  \"requirements_missing\": [\"...\"],\n"
-        "  \"filter_reason\": \"one-line reason if rejected, or null if passed\"\n"
+        "  \"filter_reason\": \"one-line reason if rejected, or null if passed\",\n"
+        "  \"selection_reason\": \"1-2 sentence explanation if passed, or null if rejected\"\n"
         "}"
     )
 
@@ -503,7 +504,13 @@ async def _check_jd_compliances_llm(
 # PRIVATE RESULT BUILDERS
 # -----------------------------------------------------------------------------
 
-def _pass_result(requirements_met: List[str]) -> Dict[str, Any]:
+def _pass_result(requirements_met: List[str], selection_reason: Optional[str] = None) -> Dict[str, Any]:
+    if not selection_reason:
+        if requirements_met:
+            selection_reason = f"Candidate met all mandatory requirements: {'; '.join(requirements_met[:3])}."
+        else:
+            selection_reason = "Candidate met all mandatory compliance criteria."
+
     return {
         "success": True,
         "meets_all_requirements": True,
@@ -511,6 +518,7 @@ def _pass_result(requirements_met: List[str]) -> Dict[str, Any]:
         "requirements_met": requirements_met,
         "requirements_missing": [],
         "filter_reason": None,
+        "selection_reason": selection_reason,
         "error": None,
     }
 
@@ -660,13 +668,15 @@ async def check_hard_requirements(
         # FALLBACK PATH: No HR filter text -- use jd_analysis list
         # ==================================================================
         result = await _check_jd_compliances_llm(resume, jd_compliances)
+        meets_all = bool(result.get('meets_all_requirements', True))
         return {
             "success": True,
-            "meets_all_requirements": bool(result.get('meets_all_requirements', True)),
+            "meets_all_requirements": meets_all,
             "compliance_score": float(result.get('compliance_score', 1.0)),
             "requirements_met": result.get('requirements_met') or [],
             "requirements_missing": result.get('requirements_missing') or [],
             "filter_reason": result.get('filter_reason') or None,
+            "selection_reason": result.get('selection_reason') or ("Candidate met all mandatory compliance criteria." if meets_all else None),
             "error": None,
         }
 

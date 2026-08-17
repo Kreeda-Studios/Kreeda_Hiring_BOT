@@ -252,13 +252,15 @@ const scoresSchema = new Schema({
     requirements_met: [String],
     requirements_missing: [String],
     filter_reason: String,
+    selection_reason: String,
     details: Schema.Types.Mixed
   },
   project_score: Number,
   keyword_score: Number,
   semantic_score: Number,
+  section_scores: Schema.Types.Mixed,
   composite_score: Number,
-}, { _id: false });
+}, { _id: false, strict: false });
 
 // ==========================================
 // MAIN RESUME SCHEMA

@@ -250,6 +250,10 @@ export interface RankedCandidate {
     requirements_missing: string[];
   };
   filter_reason?: string;
+  selection_reason?: string;
+  skills_score?: number;
+  education_score?: number;
+  experience_score?: number;
   llm_validated?: boolean;
 }
 
