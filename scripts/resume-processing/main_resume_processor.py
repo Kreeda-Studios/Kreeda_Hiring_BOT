@@ -25,7 +25,7 @@ from common.bullmq_progress import ProgressTracker
 from a_pdf_extractor import process_resume_file
 from b_ai_parser import parse_resume_with_ai
 from c_embedding_generator import generate_resume_embeddings
-from d_hard_requirements_checker import check_hard_requirements
+from d_hard_requirements_checker import check_hard_requirements, check_experience_gate
 from e_keyword_scorer import calculate_keyword_scores
 from f_semantic_scorer import calculate_semantic_scores
 from g_project_scorer import calculate_project_scores
@@ -335,7 +335,100 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         candidate_name = (parsed_resume.get('profile') or {}).get('name', 'Unknown')
         logger.progress(f"Parsed: {candidate_name}")
         await tracker.update(40, "parsing", f"Resume parsed successfully")
-        
+
+        # ======================================================================
+        # EXPERIENCE GATE  (deterministic, pure Python, ~0ms, no API calls)
+        # ======================================================================
+        #
+        # WHY THIS IS HERE:
+        #   The next step (generate_resume_embeddings) fires 6 OpenAI API calls
+        #   to produce vector embeddings for each resume section. For a candidate
+        #   who fails the experience requirement, those API calls are pure waste.
+        #
+        #   This gate runs immediately after AI parsing, before any embeddings
+        #   are generated. It reads the HR filter text from the JD, extracts the
+        #   experience clause using regex, and does integer arithmetic against the
+        #   parsed resume. No LLM, no network, essentially 0ms overhead.
+        #
+        # OPTION A (chosen):
+        #   Gate runs early for experience only. If it FAILS -> terminate.
+        #   If it PASSES -> pipeline continues normally, including the full
+        #   check_hard_requirements() call later (which will re-check experience
+        #   plus skills). The double experience check is harmless -- the second
+        #   check will always pass since the first already confirmed it.
+        #
+        # GATE OUTCOMES:
+        #   gate_applicable=False  -> No experience clause in HR text. Skip gate.
+        #   gate_applicable=True, passed=True  -> Experience OK. Continue.
+        #   gate_applicable=True, passed=False -> Terminate immediately.
+        # ======================================================================
+        gate_result = check_experience_gate(parsed_resume, jd_data)
+
+        if gate_result.get('gate_applicable') and not gate_result.get('passed'):
+            # ------------------------------------------------------------------
+            # EXPERIENCE GATE FAILED -- build an enriched rejection reason that
+            # includes the delta (how many months short or over the candidate is).
+            # ------------------------------------------------------------------
+            base_reason = gate_result.get('reason', 'Experience requirement not met')
+            shortfall   = gate_result.get('shortfall_months')  # int or None
+            excess      = gate_result.get('excess_months')      # int or None
+
+            # Build a concise delta suffix ONLY for the terminal log line.
+            # IMPORTANT: base_reason already embeds the delta inside its sentence
+            # (e.g. "...below the minimum requirement of 24 months (short by 16 months).").
+            # Do NOT append delta_str to base_reason -- that would duplicate the
+            # delta in the string that gets stored in the DB and shown on the frontend.
+            if shortfall is not None:
+                delta_str = f"short by {shortfall} month{'s' if shortfall != 1 else ''}"
+            elif excess is not None:
+                delta_str = f"over by {excess} month{'s' if excess != 1 else ''}"
+            else:
+                delta_str = ""
+
+            # The reason stored in DB and shown on the frontend is base_reason only.
+            # The delta is already embedded in the sentence by _check_experience_python.
+            log_reason = base_reason
+
+            # Terminal/tracker log gets the delta_str appended for quick scanning
+            logger.progress(f"❌ [EXP GATE] {base_reason} [{delta_str}]" if delta_str else f"❌ [EXP GATE] {base_reason}")
+            await tracker.update(42, "experience_gate", f"Rejected: {log_reason}")
+
+            # Save 0.0 scores to DB so the frontend can display the rejection
+            await api.post_async("/updates/resume/scores", data={
+                'resume_id': resume_id,
+                'scores': {
+                    'hard_requirements': {
+                        'meets_all_requirements': False,
+                        'compliance_score': 0.0,
+                        'requirements_met': [],
+                        'requirements_missing': [base_reason],
+                        'filter_reason': log_reason
+                    },
+                    'project_score': 0.0,
+                    'keyword_score': 0.0,
+                    'semantic_score': 0.0,
+                    'composite_score': 0.0
+                }
+            })
+
+            # Mark the resume as completed (not failed) with hard_requirements_met=False
+            await update_resume_status(resume_id, 'success', 100, hard_requirements_met=False)
+
+            logger.complete(f"Completed: Experience gate rejected - {delta_str or 'out of range'}")
+            await tracker.update(100, "complete", "Job completed - Experience gate rejected")
+
+            return {
+                'success': True,
+                'score': 0.0,
+                'hard_requirements_passed': False,
+                'filter_reason': log_reason,
+                'message': 'Candidate does not meet the experience requirement'
+            }
+        # ======================================================================
+        # END EXPERIENCE GATE -- candidate passed or gate was not applicable.
+        # Continue with embeddings and the rest of the pipeline.
+        # ======================================================================
+
         # Generate embeddings
         await tracker.update(45, "generating_embeddings", "Generating embeddings")
         logger.progress("Generating embeddings")

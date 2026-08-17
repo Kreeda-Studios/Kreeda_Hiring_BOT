@@ -161,20 +161,29 @@ def _check_experience_python(
         {
           'passed': bool,
           'total_months': int,
-          'reason': str or None  -- human-readable rejection reason, None if passed
+          'shortfall_months': int or None  -- how many months below minimum (None if not applicable)
+          'excess_months': int or None     -- how many months above maximum (None if not applicable)
+          'reason': str or None            -- human-readable rejection reason with delta, None if passed
+          'type_str': str                  -- only present on pass, e.g. 'Total experience'
         }
     """
     exp_data = resume.get('experience') or {}
     ft_months = int(exp_data.get('total_full_time_experience') or 0)
     intern_months = int(exp_data.get('total_internship_experience_in_months') or 0)
-    
+
     exp_type = exp_range.get('exp_type', 'total')
-    
+
+    # --- Determine which experience bucket to measure against the requirement ---
     if exp_type == 'internship':
+        # Role is strictly for interns. If the candidate already has full-time
+        # experience they are overqualified and must be rejected immediately,
+        # regardless of their internship months.
         if ft_months > 0:
             return {
                 'passed': False,
                 'total_months': intern_months,
+                'shortfall_months': None,   # Not a shortfall — candidate is overqualified
+                'excess_months': ft_months, # Surface full-time months as the 'excess'
                 'reason': (
                     f"Role is strictly for internship candidates, but candidate has "
                     f"{ft_months} month{'s' if ft_months != 1 else ''} of full-time experience."
@@ -186,23 +195,33 @@ def _check_experience_python(
         value_to_check = ft_months
         type_str = "Full-time experience"
     else:
+        # Default: sum all experience types (full-time + internship)
         value_to_check = ft_months + intern_months
         type_str = "Total experience"
 
     min_m = exp_range.get('min_months', 0)
     max_m = exp_range.get('max_months')  # None -> no upper limit
 
+    # --- Under-experience check ---
     if value_to_check < min_m:
+        # Calculate exactly how many months below the minimum threshold
+        shortfall = min_m - value_to_check
         return {
             'passed': False,
             'total_months': value_to_check,
+            'shortfall_months': shortfall,  # e.g. min=24, has=8 -> shortfall=16
+            'excess_months': None,
             'reason': (
                 f"{type_str} is {value_to_check} month{'s' if value_to_check != 1 else ''}, "
-                f"below the minimum requirement of {min_m} months."
+                f"below the minimum requirement of {min_m} months "
+                f"(short by {shortfall} month{'s' if shortfall != 1 else ''})."
             ),
         }
 
+    # --- Over-experience check ---
     if max_m is not None and value_to_check > max_m:
+        # Calculate exactly how many months above the maximum threshold
+        excess = value_to_check - max_m
         max_display = (
             f"{max_m // 12} year{'s' if max_m >= 24 else ''}"
             if max_m % 12 == 0
@@ -211,13 +230,91 @@ def _check_experience_python(
         return {
             'passed': False,
             'total_months': value_to_check,
+            'shortfall_months': None,
+            'excess_months': excess,        # e.g. max=60, has=72 -> excess=12
             'reason': (
                 f"{type_str} is {value_to_check} months, "
-                f"exceeding the maximum requirement of {max_display}."
+                f"exceeding the maximum requirement of {max_display} "
+                f"(over by {excess} month{'s' if excess != 1 else ''})."
             ),
         }
 
-    return {'passed': True, 'total_months': value_to_check, 'reason': None, 'type_str': type_str}
+    # --- Passed both bounds ---
+    return {
+        'passed': True,
+        'total_months': value_to_check,
+        'shortfall_months': None,
+        'excess_months': None,
+        'reason': None,
+        'type_str': type_str,
+    }
+
+
+def check_experience_gate(
+    resume: Dict[str, Any],
+    jd_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Fast, deterministic pre-filter: checks ONLY the experience clause
+    from the HR filter text. No LLM, no network calls -- pure Python arithmetic.
+
+    This function is intentionally thin. It:
+      1. Reads the raw HR filter prompt from jd_data.
+      2. Tries to parse an experience range from that text.
+      3. If no experience clause is found, returns gate_applicable=False
+         so the caller knows to skip the gate and continue the pipeline.
+      4. If an experience clause IS found, runs _check_experience_python
+         and returns the full result including shortfall/excess deltas.
+
+    Design intent:
+      Called immediately after AI parsing in main_resume_processor.py,
+      BEFORE generate_resume_embeddings() is called. This ensures that
+      candidates who fail the experience check never trigger an embedding
+      API call -- saving time and cost.
+
+    Returns one of:
+      { 'gate_applicable': False }
+          No experience clause in HR text. Gate is skipped; pipeline continues.
+
+      { 'gate_applicable': True, 'passed': True, 'total_months': int,
+        'shortfall_months': None, 'excess_months': None, 'exp_range': dict }
+          Experience check passed. Pipeline continues.
+
+      { 'gate_applicable': True, 'passed': False, 'reason': str,
+        'total_months': int, 'shortfall_months': int or None,
+        'excess_months': int or None, 'exp_range': dict }
+          Experience check FAILED. Caller should terminate pipeline immediately,
+          save 0.0 scores, and skip embeddings + scoring.
+    """
+    # Extract the HR-typed filter text from the JD payload
+    raw_prompt = (
+        (jd_data.get('filter_requirements') or {})
+        .get('mandatory_compliances', {})
+        .get('raw_prompt', '') or ''
+    ).strip()
+
+    # Try to find an experience clause (e.g. "2 to 5 years", "3+ years")
+    exp_range = _parse_experience_range(raw_prompt)
+
+    if exp_range is None:
+        # No experience clause found in the HR filter text.
+        # Gate is not applicable -- caller should skip this gate entirely.
+        return {'gate_applicable': False}
+
+    # An experience clause was found. Run the pure-Python arithmetic check.
+    exp_check = _check_experience_python(resume, exp_range)
+
+    return {
+        'gate_applicable': True,
+        'passed': exp_check['passed'],
+        'reason': exp_check.get('reason'),
+        'total_months': exp_check.get('total_months'),
+        # Bubble up the delta fields so main_resume_processor.py can
+        # include them in logs and the rejection payload without re-computing.
+        'shortfall_months': exp_check.get('shortfall_months'),
+        'excess_months': exp_check.get('excess_months'),
+        'exp_range': exp_range,
+    }
 
 
 # -----------------------------------------------------------------------------
