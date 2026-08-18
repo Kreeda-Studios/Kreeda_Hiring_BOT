@@ -246,10 +246,11 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const filteredOutCandidates = rankings.filter(r => !r.is_compliant);
 
   const filteredRankings = validRankings.filter((candidate) => {
+    const query = searchQuery.toLowerCase();
     const matchesSearch =
-      candidate.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.location.toLowerCase().includes(searchQuery.toLowerCase());
+      (candidate.candidate_name || '').toLowerCase().includes(query) ||
+      (candidate.email || '').toLowerCase().includes(query) ||
+      (candidate.location || '').toLowerCase().includes(query);
     return matchesSearch;
   });
 
