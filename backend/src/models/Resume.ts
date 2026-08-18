@@ -259,6 +259,7 @@ const scoresSchema = new Schema({
   keyword_score: Number,
   semantic_score: Number,
   section_scores: Schema.Types.Mixed,
+  evidence: Schema.Types.Mixed,
   composite_score: Number,
 }, { _id: false, strict: false });
 

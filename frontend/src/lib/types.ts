@@ -254,6 +254,7 @@ export interface RankedCandidate {
   skills_score?: number;
   education_score?: number;
   experience_score?: number;
+  evidence?: Record<string, string[]>;
   llm_validated?: boolean;
 }
 

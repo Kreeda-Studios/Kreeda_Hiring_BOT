@@ -85,51 +85,42 @@ def compute_section_score(jd_embeddings: np.ndarray, resume_embeddings: np.ndarr
 # MAIN SCORING FUNCTION
 # ============================================================================
 
-def calculate_semantic_scores(resume_embeddings: Dict[str, Any], jd_embeddings: Dict[str, Any]) -> Dict[str, Any]:
+def calculate_semantic_scores(
+    resume_embeddings: Dict[str, Any],
+    jd_embeddings: Dict[str, Any],
+    resume_texts: Dict[str, List[str]] = None,
+    parsed_resume: Dict[str, Any] = None
+) -> Dict[str, Any]:
     """
-    Calculate semantic similarity scores using 6-section algorithm.
-    Matches old SemanticComparitor.py logic exactly.
+    Calculate semantic similarity scores using 6-section algorithm and extract verbatim evidence sentences.
     
     Args:
-        resume_embeddings: Dict with section keys (profile, skills, projects, 
-                          responsibilities, education, overall) containing 2D numpy arrays (N × 1536)
-        jd_embeddings: Dict from Job.embeddings with fields like profile_embedding,
-                      skills_embedding containing 2D arrays as lists (M × 1536) from MongoDB
-    
-    Returns:
-        Dictionary with:
-            - success: bool
-            - overall_semantic_score: float (0-1, weighted aggregate)
-            - section_scores: dict with individual section scores
-            - section_details: dict with coverage/depth metrics per section
-            - error: str or None
+        resume_embeddings: Dict with section keys containing 2D numpy arrays (N × 1536)
+        jd_embeddings: Dict from Job.embeddings with section arrays
+        resume_texts: Optional dict mapping section names to original resume sentence strings
+        parsed_resume: Optional parsed resume JSON dictionary for structured fallbacks
     """
     try:
         # Convert JD embeddings from MongoDB 2D lists to numpy 2D arrays
         jd_section_embeddings = {}
         for section in SECTION_WEIGHTS.keys():
-            # MongoDB stores as: profile_embedding, skills_embedding, etc.
             jd_key = f'{section}_embedding'
             
             if jd_key in jd_embeddings and jd_embeddings[jd_key]:
                 emb_data = jd_embeddings[jd_key]
-                
-                # Expect 2D list: [[emb1], [emb2], ...] where each emb is 1536 floats
                 if isinstance(emb_data, list) and len(emb_data) > 0:
-                    # Validate it's 2D
                     if not isinstance(emb_data[0], list):
-                        raise ValueError(f"JD {section}_embedding is 1D (expected 2D). Got: {type(emb_data[0])}. First item sample: {emb_data[0][:5] if len(emb_data[0]) > 0 else 'empty'}")
-                    
-                    # Convert 2D list to numpy 2D array
+                        raise ValueError(f"JD {section}_embedding is 1D (expected 2D). Got: {type(emb_data[0])}")
                     jd_section_embeddings[section] = np.array(emb_data, dtype=np.float32)
                 else:
                     jd_section_embeddings[section] = np.zeros((0, 1536), dtype=np.float32)
             else:
                 jd_section_embeddings[section] = np.zeros((0, 1536), dtype=np.float32)
         
-        # Calculate section scores
+        # Calculate section scores and extract verbatim evidence
         section_scores = {}
         section_details = {}
+        evidence_dict = {}
         
         print(f"\n🔍 SEMANTIC SCORING DEBUG:")
         
@@ -141,16 +132,44 @@ def calculate_semantic_scores(resume_embeddings: Dict[str, Any], jd_embeddings: 
             print(f"    JD embeddings: {jd_emb.shape[0]} sentences")
             print(f"    Resume embeddings: {resume_emb.shape[0]} sentences")
             
-            # Validate both are 2D arrays
             if jd_emb.ndim != 2:
                 raise ValueError(f"JD {section} embedding is {jd_emb.ndim}D (expected 2D). Shape: {jd_emb.shape}")
             if resume_emb.ndim != 2:
                 raise ValueError(f"Resume {section} embedding is {resume_emb.ndim}D (expected 2D). Shape: {resume_emb.shape}")
             
-            # Compute section score using old archive algorithm
             sec_score, coverage, depth, matches = compute_section_score(jd_emb, resume_emb)
             
-            print(f"    Score: {sec_score:.3f} (coverage: {coverage:.3f}, depth: {depth:.3f})")
+            # Extract verbatim candidate sentence evidence
+            top_evidence = []
+            seen_quotes = set()
+            if resume_texts and section in resume_texts and resume_texts[section]:
+                sec_sentences = resume_texts[section]
+                strong_matches = sorted([m for m in matches if m[2] >= 0.30], key=lambda x: x[2], reverse=True)
+                if not strong_matches and matches:
+                    strong_matches = sorted(matches, key=lambda x: x[2], reverse=True)
+                for _, r_idx, sim in strong_matches:
+                    if 0 <= r_idx < len(sec_sentences):
+                        quote = sec_sentences[r_idx].strip()
+                        if quote and len(quote) > 5 and quote not in seen_quotes:
+                            seen_quotes.add(quote)
+                            top_evidence.append(quote)
+                            if len(top_evidence) >= 3:
+                                break
+
+            # Structured Project Title Fallback: If section is projects & no sentence quotes found, pull title from parsed_resume
+            if section == 'projects' and not top_evidence and parsed_resume and isinstance(parsed_resume.get('projects'), list):
+                for prj in parsed_resume['projects']:
+                    title = prj.get('title') or prj.get('name')
+                    if title:
+                        p_str = f"Project: {title.strip()}"
+                        if p_str not in seen_quotes:
+                            seen_quotes.add(p_str)
+                            top_evidence.append(p_str)
+                            if len(top_evidence) >= 2:
+                                break
+
+            evidence_dict[section] = top_evidence
+            print(f"    Score: {sec_score:.3f} (coverage: {coverage:.3f}, depth: {depth:.3f}) | Evidence quotes: {len(top_evidence)}")
             print(f"    Weight: {SECTION_WEIGHTS[section]} → Contribution: {sec_score * SECTION_WEIGHTS[section]:.3f}")
             
             section_scores[section] = sec_score
@@ -160,7 +179,8 @@ def calculate_semantic_scores(resume_embeddings: Dict[str, Any], jd_embeddings: 
                 'depth': depth,
                 'jd_sentences': jd_emb.shape[0],
                 'resume_sentences': resume_emb.shape[0],
-                'match_count': len(matches)
+                'match_count': len(matches),
+                'top_evidence': top_evidence
             }
         
         # Calculate weighted overall score
@@ -171,6 +191,10 @@ def calculate_semantic_scores(resume_embeddings: Dict[str, Any], jd_embeddings: 
         
         sec_scores_dict = {k: round(v, 3) for k, v in section_scores.items()}
         sec_scores_dict['experience'] = sec_scores_dict.get('responsibilities', 0.0)
+        
+        # Attach evidence dictionary (skills, projects, responsibilities, experience, education)
+        evidence_dict['experience'] = evidence_dict.get('responsibilities', [])
+        sec_scores_dict['evidence'] = evidence_dict
 
         return {
             'success': True,

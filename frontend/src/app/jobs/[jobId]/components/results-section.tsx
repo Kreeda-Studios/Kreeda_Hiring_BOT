@@ -162,6 +162,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
           skills_score: rawSkills,
           education_score: rawEdu,
           experience_score: rawExp,
+          evidence: (secScores as any).evidence || {},
           compliance_score: score.recalculated_llm_score,
           is_compliant: score.hard_requirements_met,
           filter_reason: score.filter_reason || "Reason not specified",
@@ -452,19 +453,106 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}>
-                          {formatPercent(candidate.skills_score)}
-                        </span>
+                        {candidate.evidence?.skills?.length ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}`}>
+                                  {formatPercent(candidate.skills_score)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                <p className="font-semibold text-blue-400 mb-1">⚡ Skills Evidence Quotes</p>
+                                <ul className="list-disc pl-3 space-y-1">
+                                  {candidate.evidence.skills.map((q, i) => (
+                                    <li key={i}>"{q}"</li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`cursor-pointer ${getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}`}>
+                                  {formatPercent(candidate.skills_score)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                <p className="text-muted-foreground">No explicit skills section extracted from resume.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}>
-                          {formatPercent(candidate.project_score)}
-                        </span>
+                        {candidate.evidence?.projects?.length ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}`}>
+                                  {formatPercent(candidate.project_score)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                <p className="font-semibold text-indigo-400 mb-1">🚀 Project Evidence Quotes</p>
+                                <ul className="list-disc pl-3 space-y-1">
+                                  {candidate.evidence.projects.map((q, i) => (
+                                    <li key={i}>"{q}"</li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`cursor-pointer ${getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}`}>
+                                  {formatPercent(candidate.project_score)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                <p className="text-muted-foreground">No dedicated project section extracted from resume.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}>
-                          {formatPercent(candidate.experience_score)}
-                        </span>
+                        {(candidate.evidence?.experience?.length || candidate.evidence?.responsibilities?.length) ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}`}>
+                                  {formatPercent(candidate.experience_score)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                <p className="font-semibold text-emerald-400 mb-1">💼 Experience Evidence Quotes</p>
+                                <ul className="list-disc pl-3 space-y-1">
+                                  {(candidate.evidence.experience || candidate.evidence.responsibilities || []).map((q, i) => (
+                                    <li key={i}>"{q}"</li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`cursor-pointer ${getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}`}>
+                                  {formatPercent(candidate.experience_score)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                <p className="text-muted-foreground">No explicit work experience section extracted from resume.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                         <Button

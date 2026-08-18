@@ -523,7 +523,9 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         
         semantic_result = calculate_semantic_scores(
             embed_result.get('section_embeddings', {}), 
-            jd_embeddings
+            jd_embeddings,
+            embed_result.get('section_texts', {}),
+            parsed_resume
         )
         if not semantic_result.get('success'):
             semantic_result = {'overall_semantic_score': 0.0}

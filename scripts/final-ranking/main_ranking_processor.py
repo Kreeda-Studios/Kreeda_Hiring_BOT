@@ -638,8 +638,9 @@ def process_ranking_batch(
                 final_score = composite_result.get('final_score', 0.0)
                 print(f"     Final: {final_score:.3f}")
                 
-                # Update scores
+                # Update scores (preserving existing section_scores, evidence, and hard_requirements)
                 new_scores = {
+                    **scores,
                     'project_score': project_score,
                     'keyword_score': normalized_keyword,
                     'semantic_score': normalized_semantic,

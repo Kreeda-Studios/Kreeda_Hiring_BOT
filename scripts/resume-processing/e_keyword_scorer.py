@@ -63,17 +63,13 @@ def _collect_soft_compliances(jd_data: Dict[str, Any]) -> str:
 
 def _pct_to_base_score(pct: float) -> float:
     """
-    Convert required-skill match percentage to a discrete base score.
-    Bins are fixed — this function is the single source of truth for scoring.
+    Convert required-skill match percentage to a smooth continuous base score.
+    Replaces discrete step-function bins with linear continuous scaling (0.00 to 1.00)
+    to prevent arbitrary score jumps between match ratios (e.g. 49% vs 51%).
     """
-    if pct < 0.30:
+    if pct <= 0.0:
         return 0.0
-    elif pct < 0.50:
-        return 0.3
-    elif pct <= 0.85:
-        return 0.7
-    else:
-        return 1.0
+    return min(1.0, round(float(pct), 4))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -213,6 +209,13 @@ def calculate_keyword_scores(resume: Dict[str, Any], jd: Dict[str, Any]) -> Dict
 
         # Final score, capped at 1.0
         overall_score = min(1.0, base_score + preferred_bonus + soft_bonus)
+
+        # Log calculation summary cleanly
+        print(
+            f"📊 [KEYWORD SCORER] Required skills match: {req_matched}/{req_total} "
+            f"({req_pct * 100:.1f}%) ➔ Base Score: {base_score:.3f} | "
+            f"Pref Bonus: {preferred_bonus:.2f} | Soft Bonus: {soft_bonus:.2f} ➔ Overall: {overall_score:.3f}"
+        )
 
         # ── 6. Return structured result ───────────────────────────────────────
         return {
