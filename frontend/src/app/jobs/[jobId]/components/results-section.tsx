@@ -108,9 +108,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const [sortBy, setSortBy] = useState("final_score");
   const [filterCompliant, setFilterCompliant] = useState<"all" | "compliant" | "non-compliant">("all");
 
-  // Selection state
-  const [selectedResumes, setSelectedResumes] = useState<Set<string>>(new Set());
-  const [downloadingBulk, setDownloadingBulk] = useState(false);
   const [expandedFiltered, setExpandedFiltered] = useState<Set<string>>(new Set());
 
   // Convert scores to rankings for display
@@ -254,35 +251,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     return matchesSearch;
   });
 
-  const toggleSelectAll = () => {
-    if (selectedResumes.size === filteredRankings.length) {
-      setSelectedResumes(new Set());
-    } else {
-      setSelectedResumes(new Set(filteredRankings.map(r => r.resume_id)));
-    }
-  };
 
-  const toggleSelectResume = (resumeId: string) => {
-    const next = new Set(selectedResumes);
-    if (next.has(resumeId)) {
-      next.delete(resumeId);
-    } else {
-      next.add(resumeId);
-    }
-    setSelectedResumes(next);
-  };
-
-  const handleBulkDownload = async () => {
-    if (selectedResumes.size === 0) return;
-    try {
-      setDownloadingBulk(true);
-      await resumesAPI.downloadBulkResumes(Array.from(selectedResumes));
-    } catch (error) {
-      console.error('Error downloading resumes:', error);
-    } finally {
-      setDownloadingBulk(false);
-    }
-  };
 
   const handleExportCSV = () => {
     const headers = ['Rank', 'Name', 'Email', 'Phone', 'Location', 'Overall', 'Skills', 'Projects', 'Experience'];
@@ -348,22 +317,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 <RefreshCw className={` h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
-              {selectedResumes.size > 0 && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleBulkDownload}
-                  disabled={downloadingBulk}
-                  className="cursor-pointer"
-                >
-                  {downloadingBulk ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-2" />
-                  )}
-                  Download Selected ({selectedResumes.size})
-                </Button>
-              )}
+
               <Button variant="outline" size="sm" onClick={handleExportCSV} className="cursor-pointer">
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
