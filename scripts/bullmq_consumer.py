@@ -234,42 +234,43 @@ class KreedaJobProcessor:
                 error_msg = result.get('error', 'Unknown error')
                 logger.error(f"❌ Resume processing failed: {error_msg}")
                 
-                # Check retry status
+                is_deterministic = "[DETERMINISTIC]" in error_msg
                 max_attempts = job.opts.get('attempts', 1) if job.opts else 1
                 attempts_made = getattr(job, 'attemptsMade', 0)
                 is_final_attempt = (attempts_made + 1) >= max_attempts
                 
-                if not is_final_attempt:
+                if is_deterministic or is_final_attempt:
+                    logger.warning(f"⚠️ Marking resume {resume_id} as officially failed in database.")
+                    try:
+                        from common.api_client import APIClient
+                        api = APIClient()
+                        await api.post_async(
+                            "/updates/resume/status/single",
+                            data={
+                                'resume_id': resume_id,
+                                'success': False,
+                                'error': error_msg
+                            },
+                            timeout=30
+                        )
+                    except Exception as status_err:
+                        logger.warning(f"⚠️ Could not mark resume {resume_id} as failed: {status_err}")
+                    
+                    if is_deterministic:
+                        logger.error(f"🛑 Deterministic error detected. Forcing job to Failed queue.")
+                        if job.opts:
+                            job.opts['attempts'] = attempts_made + 1
+                        raise Exception(f"Fatal Resume Error: {error_msg}")
+                    else:
+                        logger.error(f"❌ Final attempt {attempts_made + 1}/{max_attempts} failed. Moving to DLQ.")
+                        raise Exception(f"Resume processing failed completely: {error_msg}")
+                else:
                     logger.info(f"🔁 Attempt {attempts_made + 1}/{max_attempts} failed. Raising exception for BullMQ retry...")
                     raise Exception(f"Resume processing failed (will retry): {error_msg}")
                 
-                # Final attempt: mark failed in database but return success to BullMQ to unblock parent
-                logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} failed. Marking in database and returning success to unblock parent.")
-                try:
-                    from common.api_client import APIClient
-                    api = APIClient()
-                    await api.post_async(
-                        "/updates/resume/status/single",
-                        data={
-                            'resume_id': resume_id,
-                            'success': False,
-                            'error': error_msg
-                        },
-                        timeout=30
-                    )
-                except Exception as status_err:
-                    logger.warning(f"⚠️ Could not mark resume {resume_id} as failed: {status_err}")
-                    
-                return {
-                    'success': True,
-                    'processing_failed': True,
-                    'error': error_msg,
-                    'resume_id': resume_id
-                }
-                
         except asyncio.TimeoutError:
             timeout_msg = (
-                f"Resume processing timed out after {RESUME_CHILD_TIMEOUT_SEC}s "
+                f"[TRANSIENT] Resume processing timed out after {RESUME_CHILD_TIMEOUT_SEC}s "
                 f"for resume_id={resume_id}, job_id={job_id}"
             )
             logger.error(f"❌ {timeout_msg}")
@@ -279,34 +280,28 @@ class KreedaJobProcessor:
             attempts_made = getattr(job, 'attemptsMade', 0)
             is_final_attempt = (attempts_made + 1) >= max_attempts
             
-            if not is_final_attempt:
+            if is_final_attempt:
+                logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} timed out. Marking in database and failing job.")
+                try:
+                    from common.api_client import APIClient
+                    api = APIClient()
+                    await api.post_async(
+                        "/updates/resume/status/single",
+                        data={
+                            'resume_id': resume_id,
+                            'success': False,
+                            'error': timeout_msg
+                        },
+                        timeout=30
+                    )
+                except Exception as status_err:
+                    logger.warning(f"⚠️ Could not mark timed-out resume {resume_id} as failed: {status_err}")
+
+                logger.error(f"❌ Final attempt failed. Moving to DLQ.")
+                raise Exception(f"Resume processing timed out completely: {timeout_msg}")
+            else:
                 logger.info(f"🔁 Attempt {attempts_made + 1}/{max_attempts} timed out. Raising exception for BullMQ retry...")
                 raise Exception(timeout_msg)
-
-            # Final attempt: mark failed in DB and return success to BullMQ
-            logger.warning(f"⚠️ Final attempt {attempts_made + 1}/{max_attempts} timed out. Marking in database and returning success to unblock parent.")
-            try:
-                from common.api_client import APIClient
-                api = APIClient()
-                await api.post_async(
-                    "/updates/resume/status/single",
-                    data={
-                        'resume_id': resume_id,
-                        'success': False,
-                        'error': timeout_msg
-                    },
-                    timeout=30
-                )
-            except Exception as status_err:
-                logger.warning(f"⚠️ Could not mark timed-out resume {resume_id} as failed: {status_err}")
-
-            return {
-                'success': True,
-                'processing_failed': True,
-                'timed_out': True,
-                'error': timeout_msg,
-                'resume_id': resume_id
-            }
 
         except Exception as e:
             import traceback

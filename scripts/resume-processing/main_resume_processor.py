@@ -268,7 +268,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         filename = resume_data.get('filename')
         
         if not filename:
-            error_msg = f"Resume has no filename: {resume_id}"
+            error_msg = f"[DETERMINISTIC] Resume has no filename: {resume_id}"
             logger.fail(error_msg)
             await tracker.failed(error_msg, "InvalidDataError", "fetching_resume")
             return {'success': False, 'error': error_msg}
@@ -281,7 +281,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
             resume_file_path = f"/app/uploads/resumes/{filename}"
         
         if not os.path.exists(resume_file_path):
-            error_msg = f"Resume file not found: {resume_file_path}"
+            error_msg = f"[DETERMINISTIC] Resume file not found: {resume_file_path}"
             logger.fail(error_msg)
             await tracker.failed(error_msg, "FileNotFoundError", "fetching_resume")
             return {'success': False, 'error': error_msg}
@@ -302,7 +302,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         
         text_result = process_resume_file(resume_file_path)
         if not text_result.get('success'):
-            error_msg = f"Text extraction failed: {text_result.get('error')}"
+            error_msg = f"[DETERMINISTIC] Text extraction failed: {text_result.get('error')}"
             logger.fail(error_msg)
             await tracker.failed(error_msg, "ExtractionError", "extracting_text")
             return {'success': False, 'error': error_msg}
@@ -321,7 +321,8 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
             jd_data,
         )
         if not parse_result.get('success'):
-            error_msg = f"AI parsing failed: {parse_result.get('error')}"
+            err = parse_result.get('error', '')
+            error_msg = err if ("[TRANSIENT]" in err or "[DETERMINISTIC]" in err) else f"[DETERMINISTIC] AI parsing failed: {err}"
             logger.fail(error_msg)
             await tracker.failed(error_msg, "AIParsingError", "parsing")
             return {'success': False, 'error': error_msg}
@@ -591,7 +592,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         }
         
     except APIError as e:
-        error_msg = f"API error: {e.message}"
+        error_msg = f"[TRANSIENT] API error: {e.message}"
         logger.fail(error_msg)
         # NOTE: Do NOT update job status - only individual resume status
         if is_final_attempt:
@@ -601,11 +602,12 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
-        error_msg = f"{type(e).__name__}: {str(e)}"
+        err_str = str(e)
+        error_msg = err_str if ("[TRANSIENT]" in err_str or "[DETERMINISTIC]" in err_str) else f"[DETERMINISTIC] {type(e).__name__}: {err_str}"
         logger.fail(error_msg)
         print(f"📋 Full error traceback:\n{error_traceback}")
         # NOTE: Do NOT update job status - only individual resume status
         if is_final_attempt:
             await update_resume_status(resume_id, 'failed', error=error_msg)
         await tracker.failed(str(e), type(e).__name__, "processing")
-        return {'success': False, 'error': str(e), 'final_score': 0.0}
+        return {'success': False, 'error': error_msg, 'final_score': 0.0}

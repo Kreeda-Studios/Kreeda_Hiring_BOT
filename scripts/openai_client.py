@@ -230,7 +230,11 @@ class RateLimitedCompletions:
         except Exception as e:
             # Reclaim locked capacity on error
             await self._limiter.refund(acquired_tpm)
-            raise e
+            err_type = type(e).__name__
+            if err_type in ('BadRequestError', 'AuthenticationError', 'PermissionDeniedError'):
+                raise Exception(f"[DETERMINISTIC] OpenAI {err_type}: {str(e)}") from e
+            else:
+                raise Exception(f"[TRANSIENT] OpenAI {err_type}: {str(e)}") from e
 
 
 class RateLimitedEmbeddings:
@@ -257,7 +261,11 @@ class RateLimitedEmbeddings:
             return response
         except Exception as e:
             await self._limiter.refund(estimated_tokens)
-            raise e
+            err_type = type(e).__name__
+            if err_type in ('BadRequestError', 'AuthenticationError', 'PermissionDeniedError'):
+                raise Exception(f"[DETERMINISTIC] OpenAI {err_type}: {str(e)}") from e
+            else:
+                raise Exception(f"[TRANSIENT] OpenAI {err_type}: {str(e)}") from e
 
 
 class RateLimitedResponses:
@@ -291,7 +299,11 @@ class RateLimitedResponses:
             return response
         except Exception as e:
             await self._limiter.refund(acquired_tpm)
-            raise e
+            err_type = type(e).__name__
+            if err_type in ('BadRequestError', 'AuthenticationError', 'PermissionDeniedError'):
+                raise Exception(f"[DETERMINISTIC] OpenAI {err_type}: {str(e)}") from e
+            else:
+                raise Exception(f"[TRANSIENT] OpenAI {err_type}: {str(e)}") from e
 
 
 # ============================================================================

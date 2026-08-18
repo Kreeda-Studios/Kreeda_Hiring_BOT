@@ -173,16 +173,17 @@ export class QueueService {
       }
 
       // Get queue counts efficiently
-      const counts = await queues.resumeProcessing.getJobCounts('waiting', 'active', 'delayed');
+      const counts = await queues.resumeProcessing.getJobCounts('waiting', 'active', 'delayed', 'failed');
       
-      // Calculate completed: total - (waiting + active + delayed)
+      // Calculate completed: total - (waiting + active + delayed + failed)
       // Note: We use the stored total instead of counting completed jobs
       const waiting = counts.waiting || 0;
       const active = counts.active || 0;
       const delayed = counts.delayed || 0;
-      const completed = Math.max(0, totalResumes - waiting - active - delayed);
+      const failed = counts.failed || 0;
+      const completed = Math.max(0, totalResumes - waiting - active - delayed - failed);
 
-      console.log(`📊 Resume Queue Stats: Total=${totalResumes}, Waiting=${waiting}, Active=${active}, Delayed=${delayed}, Completed=${completed}`);
+      console.log(`📊 Resume Queue Stats: Total=${totalResumes}, Waiting=${waiting}, Active=${active}, Delayed=${delayed}, Failed=${failed}, Completed=${completed}`);
 
       const parentState = await parentJob.getState();
 
@@ -191,7 +192,7 @@ export class QueueService {
         stats: {
           total: totalResumes,
           completed,
-          failed: 0, // We'll track failures separately if needed
+          failed,
           active,
           waiting,
           delayed,
@@ -222,15 +223,16 @@ export class QueueService {
       }
 
       // Get queue counts efficiently
-      const counts = await queues.ranking.getJobCounts('waiting', 'active', 'delayed');
+      const counts = await queues.ranking.getJobCounts('waiting', 'active', 'delayed', 'failed');
       
-      // Calculate completed: total - (waiting + active + delayed)
+      // Calculate completed: total - (waiting + active + delayed + failed)
       const waiting = counts.waiting || 0;
       const active = counts.active || 0;
       const delayed = counts.delayed || 0;
-      const completed = Math.max(0, totalBatches - waiting - active - delayed);
+      const failed = counts.failed || 0;
+      const completed = Math.max(0, totalBatches - waiting - active - delayed - failed);
 
-      console.log(`📊 Ranking Queue Stats: Total=${totalBatches}, Waiting=${waiting}, Active=${active}, Delayed=${delayed}, Completed=${completed}`);
+      console.log(`📊 Ranking Queue Stats: Total=${totalBatches}, Waiting=${waiting}, Active=${active}, Delayed=${delayed}, Failed=${failed}, Completed=${completed}`);
 
       const parentState = await parentJob.getState();
 
@@ -239,7 +241,7 @@ export class QueueService {
         stats: {
           total: totalBatches,
           completed,
-          failed: 0, // Track failures separately if needed
+          failed,
           active,
           waiting,
           delayed,

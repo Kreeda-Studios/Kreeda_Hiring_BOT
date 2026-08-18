@@ -117,6 +117,20 @@ router.get('/resumes/:jobId', async (req: Request, res: Response): Promise<void>
     let resumeStats: any = null;
     let rankingStats: any = null;
 
+    // Fetch absolute ground-truth resume counts from MongoDB
+    const failedResumes = await Resume.countDocuments({ job_id: jobId, status: 'failed' });
+    const completedResumes = await Resume.countDocuments({ job_id: jobId, status: 'completed' });
+    const totalProcessedResumes = failedResumes + completedResumes;
+
+    // Base ground-truth stats for resumes
+    resumeStats = {
+      total: totalResumes,
+      completed: completedResumes,
+      failed: failedResumes,
+      active: 0,
+      waiting: 0
+    };
+
     // Determine current phase based on job status
     if (job.status === 'draft' || job.status === 'jd_processing_started' || job.status === 'jd_processing_completed') {
       phase = 'not_started';
@@ -124,58 +138,32 @@ router.get('/resumes/:jobId', async (req: Request, res: Response): Promise<void>
     } else if (job.status === 'resume_processing_started') {
       phase = 'resume_processing';
       
-      // Calculate resume processing progress using BullMQ queue counts
+      phaseProgress = totalResumes > 0 ? Math.round((totalProcessedResumes / totalResumes) * 100) : 0;
+      overallProgress = Math.round((phaseProgress / 100) * 70); // Map to 0-70%
+      
+      // Enhance with BullMQ active/waiting counts
       const resumeParentJobId = job.bullmq_jobs?.resume_processing_parent_job_id;
       if (resumeParentJobId && totalResumes > 0) {
         const resumeFlow = await QueueService.getResumeFlowProgress(resumeParentJobId, totalResumes);
         if (resumeFlow.success && resumeFlow.stats) {
-          const completed = resumeFlow.stats.completed || 0;
-          phaseProgress = Math.round((completed / totalResumes) * 100);
-          overallProgress = Math.round((phaseProgress / 100) * 70); // Map to 0-70%
-          
-          resumeStats = {
-            total: totalResumes,
-            completed,
-            failed: resumeFlow.stats.failed || 0,
-            active: resumeFlow.stats.active || 0,
-            waiting: resumeFlow.stats.waiting || 0
-          };
+          resumeStats.active = resumeFlow.stats.active || 0;
+          resumeStats.waiting = resumeFlow.stats.waiting || 0;
         }
       }
     } else if (job.status === 'resume_processing_completed') {
-      // Resume processing complete, but ranking not started
       phase = 'resume_processing_completed';
       overallProgress = 70;
       phaseProgress = 100;
-      
-      resumeStats = {
-        total: totalResumes,
-        completed: totalResumes,
-        failed: 0,
-        active: 0,
-        waiting: 0
-      };
     } else if (job.status === 'ranking_started') {
       phase = 'ranking';
       
-      // Resume processing is complete (70%)
-      resumeStats = {
-        total: totalResumes,
-        completed: totalResumes,
-        failed: 0,
-        active: 0,
-        waiting: 0
-      };
-      
-      // Calculate ranking progress using BullMQ queue counts
       const rankingParentJobId = job.bullmq_jobs?.ranking_parent_job_id;
       if (rankingParentJobId && totalRankingBatches > 0) {
         const rankingFlow = await QueueService.getRankingFlowProgress(rankingParentJobId, totalRankingBatches);
         if (rankingFlow.success && rankingFlow.stats) {
           const completed = rankingFlow.stats.completed || 0;
           phaseProgress = Math.round((completed / totalRankingBatches) * 100);
-          // Map ranking progress to 70-95% range
-          overallProgress = 70 + Math.round((phaseProgress / 100) * 25);
+          overallProgress = 70 + Math.round((phaseProgress / 100) * 25); // Map to 70-95%
           
           rankingStats = {
             total: totalRankingBatches,
@@ -186,21 +174,12 @@ router.get('/resumes/:jobId', async (req: Request, res: Response): Promise<void>
           };
         }
       } else {
-        // Ranking started but no batches yet
         overallProgress = 70;
       }
     } else if (job.status === 'ranking_completed') {
       phase = 'completed';
       overallProgress = 100;
       phaseProgress = 100;
-      
-      resumeStats = {
-        total: totalResumes,
-        completed: totalResumes,
-        failed: 0,
-        active: 0,
-        waiting: 0
-      };
       
       rankingStats = {
         total: totalRankingBatches,
