@@ -120,13 +120,15 @@ router.get('/resumes/:jobId', async (req: Request, res: Response): Promise<void>
     // Fetch absolute ground-truth resume counts from MongoDB
     const failedResumes = await Resume.countDocuments({ job_id: jobId, status: 'failed' });
     const completedResumes = await Resume.countDocuments({ job_id: jobId, status: 'completed' });
-    const totalProcessedResumes = failedResumes + completedResumes;
+    const filteredResumes = await Resume.countDocuments({ job_id: jobId, status: 'filtered' });
+    const totalProcessedResumes = failedResumes + completedResumes + filteredResumes;
 
     // Base ground-truth stats for resumes
     resumeStats = {
       total: totalResumes,
       completed: completedResumes,
       failed: failedResumes,
+      filtered: filteredResumes,
       active: 0,
       waiting: 0
     };

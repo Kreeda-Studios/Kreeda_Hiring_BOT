@@ -155,12 +155,14 @@ router.post('/resumes/:jobId', async (req: Request, res: Response): Promise<void
     job.status = getNextStatus(job.status, 'RESUME_PROCESSING_START');
     await job.save();
 
-    // Update all resumes to processing status
+    // Update all resumes to processing status and clear old errors
     await Resume.updateMany(
       { job_id: jobId },
       { 
+        status: 'processing',
         overall_processing_status: 'processing',
-        processing_progress: 0
+        processing_progress: 0,
+        processing_error: null
       }
     );
 

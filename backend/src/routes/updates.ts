@@ -276,25 +276,19 @@ router.post('/resume/status', async (req: Request, res: Response): Promise<void>
     if (success) {
       job.status = getNextStatus(job.status, 'RESUME_PROCESSING_COMPLETE');
       
-      // Update all resumes to completed status
-      await Resume.updateMany(
-        { job_id: job_id },
-        { 
-          status: 'completed',
-          overall_processing_status: 'completed',
-          processing_progress: 100
-        }
-      );
+      // We no longer blindly update all resumes to 'completed' here.
+      // Individual resumes maintain their own accurate status ('completed', 'failed', 'filtered')
+      // via the /resume/status/single endpoint.
     } else {
       job.status = getNextStatus(job.status, 'RESUME_PROCESSING_FAIL');
       
-      // Update resumes to failed status
+      // If the parent job failed, only mark resumes still stuck in 'processing' as 'failed'
       await Resume.updateMany(
-        { job_id: job_id },
+        { job_id: job_id, status: 'processing' },
         { 
           status: 'failed',
           overall_processing_status: 'failed',
-          processing_error: error || 'Resume processing failed'
+          processing_error: error || 'Parent resume processing flow failed unexpectedly'
         }
       );
     }
@@ -317,28 +311,46 @@ router.post('/resume/status', async (req: Request, res: Response): Promise<void>
 
 router.post('/resume/status/single', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { resume_id, success, error, processing_progress, hard_requirements_met } = req.body;
+    const { resume_id, success, status, error, processing_progress, hard_requirements_met } = req.body;
 
-    if (!resume_id || success === undefined) {
-      res.status(400).json({ success: false, error: 'resume_id and success (boolean) are required' });
+    if (!resume_id) {
+      res.status(400).json({ success: false, error: 'resume_id is required' });
       return;
     }
 
-    const updatePayload: Record<string, any> = success
-      ? {
-          status: 'completed',
-          processing_progress: processing_progress ?? 100,
-          processing_error: undefined
-        }
-      : {
-          status: 'failed',
-          processing_error: error || 'Resume processing failed'
-        };
+    const updatePayload: Record<string, any> = {};
+
+    if (status) {
+      updatePayload.status = status;
+      if (status === 'failed' && error) {
+        updatePayload.processing_error = error;
+      } else if (status === 'success' || status === 'completed') {
+        updatePayload.status = 'completed';
+        updatePayload.processing_error = null;
+      } else if (status === 'processing') {
+        updatePayload.processing_error = null;
+      }
+    } else if (success !== undefined) {
+      if (success) {
+        updatePayload.status = 'completed';
+        updatePayload.processing_error = null;
+      } else {
+        updatePayload.status = 'failed';
+        updatePayload.processing_error = error || 'Resume processing failed';
+      }
+    } else {
+      res.status(400).json({ success: false, error: 'Either status (string) or success (boolean) is required' });
+      return;
+    }
+
+    if (processing_progress !== undefined) {
+      updatePayload.processing_progress = processing_progress;
+    }
 
     // Set hard_requirements_met if provided and set status to 'filtered' if hard requirements not met
     if (hard_requirements_met !== undefined) {
       updatePayload.hard_requirements_met = hard_requirements_met;
-      if (!hard_requirements_met && success) {
+      if (!hard_requirements_met && (status === 'success' || status === 'completed' || success === true)) {
         updatePayload.status = 'filtered';
       }
     }

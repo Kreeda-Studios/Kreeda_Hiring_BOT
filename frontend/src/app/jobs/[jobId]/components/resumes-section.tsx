@@ -72,7 +72,8 @@ export function ResumesSection({ jobId, currentTab, onRefreshStatus }: ResumesSe
   const [processingStats, setProcessingStats] = useState(() => ({ 
     total: resumes.length, 
     completed: 0, 
-    failed: 0 
+    failed: 0,
+    filtered: 0
   }));
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -99,11 +100,10 @@ export function ResumesSection({ jobId, currentTab, onRefreshStatus }: ResumesSe
         progressIntervalRef.current = null;
       }
       setProcessingProgress(100);
-      setProcessingStats({ 
-        total: currentTotal, 
-        completed: currentTotal, 
-        failed: 0 
-      });
+      
+      // Make one final fetch to get the accurate ground-truth counts from the database
+      // instead of faking a perfect 100% success rate.
+      fetchProgress();
     } else if (processingState) {
       // Currently processing - start polling ONLY if not already polling
       if (!progressIntervalRef.current) {
@@ -162,7 +162,8 @@ export function ResumesSection({ jobId, currentTab, onRefreshStatus }: ResumesSe
         setProcessingStats({
           total: resumeStats.total || 0,
           completed: resumeStats.completed || 0,
-          failed: resumeStats.failed || 0
+          failed: resumeStats.failed || 0,
+          filtered: resumeStats.filtered || 0
         });
         
         // Check if fully completed (100%)
@@ -433,9 +434,9 @@ export function ResumesSection({ jobId, currentTab, onRefreshStatus }: ResumesSe
               <span className="font-bold text-lg tabular-nums">{processingProgress}%</span>
             </div>
             <Progress value={processingProgress} className="h-2.5" />
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total Resumes: <span className="font-medium text-foreground">{processingStats.total}</span></span>
-              <span className="text-muted-foreground">Completed: <span className="font-medium text-emerald-600 dark:text-emerald-400">{processingStats.completed}</span></span>
+            <div className="flex justify-end gap-6 text-sm">
+              <span className="text-muted-foreground">Total: <span className="font-medium text-foreground">{processingStats.total}</span></span>
+              <span className="text-muted-foreground">Completed: <span className="font-medium text-emerald-600 dark:text-emerald-400">{processingStats.completed + processingStats.filtered}</span></span>
               <span className="text-muted-foreground">Failed: <span className="font-medium text-destructive">{processingStats.failed}</span></span>
             </div>
           </CardContent>

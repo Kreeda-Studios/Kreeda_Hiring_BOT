@@ -183,13 +183,12 @@ async def _get_jd_cached(job_id: str) -> Dict[str, Any]:
 async def update_resume_status(resume_id: str, status: str, progress: int = None, error: str = None, job_id: str = None, hard_requirements_met: bool = None):
     """Update resume processing status in database via /updates/resume/status/single endpoint"""
     try:
-        # Only use success/failed boolean approach
-        success = status == 'success'
         payload = {
             'resume_id': resume_id,
-            'success': success,
-            'error': error
+            'status': status,
         }
+        if error is not None:
+            payload['error'] = error
         if progress is not None:
             payload['processing_progress'] = progress
         if hard_requirements_met is not None:
@@ -281,10 +280,12 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
             resume_file_path = f"/app/uploads/resumes/{filename}"
         
         if not os.path.exists(resume_file_path):
-            error_msg = f"[DETERMINISTIC] Resume file not found: {resume_file_path}"
+            error_msg = f"[TRANSIENT] Resume file not found: {resume_file_path}"
             logger.fail(error_msg)
-            await tracker.failed(error_msg, "FileNotFoundError", "fetching_resume")
-            return {'success': False, 'error': error_msg}
+            if is_final_attempt:
+                await update_resume_status(resume_id, 'failed', error=error_msg)
+            await tracker.failed(error_msg, "FileNotFound", "extraction")
+            raise Exception(f"Fatal Resume Error: {error_msg}")
         
         logger.progress(f"File located: {os.path.basename(resume_file_path)}")
         await tracker.update(8, "fetching_resume", "Resume file located")
@@ -302,7 +303,7 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         
         text_result = process_resume_file(resume_file_path)
         if not text_result.get('success'):
-            error_msg = f"[DETERMINISTIC] Text extraction failed: {text_result.get('error')}"
+            error_msg = f"[TRANSIENT] Text extraction failed: {text_result.get('error')}"
             logger.fail(error_msg)
             await tracker.failed(error_msg, "ExtractionError", "extracting_text")
             return {'success': False, 'error': error_msg}
