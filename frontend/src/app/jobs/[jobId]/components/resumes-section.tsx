@@ -118,7 +118,7 @@ export function ResumesSection({ jobId, currentTab, onRefreshStatus }: ResumesSe
       }
       if (currentStatus === 'jd_processing_completed' || currentStatus === 'draft') {
         setProcessingProgress(0);
-        setProcessingStats({ total: currentTotal, completed: 0, failed: 0 });
+        setProcessingStats({ total: currentTotal, completed: 0, failed: 0, filtered: 0 });
       }
     }
   }, [statusData?.job.status, resumes.length]);
