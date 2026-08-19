@@ -20,7 +20,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 from pydantic import BaseModel
 from openai_client import get_async_openai_client
 
-MODEL_NAME = "gpt-5-mini"
+try:
+    from pipeline_config import LLM_MODEL_NAME as MODEL_NAME
+except ImportError:
+    MODEL_NAME = "gpt-4o-mini"
 
 
 # ──────────────────────────────────────────────

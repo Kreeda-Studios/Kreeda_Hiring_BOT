@@ -260,6 +260,7 @@ const scoresSchema = new Schema({
   semantic_score: Number,
   section_scores: Schema.Types.Mixed,
   evidence: Schema.Types.Mixed,
+  pipeline_metadata: Schema.Types.Mixed,
   composite_score: Number,
 }, { _id: false, strict: false });
 

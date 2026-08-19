@@ -22,7 +22,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main
         className={cn(
           "pt-16 min-h-screen transition-all duration-300",
-          sidebarCollapsed ? "pl-[68px]" : "pl-[280px]"
+          sidebarCollapsed ? "pl-[68px]" : "pl-[160px]"
         )}
       >
         <div className="">{children}</div>

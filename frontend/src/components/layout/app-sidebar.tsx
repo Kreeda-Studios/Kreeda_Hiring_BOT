@@ -85,12 +85,25 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 flex h-screen flex-col border-r bg-card transition-all duration-300",
-          collapsed ? "w-17" : "w-70"
+          collapsed ? "w-[68px]" : "w-[160px]"
         )}
       >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-center border-b px-4">
-          <Link href="/" className="flex items-center justify-start w-full h-full">
+        {/* Floating Border Edge Toggle Button */}
+        <button
+          onClick={onToggle}
+          className="absolute -right-3 top-5 z-50 flex h-6 w-6 items-center justify-center rounded-full border bg-card text-foreground shadow-md hover:bg-accent cursor-pointer transition-transform hover:scale-110"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronLeft className="h-3.5 w-3.5" />
+          )}
+        </button>
+
+        {/* Logo Header (100% full space) */}
+        <div className="flex h-16 items-center justify-center border-b px-3">
+          <Link href="/" className="flex items-center justify-center h-full w-full">
             {collapsed ? (
               <Image
                 src="/r.png"
@@ -103,9 +116,9 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               <Image
                 src={theme === "dark" ? "/KreedaLabs_White.png" : "/KreedaLabs_Black.png"}
                 alt="Kreeda Labs"
-                width={200}
-                height={60}
-                className="h-8 w-auto object-contain max-w-full"
+                width={140}
+                height={40}
+                className="h-7 w-auto object-contain max-w-[120px]"
               />
             )}
           </Link>
@@ -126,38 +139,20 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         </nav>
 
         {/* Bottom Section */}
-        <div className="border-t p-2">
-          <div className="space-y-1">
-            {secondaryNavItems.map((item) => (
-              <NavLink
-                key={item.href}
-                item={item}
-                collapsed={collapsed}
-                isActive={isActive(item.href)}
-              />
-            ))}
+        {secondaryNavItems.length > 0 && (
+          <div className="border-t p-2">
+            <div className="space-y-1">
+              {secondaryNavItems.map((item) => (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  collapsed={collapsed}
+                  isActive={isActive(item.href)}
+                />
+              ))}
+            </div>
           </div>
-
-          {/* Collapse Toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggle}
-            className={cn(
-              "mt-3 w-full justify-start cursor-pointer",
-              collapsed && "justify-center px-2"
-            )}
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <>
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                <span>Collapse</span>
-              </>
-            )}
-          </Button>
-        </div>
+        )}
       </aside>
     </TooltipProvider>
   );

@@ -31,6 +31,12 @@ from f_semantic_scorer import calculate_semantic_scores
 from g_project_scorer import calculate_project_scores
 from h_composite_scorer import calculate_composite_score
 
+try:
+    from pipeline_config import get_pipeline_metadata
+except ImportError:
+    def get_pipeline_metadata():
+        return {"pipeline_version": "1.2.0", "model_used": "gpt-4o-mini"}
+
 class ResumeProcessingError(Exception):
     pass
 
@@ -552,6 +558,9 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
         await tracker.update(95, "saving_scores", "Saving scores to database")
         logger.progress("Saving scores to database")
         
+        pipeline_meta = get_pipeline_metadata()
+        pipeline_meta["processed_at"] = datetime.utcnow().isoformat() + "Z"
+
         await api.post_async("/updates/resume/scores", data={
             'resume_id': resume_id,
             'scores': {
@@ -567,7 +576,8 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
                 'keyword_score': keyword_result.get('overall_score', 0.0),
                 'semantic_score': semantic_result.get('overall_semantic_score', 0.0),
                 'section_scores': semantic_result.get('section_scores', {}),
-                'composite_score': composite_result.get('final_score', 0.0)
+                'composite_score': composite_result.get('final_score', 0.0),
+                'pipeline_metadata': pipeline_meta
             }
         })
         
