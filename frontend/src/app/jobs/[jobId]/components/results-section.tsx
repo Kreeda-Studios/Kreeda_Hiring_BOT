@@ -108,9 +108,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const [sortBy, setSortBy] = useState("final_score");
   const [filterCompliant, setFilterCompliant] = useState<"all" | "compliant" | "non-compliant">("all");
 
-  // Selection state
-  const [selectedResumes, setSelectedResumes] = useState<Set<string>>(new Set());
-  const [downloadingBulk, setDownloadingBulk] = useState(false);
   const [expandedFiltered, setExpandedFiltered] = useState<Set<string>>(new Set());
 
   // Convert scores to rankings for display
@@ -184,6 +181,31 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     return `${Math.round(pct)}%`;
   };
 
+  const renderFormattedSelectionReason = (reason: string) => {
+    if (!reason) return null;
+    let clean = reason
+      .replace(/^Candidate met all mandatory requirements:\s*/i, '')
+      .replace(/^Passed compliance checks:\s*/i, '');
+      
+    const parts = clean.split(';').map(p => p.trim()).filter(Boolean);
+    
+    return (
+      <div className="space-y-1.5 text-xs max-w-sm">
+        <p className="font-bold text-green-700 border-b border-green-200 pb-1 flex items-center gap-1">
+          <Sparkles className="h-3.5 w-3.5 text-green-600" />
+          Selection & Compliance Overview
+        </p>
+        <ul className="list-disc pl-3.5 space-y-1 text-black font-medium">
+          {parts.map((part, idx) => (
+            <li key={idx}>
+              {part}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
   const fetchScores = async () => {
     try {
       setLoading(true);
@@ -221,45 +243,18 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const filteredOutCandidates = rankings.filter(r => !r.is_compliant);
 
   const filteredRankings = validRankings.filter((candidate) => {
+    const query = searchQuery.toLowerCase();
     const matchesSearch =
-      candidate.candidate_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.location.toLowerCase().includes(searchQuery.toLowerCase());
+      (candidate.candidate_name || '').toLowerCase().includes(query) ||
+      (candidate.email || '').toLowerCase().includes(query) ||
+      (candidate.location || '').toLowerCase().includes(query);
     return matchesSearch;
   });
 
-  const toggleSelectAll = () => {
-    if (selectedResumes.size === filteredRankings.length) {
-      setSelectedResumes(new Set());
-    } else {
-      setSelectedResumes(new Set(filteredRankings.map(r => r.resume_id)));
-    }
-  };
 
-  const toggleSelectResume = (resumeId: string) => {
-    const next = new Set(selectedResumes);
-    if (next.has(resumeId)) {
-      next.delete(resumeId);
-    } else {
-      next.add(resumeId);
-    }
-    setSelectedResumes(next);
-  };
-
-  const handleBulkDownload = async () => {
-    if (selectedResumes.size === 0) return;
-    try {
-      setDownloadingBulk(true);
-      await resumesAPI.downloadBulkResumes(Array.from(selectedResumes));
-    } catch (error) {
-      console.error('Error downloading resumes:', error);
-    } finally {
-      setDownloadingBulk(false);
-    }
-  };
 
   const handleExportCSV = () => {
-    const headers = ['Rank', 'Name', 'Email', 'Phone', 'Location', 'Overall Score', 'Skills Score', 'Project Score', 'Experience Score'];
+    const headers = ['Rank', 'Name', 'Email', 'Phone', 'Location', 'Overall', 'Skills', 'Projects', 'Experience'];
     const rows = filteredRankings.map(r => [
       r.rank,
       `"${r.candidate_name}"`,
@@ -322,22 +317,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 <RefreshCw className={` h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
-              {selectedResumes.size > 0 && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleBulkDownload}
-                  disabled={downloadingBulk}
-                  className="cursor-pointer"
-                >
-                  {downloadingBulk ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-2" />
-                  )}
-                  Download Selected ({selectedResumes.size})
-                </Button>
-              )}
+
               <Button variant="outline" size="sm" onClick={handleExportCSV} className="cursor-pointer">
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
@@ -371,35 +351,19 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedResumes.size === filteredRankings.length && filteredRankings.length > 0}
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Select all"
-                      />
-                    </TableHead>
                     <TableHead className="w-16">Rank</TableHead>
                     <TableHead>Candidate</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
-                    <TableHead className="text-center">Overall Score</TableHead>
-                    <TableHead className="text-center">Skills Score</TableHead>
-                    <TableHead className="text-center">Project Score</TableHead>
-                    <TableHead className="text-center">Experience Score</TableHead>
-                    <TableHead className="text-center">Actions</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Overall</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Skills</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Projects</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Experience</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredRankings.map((candidate) => (
                     <TableRow key={candidate.resume_id}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedResumes.has(candidate.resume_id)}
-                          onCheckedChange={() => toggleSelectResume(candidate.resume_id)}
-                          aria-label={`Select ${candidate.candidate_name}`}
-                          className="cursor-pointer"
-                        />
-                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {candidate.rank <= 3 && (
@@ -412,8 +376,15 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium">{candidate.candidate_name}</span>
+                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => resumesAPI.openResume(candidate.resume_id)}
+                            className="font-medium text-foreground hover:underline cursor-pointer flex items-center gap-1 text-left"
+                            title="Click to view resume PDF"
+                          >
+                            <span>{candidate.candidate_name}</span>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-70 hover:opacity-100" />
+                          </button>
                           {candidate.selection_reason && (
                             <TooltipProvider>
                               <Tooltip>
@@ -422,9 +393,8 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                                     <Sparkles className="h-3.5 w-3.5" />
                                   </span>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" className="max-w-xs text-xs">
-                                  <p className="font-semibold text-green-400 mb-1">Selection Reason</p>
-                                  <p>{candidate.selection_reason}</p>
+                                <TooltipContent side="right" className="p-3 bg-white text-black border border-gray-200 shadow-md">
+                                  {renderFormattedSelectionReason(candidate.selection_reason)}
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -433,14 +403,14 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                       </TableCell>
                       <TableCell>
                         {candidate.email ? (
-                          <a href={`mailto:${candidate.email}`} className="text-sm text-blue-600 hover:underline">
+                          <a href={`mailto:${candidate.email}`} title={candidate.email} className="text-sm text-blue-600 hover:underline max-w-[160px] truncate block">
                             {candidate.email}
                           </a>
                         ) : (
                           <span className="text-xs text-muted-foreground">N/A</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {candidate.phone ? (
                           <span className="text-sm">{candidate.phone}</span>
                         ) : (
@@ -554,17 +524,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                           </TooltipProvider>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => resumesAPI.openResume(candidate.resume_id)}
-                          title="View Resume"
-                          className="cursor-pointer"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -593,7 +552,6 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                   <TableRow>
                     <TableHead>Candidate</TableHead>
                     <TableHead>Reason</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -604,24 +562,20 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                           <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
                             Filtered
                           </Badge>
-                          <span className="font-medium">{candidate.candidate_name}</span>
+                          <button
+                            onClick={() => resumesAPI.openResume(candidate.resume_id)}
+                            className="font-medium text-foreground hover:underline cursor-pointer flex items-center gap-1 text-left"
+                            title="Click to view resume PDF"
+                          >
+                            <span>{candidate.candidate_name}</span>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-70 hover:opacity-100" />
+                          </button>
                         </div>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
                           {candidate.filter_reason || "Did not meet mandatory requirements"}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => resumesAPI.openResume(candidate.resume_id)}
-                          title="View Resume"
-                          className="cursor-pointer"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
