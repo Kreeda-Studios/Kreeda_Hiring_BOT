@@ -57,10 +57,11 @@ def _build_exp_dict(min_m: float, max_m: Optional[float], text: str) -> Dict[str
     text_lower = text.lower()
     if "internship experience" in text_lower or "intern experience" in text_lower:
         exp_type = "internship"
-    elif "full time experience" in text_lower or "full-time experience" in text_lower:
-        exp_type = "full_time"
-    else:
+    elif "total experience" in text_lower or "total-experience" in text_lower:
         exp_type = "total"
+    else:
+        # Default to full-time experience
+        exp_type = "full_time"
         
     return {
         "min_months": int(min_m),
@@ -177,9 +178,8 @@ def _check_experience_python(
     exp_data = resume.get('experience') or {}
     ft_months = int(exp_data.get('total_full_time_experience') or 0)
     intern_months = int(exp_data.get('total_internship_experience_in_months') or 0)
-
-    exp_type = exp_range.get('exp_type', 'total')
-
+    exp_type = exp_range.get('exp_type', 'full_time')
+ 
     # --- Determine which experience bucket to measure against the requirement ---
     if exp_type == 'internship':
         # Role is strictly for interns. If the candidate already has full-time
@@ -199,13 +199,13 @@ def _check_experience_python(
             }
         value_to_check = intern_months
         type_str = "Internship experience"
-    elif exp_type == 'full_time':
-        value_to_check = ft_months
-        type_str = "Full-time experience"
-    else:
-        # Default: sum all experience types (full-time + internship)
+    elif exp_type == 'total':
         value_to_check = ft_months + intern_months
         type_str = "Total experience"
+    else:
+        # Default: check only full-time experience
+        value_to_check = ft_months
+        type_str = "Full-time experience"
 
     min_m = exp_range.get('min_months', 0)
     max_m = exp_range.get('max_months')  # None -> no upper limit
@@ -648,11 +648,11 @@ async def check_hard_requirements(
             exp_range = {
                 'min_months': int(min_exp) if min_exp is not None else 0,
                 'max_months': int(max_exp) if max_exp is not None else None,
-                'exp_type': 'total'
+                'exp_type': 'full_time'
             }
         else:
             exp_range = None
-
+ 
         # Automatic JD Experience Safeguard: If HR prompt has no experience range,
         # automatically pull from JD experience_requirements
         if exp_range is None and jd_analysis.get('experience_requirements'):
@@ -663,7 +663,7 @@ async def check_hard_requirements(
                 exp_range = {
                     'min_months': int(min_m or 0),
                     'max_months': int(max_m) if max_m is not None else None,
-                    'exp_type': 'total'
+                    'exp_type': 'full_time'
                 }
                 print(f"📊 [COMPLIANCE] Using automatic JD experience safeguard: [{exp_range['min_months']} - {exp_range['max_months']} months]")
 

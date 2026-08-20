@@ -39,6 +39,7 @@ import {
   Loader2,
   RefreshCw,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Tooltip,
