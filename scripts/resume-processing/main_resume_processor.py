@@ -570,7 +570,8 @@ async def process_resume_pipeline(job) -> Dict[str, Any]:
                     'requirements_met': hard_req_result.get('requirements_met', []),
                     'requirements_missing': hard_req_result.get('requirements_missing', []),
                     'filter_reason': hard_req_result.get('filter_reason'),
-                    'selection_reason': hard_req_result.get('selection_reason')
+                    'selection_reason': hard_req_result.get('selection_reason'),
+                    'is_overqualified': hard_req_result.get('is_overqualified', False)
                 },
                 'project_score': project_result.get('overall_score', 0.0),
                 'keyword_score': keyword_result.get('overall_score', 0.0),

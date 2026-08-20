@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -76,8 +77,10 @@ interface ScoreData {
       requirements_met: string[];
       requirements_missing: string[];
       filter_reason?: string;
+      is_overqualified?: boolean;
     };
   };
+  is_overqualified?: boolean;
   rank?: number;
   adjusted_score?: number;
   score_breakdown?: any;
@@ -107,7 +110,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("final_score");
   const [filterCompliant, setFilterCompliant] = useState<"all" | "compliant" | "non-compliant">("all");
-
+  const [showOverqualified, setShowOverqualified] = useState(false);
   const [expandedFiltered, setExpandedFiltered] = useState<Set<string>>(new Set());
 
   // Convert scores to rankings for display
@@ -162,6 +165,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
           evidence: (secScores as any).evidence || {},
           compliance_score: score.recalculated_llm_score,
           is_compliant: score.hard_requirements_met,
+          is_overqualified: score.scores?.hard_requirements?.is_overqualified || (score as any).is_overqualified || false,
           filter_reason: score.filter_reason || "Reason not specified",
           selection_reason: reason,
           compliance_status: {
@@ -239,17 +243,20 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     fetchScores();
   }, [jobId]);
 
-  const validRankings = rankings.filter(r => r.is_compliant);
-  const filteredOutCandidates = rankings.filter(r => !r.is_compliant);
-
-  const filteredRankings = validRankings.filter((candidate) => {
+  const searchFilter = (candidate: RankedCandidate) => {
     const query = searchQuery.toLowerCase();
-    const matchesSearch =
+    return (
       (candidate.candidate_name || '').toLowerCase().includes(query) ||
       (candidate.email || '').toLowerCase().includes(query) ||
-      (candidate.location || '').toLowerCase().includes(query);
-    return matchesSearch;
-  });
+      (candidate.location || '').toLowerCase().includes(query)
+    );
+  };
+
+  const perfectMatchRankings = rankings.filter(r => r.is_compliant && !r.is_overqualified).filter(searchFilter);
+  const overqualifiedRankings = rankings.filter(r => r.is_compliant && r.is_overqualified).filter(searchFilter);
+  const filteredOutCandidates = rankings.filter(r => !r.is_compliant).filter(searchFilter);
+  
+  const filteredRankings = [...perfectMatchRankings, ...overqualifiedRankings];
 
 
 
@@ -277,6 +284,259 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     window.URL.revokeObjectURL(url);
   };
 
+  const renderRankedTable = (
+    title: string,
+    candidates: RankedCandidate[],
+    icon: React.ReactNode,
+    titleColorClass: string = ""
+  ) => {
+    return (
+      <div className="space-y-4">
+        {candidates.length === 0 ? (
+          <EmptyState
+            icon={icon}
+            title={`No ${title.toLowerCase()} candidates`}
+            description={`None of the candidates fell into the ${title} category based on your filters.`}
+          />
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                <TableHead className="w-16">Rank</TableHead>
+                <TableHead>Candidate</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead className="text-center whitespace-nowrap">Overall</TableHead>
+                <TableHead className="text-center whitespace-nowrap">Skills</TableHead>
+                <TableHead className="text-center whitespace-nowrap">Projects</TableHead>
+                <TableHead className="text-center whitespace-nowrap">Experience</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {candidates.map((candidate) => (
+                <TableRow key={candidate.resume_id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {candidate.rank <= 3 && (
+                        <Trophy className={`h-4 w-4 ${candidate.rank === 1 ? 'text-yellow-500' :
+                          candidate.rank === 2 ? 'text-gray-400' :
+                            'text-amber-600'
+                          }`} />
+                      )}
+                      <span className="font-medium">{candidate.rank}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      <button
+                        onClick={() => resumesAPI.openResume(candidate.resume_id)}
+                        className="font-medium text-foreground hover:underline cursor-pointer flex items-center gap-1 text-left"
+                        title="Click to view resume PDF"
+                      >
+                        <span>{candidate.candidate_name}</span>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-70 hover:opacity-100" />
+                      </button>
+                      {candidate.selection_reason && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center justify-center p-1 rounded-full bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 cursor-pointer transition-colors">
+                                <Sparkles className="h-3.5 w-3.5" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="p-3 bg-white text-black border border-gray-200 shadow-md">
+                              {renderFormattedSelectionReason(candidate.selection_reason)}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {candidate.email ? (
+                      <a href={`mailto:${candidate.email}`} title={candidate.email} className="text-sm text-blue-600 hover:underline max-w-[160px] truncate block">
+                        {candidate.email}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">N/A</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {candidate.phone ? (
+                      <span className="text-sm">{candidate.phone}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">N/A</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <span className={`font-bold ${getScoreColor(candidate.final_score > 1 ? candidate.final_score / 100 : candidate.final_score)}`}>
+                      {formatPercent(candidate.final_score)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {candidate.evidence?.skills?.length ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}`}>
+                              {formatPercent(candidate.skills_score)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            <p className="font-semibold text-blue-400 mb-1">⚡ Skills Evidence Quotes</p>
+                            <ul className="list-disc pl-3 space-y-1">
+                              {candidate.evidence.skills.map((q, i) => (
+                                <li key={i}>"{q}"</li>
+                              ))}
+                            </ul>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`cursor-pointer ${getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}`}>
+                              {formatPercent(candidate.skills_score)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            <p className="text-muted-foreground">No explicit skills section extracted from resume.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {candidate.evidence?.projects?.length ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}`}>
+                              {formatPercent(candidate.project_score)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            <p className="font-semibold text-indigo-400 mb-1">🚀 Project Evidence Quotes</p>
+                            <ul className="list-disc pl-3 space-y-1">
+                              {candidate.evidence.projects.map((q, i) => (
+                                <li key={i}>"{q}"</li>
+                              ))}
+                            </ul>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`cursor-pointer ${getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}`}>
+                              {formatPercent(candidate.project_score)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            <p className="text-muted-foreground">No dedicated project section extracted from resume.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {(candidate.evidence?.experience?.length || candidate.evidence?.responsibilities?.length) ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}`}>
+                              {formatPercent(candidate.experience_score)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            <p className="font-semibold text-emerald-400 mb-1">💼 Experience Evidence Quotes</p>
+                            <ul className="list-disc pl-3 space-y-1">
+                              {(candidate.evidence.experience || candidate.evidence.responsibilities || []).map((q, i) => (
+                                <li key={i}>"{q}"</li>
+                              ))}
+                            </ul>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`cursor-pointer ${getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}`}>
+                              {formatPercent(candidate.experience_score)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs">
+                            <p className="text-muted-foreground">No explicit work experience section extracted from resume.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFilteredTable = (candidates: RankedCandidate[]) => {
+    return (
+      <div className="space-y-4 mt-6">
+        {candidates.length === 0 ? (
+          <EmptyState
+            icon={<AlertTriangle className="h-6 w-6" />}
+            title="No filtered out candidates"
+            description="All candidates met the mandatory requirements."
+          />
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+              <TableRow>
+                <TableHead>Candidate</TableHead>
+                <TableHead>Reason</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {candidates.map((candidate) => (
+                <TableRow key={candidate.resume_id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                        Filtered
+                      </Badge>
+                      <button
+                        onClick={() => resumesAPI.openResume(candidate.resume_id)}
+                        className="font-medium text-foreground hover:underline cursor-pointer flex items-center gap-1 text-left"
+                        title="Click to view resume PDF"
+                      >
+                        <span>{candidate.candidate_name}</span>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-70 hover:opacity-100" />
+                      </button>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground">
+                      {candidate.filter_reason || "Did not meet mandatory requirements"}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <Card>
@@ -299,7 +559,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 Final Scores & Rankings
               </CardTitle>
               <CardDescription>
-                Showing {validRankings.length} ranked candidates
+                Showing {perfectMatchRankings.length} ranked candidates
                 {filteredOutCandidates.length > 0 && (
                   <span className="text-orange-600">
                     {' '}• {filteredOutCandidates.length} filtered out
@@ -338,7 +598,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
             </div>
           </div>
 
-          {filteredRankings.length === 0 ? (
+          {filteredRankings.length === 0 && filteredOutCandidates.length === 0 ? (
             <EmptyState
               icon={<Trophy className="h-6 w-6" />}
               title="No scored candidates found"
@@ -347,244 +607,58 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 : "No candidates match your current filters."}
             />
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">Rank</TableHead>
-                    <TableHead>Candidate</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead className="text-center whitespace-nowrap">Overall</TableHead>
-                    <TableHead className="text-center whitespace-nowrap">Skills</TableHead>
-                    <TableHead className="text-center whitespace-nowrap">Projects</TableHead>
-                    <TableHead className="text-center whitespace-nowrap">Experience</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRankings.map((candidate) => (
-                    <TableRow key={candidate.resume_id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {candidate.rank <= 3 && (
-                            <Trophy className={`h-4 w-4 ${candidate.rank === 1 ? 'text-yellow-500' :
-                              candidate.rank === 2 ? 'text-gray-400' :
-                                'text-amber-600'
-                              }`} />
-                          )}
-                          <span className="font-medium">{candidate.rank}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 whitespace-nowrap">
-                          <button
-                            onClick={() => resumesAPI.openResume(candidate.resume_id)}
-                            className="font-medium text-foreground hover:underline cursor-pointer flex items-center gap-1 text-left"
-                            title="Click to view resume PDF"
-                          >
-                            <span>{candidate.candidate_name}</span>
-                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-70 hover:opacity-100" />
-                          </button>
-                          {candidate.selection_reason && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="inline-flex items-center justify-center p-1 rounded-full bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 cursor-pointer transition-colors">
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="p-3 bg-white text-black border border-gray-200 shadow-md">
-                                  {renderFormattedSelectionReason(candidate.selection_reason)}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {candidate.email ? (
-                          <a href={`mailto:${candidate.email}`} title={candidate.email} className="text-sm text-blue-600 hover:underline max-w-[160px] truncate block">
-                            {candidate.email}
-                          </a>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">N/A</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {candidate.phone ? (
-                          <span className="text-sm">{candidate.phone}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">N/A</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={`font-bold ${getScoreColor(candidate.final_score > 1 ? candidate.final_score / 100 : candidate.final_score)}`}>
-                          {formatPercent(candidate.final_score)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {candidate.evidence?.skills?.length ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}`}>
-                                  {formatPercent(candidate.skills_score)}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                <p className="font-semibold text-blue-400 mb-1">⚡ Skills Evidence Quotes</p>
-                                <ul className="list-disc pl-3 space-y-1">
-                                  {candidate.evidence.skills.map((q, i) => (
-                                    <li key={i}>"{q}"</li>
-                                  ))}
-                                </ul>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`cursor-pointer ${getScoreColor((candidate.skills_score || 0) > 1 ? (candidate.skills_score || 0) / 100 : (candidate.skills_score || 0))}`}>
-                                  {formatPercent(candidate.skills_score)}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                <p className="text-muted-foreground">No explicit skills section extracted from resume.</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {candidate.evidence?.projects?.length ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}`}>
-                                  {formatPercent(candidate.project_score)}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                <p className="font-semibold text-indigo-400 mb-1">🚀 Project Evidence Quotes</p>
-                                <ul className="list-disc pl-3 space-y-1">
-                                  {candidate.evidence.projects.map((q, i) => (
-                                    <li key={i}>"{q}"</li>
-                                  ))}
-                                </ul>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`cursor-pointer ${getScoreColor(candidate.project_score > 1 ? candidate.project_score / 100 : candidate.project_score)}`}>
-                                  {formatPercent(candidate.project_score)}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                <p className="text-muted-foreground">No dedicated project section extracted from resume.</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {(candidate.evidence?.experience?.length || candidate.evidence?.responsibilities?.length) ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`cursor-pointer underline decoration-dotted underline-offset-4 ${getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}`}>
-                                  {formatPercent(candidate.experience_score)}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                <p className="font-semibold text-emerald-400 mb-1">💼 Experience Evidence Quotes</p>
-                                <ul className="list-disc pl-3 space-y-1">
-                                  {(candidate.evidence.experience || candidate.evidence.responsibilities || []).map((q, i) => (
-                                    <li key={i}>"{q}"</li>
-                                  ))}
-                                </ul>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className={`cursor-pointer ${getScoreColor((candidate.experience_score || 0) > 1 ? (candidate.experience_score || 0) / 100 : (candidate.experience_score || 0))}`}>
-                                  {formatPercent(candidate.experience_score)}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                <p className="text-muted-foreground">No explicit work experience section extracted from resume.</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <Tabs defaultValue="perfect-match" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="perfect-match" className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-yellow-500" />
+                  Perfect Match ({perfectMatchRankings.length})
+                </TabsTrigger>
+                <TabsTrigger value="filtered-out" className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-orange-500" />
+                  Filtered Out ({filteredOutCandidates.length})
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="perfect-match">
+                {renderRankedTable("Perfect Match", perfectMatchRankings, <Trophy className="h-5 w-5 text-yellow-500" />)}
+              </TabsContent>
+              
+              <TabsContent value="filtered-out">
+                {overqualifiedRankings.length > 0 && (
+                  <div className="mb-8 border-b pb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-col">
+                        <h3 className="text-lg font-medium flex items-center gap-2">
+                          <Star className="h-5 w-5 text-purple-500" />
+                          Overqualified Candidates
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Candidates whose experience exceeds the required range but who pass all mandatory skill checks.
+                        </p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowOverqualified(!showOverqualified)}
+                        className="cursor-pointer"
+                      >
+                        {showOverqualified ? "Hide Overqualified" : `Show Overqualified (${overqualifiedRankings.length})`}
+                      </Button>
+                    </div>
+                    
+                    {showOverqualified && (
+                      <div className="mt-4">
+                        {renderRankedTable("Overqualified", overqualifiedRankings, <Star className="h-5 w-5 text-purple-500" />, "text-purple-700")}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {renderFilteredTable(filteredOutCandidates)}
+              </TabsContent>
+            </Tabs>
           )}
         </CardContent>
       </Card>
-
-      {/* Filtered Out Candidates Section */}
-      {filteredOutCandidates.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5 text-orange-500" />
-              Filtered Out Candidates
-            </CardTitle>
-            <CardDescription>
-              {filteredOutCandidates.length} candidate{filteredOutCandidates.length !== 1 ? 's' : ''} were filtered out due to not meeting mandatory compliance requirements.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Candidate</TableHead>
-                    <TableHead>Reason</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOutCandidates.map((candidate) => (
-                    <TableRow key={candidate.resume_id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                            Filtered
-                          </Badge>
-                          <button
-                            onClick={() => resumesAPI.openResume(candidate.resume_id)}
-                            className="font-medium text-foreground hover:underline cursor-pointer flex items-center gap-1 text-left"
-                            title="Click to view resume PDF"
-                          >
-                            <span>{candidate.candidate_name}</span>
-                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-70 hover:opacity-100" />
-                          </button>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">
-                          {candidate.filter_reason || "Did not meet mandatory requirements"}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

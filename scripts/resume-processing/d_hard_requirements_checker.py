@@ -87,17 +87,17 @@ def _parse_experience_range(text: str) -> Optional[Dict[str, Optional[int]]]:
     # 1. RANGE CHECKERS (Evaluate ranges first so they don't get matched by single-bound rules)
     
     # "X months to Y years" (e.g. "6 months to 3.5 years")
-    m = re.search(r'(\d+(?:\.\d+)?)\s*months?\s+(?:to|-)\s+(\d+(?:\.\d+)?)\s*years?', text, re.IGNORECASE)
+    m = re.search(r'(\d+(?:\.\d+)?)\s*months?\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*years?', text, re.IGNORECASE)
     if m:
         return _build_exp_dict(float(m.group(1)), float(m.group(2)) * 12, text)
 
     # "X years to Y years" (e.g. "1.5 to 3 years" or "1.5 years to 3 years")
-    m = re.search(r'(\d+(?:\.\d+)?)\s*(?:years?)?\s+(?:to|-)\s+(\d+(?:\.\d+)?)\s*years?', text, re.IGNORECASE)
+    m = re.search(r'(\d+(?:\.\d+)?)\s*(?:years?)?\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*years?', text, re.IGNORECASE)
     if m:
         return _build_exp_dict(float(m.group(1)) * 12, float(m.group(2)) * 12, text)
 
     # "X months to Y months" (e.g. "6 to 12 months" or "6 months to 12 months")
-    m = re.search(r'(\d+(?:\.\d+)?)\s*(?:months?)?\s+(?:to|-)\s+(\d+(?:\.\d+)?)\s*months?', text, re.IGNORECASE)
+    m = re.search(r'(\d+(?:\.\d+)?)\s*(?:months?)?\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*months?', text, re.IGNORECASE)
     if m:
         return _build_exp_dict(float(m.group(1)), float(m.group(2)), text)
 
@@ -157,6 +157,7 @@ def _extract_skill_keywords(raw_prompt: str) -> List[str]:
 def _check_experience_python(
     resume: Dict[str, Any],
     exp_range: Dict[str, Optional[int]],
+    allow_overqualified: bool = False
 ) -> Dict[str, Any]:
     """
     Pure Python experience range check using pre-computed resume fields.
@@ -170,6 +171,7 @@ def _check_experience_python(
           'excess_months': int or None     -- how many months above maximum (None if not applicable)
           'reason': str or None            -- human-readable rejection reason with delta, None if passed
           'type_str': str                  -- only present on pass, e.g. 'Total experience'
+          'is_overqualified': bool         -- true if candidate passed via extended overqualified limits
         }
     """
     exp_data = resume.get('experience') or {}
@@ -193,6 +195,7 @@ def _check_experience_python(
                     f"Role is strictly for internship candidates, but candidate has "
                     f"{ft_months} month{'s' if ft_months != 1 else ''} of full-time experience."
                 ),
+                'is_overqualified': False
             }
         value_to_check = intern_months
         type_str = "Internship experience"
@@ -221,12 +224,29 @@ def _check_experience_python(
                 f"below the minimum requirement of {min_m} months "
                 f"(short by {shortfall} month{'s' if shortfall != 1 else ''})."
             ),
+            'is_overqualified': False
         }
 
     # --- Over-experience check ---
     if max_m is not None and value_to_check > max_m:
-        # Calculate exactly how many months above the maximum threshold
         excess = value_to_check - max_m
+        
+        # Phase 3: Allow Overqualified Support
+        if allow_overqualified:
+            extended_max = max_m + 12 if max_m <= 12 else max_m + 24
+            if value_to_check <= extended_max:
+                print(f"[OVERQUALIFIED] Candidate {value_to_check} months > {max_m} months, but allowed under extended {extended_max} months limit.", flush=True)
+                return {
+                    'passed': True,
+                    'total_months': value_to_check,
+                    'shortfall_months': None,
+                    'excess_months': excess,
+                    'reason': None,
+                    'type_str': type_str,
+                    'is_overqualified': True
+                }
+        
+        # Calculate exactly how many months above the maximum threshold
         max_display = (
             f"{max_m // 12} year{'s' if max_m >= 24 else ''}"
             if max_m % 12 == 0
@@ -242,6 +262,7 @@ def _check_experience_python(
                 f"exceeding the maximum requirement of {max_display} "
                 f"(over by {excess} month{'s' if excess != 1 else ''})."
             ),
+            'is_overqualified': False
         }
 
     # --- Passed both bounds ---
@@ -252,6 +273,7 @@ def _check_experience_python(
         'excess_months': None,
         'reason': None,
         'type_str': type_str,
+        'is_overqualified': False
     }
 
 
@@ -300,6 +322,7 @@ def check_experience_gate(
 
     # Try to find an experience clause (e.g. "2 to 5 years", "3+ years")
     exp_range = _parse_experience_range(raw_prompt)
+    allow_overqualified = True
 
     if exp_range is None:
         # No experience clause found in the HR filter text.
@@ -307,7 +330,7 @@ def check_experience_gate(
         return {'gate_applicable': False}
 
     # An experience clause was found. Run the pure-Python arithmetic check.
-    exp_check = _check_experience_python(resume, exp_range)
+    exp_check = _check_experience_python(resume, exp_range, allow_overqualified=allow_overqualified)
 
     return {
         'gate_applicable': True,
@@ -319,6 +342,7 @@ def check_experience_gate(
         'shortfall_months': exp_check.get('shortfall_months'),
         'excess_months': exp_check.get('excess_months'),
         'exp_range': exp_range,
+        'is_overqualified': exp_check.get('is_overqualified', False)
     }
 
 
@@ -503,7 +527,11 @@ async def _check_jd_compliances_llm(
 # PRIVATE RESULT BUILDERS
 # -----------------------------------------------------------------------------
 
-def _pass_result(requirements_met: List[str], selection_reason: Optional[str] = None) -> Dict[str, Any]:
+def _pass_result(
+    requirements_met: List[str], 
+    selection_reason: Optional[str] = None,
+    is_overqualified: bool = False
+) -> Dict[str, Any]:
     if not selection_reason:
         if requirements_met:
             selection_reason = f"Candidate met all mandatory requirements: {'; '.join(requirements_met[:3])}."
@@ -518,6 +546,7 @@ def _pass_result(requirements_met: List[str], selection_reason: Optional[str] = 
         "requirements_missing": [],
         "filter_reason": None,
         "selection_reason": selection_reason,
+        "is_overqualified": is_overqualified,
         "error": None,
     }
 
@@ -526,6 +555,7 @@ def _fail_result(
     requirements_met: List[str],
     requirements_missing: List[str],
     filter_reason: str,
+    is_overqualified: bool = False,
 ) -> Dict[str, Any]:
     total = len(requirements_met) + len(requirements_missing)
     score = round(len(requirements_met) / total, 4) if total > 0 else 0.0
@@ -536,6 +566,7 @@ def _fail_result(
         "requirements_met": requirements_met,
         "requirements_missing": requirements_missing,
         "filter_reason": filter_reason,
+        "is_overqualified": is_overqualified,
         "error": None,
     }
 
@@ -592,61 +623,75 @@ async def check_hard_requirements(
             return _pass_result([])
 
         # ==================================================================
-        # PRIMARY PATH: HR filter text is present
+        # PYTHON-FIRST PATH: Experience check always runs (deterministic),
+        # whether or not raw_prompt is set. Skill check runs only when the
+        # user explicitly defined keywords in raw_prompt.
+        #
+        # The LLM fallback (_check_jd_compliances_llm) has been removed —
+        # it was producing incorrect rejections (e.g. claiming 8 months
+        # exceeds a 12-month maximum, which is mathematically wrong).
         # ==================================================================
+        requirements_met: List[str] = []
+        requirements_missing: List[str] = []
+
+        # -- Phase 1: Experience range (Python, deterministic) ----------
+        # Parse from raw_prompt if present; otherwise use JD analysis data.
+        exp_range = _parse_experience_range(raw_prompt) if raw_prompt else None
+
+        # Automatic JD Experience Safeguard: If HR prompt has no experience range,
+        # automatically pull from JD experience_requirements
+        if exp_range is None and jd_analysis.get('experience_requirements'):
+            jd_exp_req = jd_analysis['experience_requirements']
+            min_m = jd_exp_req.get('minimum_experience_months')
+            max_m = jd_exp_req.get('maximum_experience_months')
+            if min_m is not None or max_m is not None:
+                exp_range = {
+                    'min_months': int(min_m or 0),
+                    'max_months': int(max_m) if max_m is not None else None,
+                    'exp_type': 'total'
+                }
+                print(f"📊 [COMPLIANCE] Using automatic JD experience safeguard: [{exp_range['min_months']} - {exp_range['max_months']} months]")
+
+        allow_overqualified = True
+        is_overqualified = False
+
+        if exp_range is not None:
+            exp_check = _check_experience_python(resume, exp_range, allow_overqualified=allow_overqualified)
+            is_overqualified = exp_check.get('is_overqualified', False)
+
+            if not exp_check['passed']:
+                # Log the rejection reason as a clean one-liner
+                print(f"📊 [COMPLIANCE] Experience Rejection: {exp_check['reason']}")
+                return _fail_result(
+                    requirements_met=[],
+                    requirements_missing=[f"{exp_check.get('type_str', 'Experience').split()[0]}: {exp_check['reason']}"],
+                    filter_reason=exp_check['reason'],
+                    is_overqualified=is_overqualified,
+                )
+
+            # Experience passed -- record it
+            total = exp_check['total_months']
+            min_m = exp_range['min_months']
+            max_m = exp_range.get('max_months')
+            type_str = exp_check.get('type_str', 'Total experience')
+
+            max_display = (
+                f"{max_m // 12} year{'s' if max_m >= 24 else ''}"
+                if max_m is not None and max_m % 12 == 0
+                else (f"{max_m} months" if max_m is not None else "no upper limit")
+            )
+
+            # Log success verification as a clean one-liner
+            print(f"📊 [COMPLIANCE] Experience Passed: {type_str} is {total} months (Required: {min_m} to {max_display})")
+
+            requirements_met.append(
+                f"{type_str}: {total} months is within the required range "
+                f"({min_m} months - {max_display})"
+            )
+
+        # -- Phase 2: Skill keywords (LLM, label + synonym + compound) --
+        # Only runs when the user explicitly defined skill requirements in raw_prompt.
         if raw_prompt:
-            requirements_met: List[str] = []
-            requirements_missing: List[str] = []
-
-            # -- Phase 1: Experience range (Python, deterministic) ----------
-            exp_range = _parse_experience_range(raw_prompt)
-
-            # Automatic JD Experience Safeguard: If HR prompt has no experience range, automatically pull from JD experience_requirements
-            if exp_range is None and jd_analysis.get('experience_requirements'):
-                jd_exp_req = jd_analysis['experience_requirements']
-                min_m = jd_exp_req.get('minimum_experience_months')
-                max_m = jd_exp_req.get('maximum_experience_months')
-                if min_m is not None or max_m is not None:
-                    exp_range = {
-                        'min_months': int(min_m or 0),
-                        'max_months': int(max_m) if max_m is not None else None,
-                        'exp_type': 'total'
-                    }
-                    print(f"📊 [COMPLIANCE] Using automatic JD experience safeguard: [{exp_range['min_months']} - {exp_range['max_months']} months]")
-
-            if exp_range is not None:
-                exp_check = _check_experience_python(resume, exp_range)
-
-                if not exp_check['passed']:
-                    # Log the rejection reason as a clean one-liner
-                    print(f"📊 [COMPLIANCE] Experience Rejection: {exp_check['reason']}")
-                    return _fail_result(
-                        requirements_met=[],
-                        requirements_missing=[f"{exp_check.get('type_str', 'Experience').split()[0]}: {exp_check['reason']}"],
-                        filter_reason=exp_check['reason'],
-                    )
-
-                # Experience passed -- record it
-                total = exp_check['total_months']
-                min_m = exp_range['min_months']
-                max_m = exp_range.get('max_months')
-                type_str = exp_check.get('type_str', 'Total experience')
-                
-                max_display = (
-                    f"{max_m // 12} year{'s' if max_m >= 24 else ''}"
-                    if max_m is not None and max_m % 12 == 0
-                    else (f"{max_m} months" if max_m is not None else "no upper limit")
-                )
-                
-                # Log success verification as a clean one-liner
-                print(f"📊 [COMPLIANCE] Experience Passed: {type_str} is {total} months (Required: {min_m} to {max_display})")
-                
-                requirements_met.append(
-                    f"{type_str}: {total} months is within the required range "
-                    f"({min_m} months - {max_display})"
-                )
-
-            # -- Phase 2: Skill keywords (LLM, label + synonym + compound) --
             skill_keywords = _extract_skill_keywords(raw_prompt)
 
             if skill_keywords:
@@ -673,24 +718,8 @@ async def check_hard_requirements(
                         filter_reason=f"Missing required skill(s): {', '.join(missing_names)}",
                     )
 
-            # All checks passed
-            return _pass_result(requirements_met)
-
-        # ==================================================================
-        # FALLBACK PATH: No HR filter text -- use jd_analysis list
-        # ==================================================================
-        result = await _check_jd_compliances_llm(resume, jd_compliances)
-        meets_all = bool(result.get('meets_all_requirements', True))
-        return {
-            "success": True,
-            "meets_all_requirements": meets_all,
-            "compliance_score": float(result.get('compliance_score', 1.0)),
-            "requirements_met": result.get('requirements_met') or [],
-            "requirements_missing": result.get('requirements_missing') or [],
-            "filter_reason": result.get('filter_reason') or None,
-            "selection_reason": result.get('selection_reason') or ("Candidate met all mandatory compliance criteria." if meets_all else None),
-            "error": None,
-        }
+        # All checks passed (experience within range, all skills found, or no checks required)
+        return _pass_result(requirements_met, is_overqualified=is_overqualified)
 
     except Exception as e:
         print(f"⚠️ [COMPLIANCE] Engine error: {e}")

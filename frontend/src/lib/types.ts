@@ -236,6 +236,7 @@ export interface RankedCandidate {
   project_score: number;
   compliance_score: number;
   is_compliant: boolean;
+  is_overqualified?: boolean;
   group_name?: string;
   re_rank_score?: number;
   score_breakdown?: {

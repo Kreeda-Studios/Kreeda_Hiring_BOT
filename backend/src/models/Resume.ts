@@ -123,6 +123,8 @@ interface IScores {
     requirements_met?: string[];
     requirements_missing?: string[];
     filter_reason?: string;
+    selection_reason?: string;
+    is_overqualified?: boolean;
     details?: any;
   };
   project_score?: number;
@@ -253,6 +255,7 @@ const scoresSchema = new Schema({
     requirements_missing: [String],
     filter_reason: String,
     selection_reason: String,
+    is_overqualified: Boolean,
     details: Schema.Types.Mixed
   },
   project_score: Number,

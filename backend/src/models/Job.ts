@@ -198,6 +198,7 @@ interface IEmbeddings {
 export interface IJob extends Document {
   title: string;
   description: string;
+  allow_overqualified?: boolean;
   status: 'draft' | 'jd_processing_started' | 'jd_processing_failed' | 'jd_processing_completed' | 'resume_processing_started' | 'resume_processing_failed' | 'resume_processing_completed' | 'ranking_started' | 'ranking_failed' | 'ranking_completed';
   locked: boolean;
 
@@ -390,6 +391,10 @@ const jobSchema = new Schema<IJob>({
     type: String,
     trim: true,
     required: false
+  },
+  allow_overqualified: {
+    type: Boolean,
+    default: false
   },
   status: {
     type: String,
