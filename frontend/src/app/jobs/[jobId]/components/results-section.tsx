@@ -110,7 +110,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("final_score");
   const [filterCompliant, setFilterCompliant] = useState<"all" | "compliant" | "non-compliant">("all");
-  const [showOverqualified, setShowOverqualified] = useState(false);
+  const [showOverqualified, setShowOverqualified] = useState(true);
   const [expandedFiltered, setExpandedFiltered] = useState<Set<string>>(new Set());
 
   // Convert scores to rankings for display
@@ -252,8 +252,16 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     );
   };
 
-  const perfectMatchRankings = rankings.filter(r => r.is_compliant && !r.is_overqualified).filter(searchFilter);
-  const overqualifiedRankings = rankings.filter(r => r.is_compliant && r.is_overqualified).filter(searchFilter);
+  const perfectMatchRankings = rankings
+    .filter(r => r.is_compliant && !r.is_overqualified)
+    .filter(searchFilter)
+    .map((r, index) => ({ ...r, rank: index + 1 }));
+
+  const overqualifiedRankings = rankings
+    .filter(r => r.is_compliant && r.is_overqualified)
+    .filter(searchFilter)
+    .map((r, index) => ({ ...r, rank: index + 1 }));
+
   const filteredOutCandidates = rankings.filter(r => !r.is_compliant).filter(searchFilter);
   
   const filteredRankings = [...perfectMatchRankings, ...overqualifiedRankings];
@@ -560,9 +568,9 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
               </CardTitle>
               <CardDescription>
                 Showing {perfectMatchRankings.length} ranked candidates
-                {filteredOutCandidates.length > 0 && (
+                {(filteredOutCandidates.length + overqualifiedRankings.length) > 0 && (
                   <span className="text-orange-600">
-                    {' '}• {filteredOutCandidates.length} filtered out
+                    {' '}• {filteredOutCandidates.length + overqualifiedRankings.length} filtered out
                   </span>
                 )}
               </CardDescription>
@@ -615,7 +623,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                 </TabsTrigger>
                 <TabsTrigger value="filtered-out" className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-orange-500" />
-                  Filtered Out ({filteredOutCandidates.length})
+                  Filtered Out ({filteredOutCandidates.length + overqualifiedRankings.length})
                 </TabsTrigger>
               </TabsList>
               

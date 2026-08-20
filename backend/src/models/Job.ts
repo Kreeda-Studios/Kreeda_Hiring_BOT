@@ -138,27 +138,20 @@ interface IMeta {
 }
 
 interface IFilterRequirements {
-  raw_prompt?: string;
-  structured?: {
-    experience?: {
-      min?: number;
-      max?: number;
-      field?: string;
-      specified?: boolean;
+  mandatory_compliances?: {
+    raw_prompt?: string;
+    structured?: {
+      experience?: {
+        min?: number;
+        max?: number;
+      };
+      skills?: string[];
     };
-    hard_skills?: string[];
-    preferred_skills?: string[];
-    department?: {
-      category?: 'IT' | 'Non-IT' | 'Specific';
-      allowed_departments?: string[];
-      excluded_departments?: string[];
-      specified?: boolean;
-    };
-    location?: string;
-    education?: string[];
-    other_criteria?: string[];
   };
-  re_ranking_instructions?: string;
+  soft_compliances?: {
+    raw_prompt?: string;
+    structured?: any;
+  };
 }
 
 interface IJDAnalysis {
@@ -234,7 +227,13 @@ export interface IJob extends Document {
 const complianceFilterRequirementsSchema = new Schema({
   mandatory_compliances: {
     raw_prompt: { type: String, default: '' },
-    structured: { type: Schema.Types.Mixed, default: {} }
+    structured: {
+      experience: {
+        min: { type: Number },
+        max: { type: Number }
+      },
+      skills: { type: [String], default: [] }
+    }
   },
   soft_compliances: {
     raw_prompt: { type: String, default: '' },

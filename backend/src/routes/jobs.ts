@@ -162,19 +162,27 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Accept four variables directly in the request body
+    // Accept structured variables directly in the request body
     const {
       jd_pdf_filename = '',
       jd_text = '',
-      mandatory_compliances = '',
+      minExperience,
+      maxExperience,
+      mandatorySkills,
       soft_compliances = ''
     } = req.body;
 
     // Structure filter_requirements from the variables
     const filter_requirements = {
       mandatory_compliances: {
-        raw_prompt: mandatory_compliances,
-        structured: {}
+        raw_prompt: '', // Now deprecated in favor of structured
+        structured: {
+          experience: {
+            min: minExperience !== undefined ? Number(minExperience) : undefined,
+            max: maxExperience !== undefined ? Number(maxExperience) : undefined
+          },
+          skills: Array.isArray(mandatorySkills) ? mandatorySkills : (mandatorySkills ? mandatorySkills.split(',').map((s: string) => s.trim()).filter(Boolean) : [])
+        }
       },
       soft_compliances: {
         raw_prompt: soft_compliances,

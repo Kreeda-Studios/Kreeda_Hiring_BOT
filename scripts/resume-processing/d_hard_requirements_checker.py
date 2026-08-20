@@ -618,8 +618,12 @@ async def check_hard_requirements(
         jd_analysis = jd_data.get('jd_analysis') or {}
         jd_compliances: List[str] = jd_analysis.get('mandatory_compliances') or []
 
+        structured = mandatory_block.get('structured') or {}
+        has_structured_exp = structured.get('experience', {}).get('min') is not None or structured.get('experience', {}).get('max') is not None
+        has_structured_skills = bool(structured.get('skills'))
+        
         # -- Nothing to filter on -> pass everyone -------------------------
-        if not raw_prompt and not jd_compliances:
+        if not raw_prompt and not jd_compliances and not has_structured_exp and not has_structured_skills:
             return _pass_result([])
 
         # ==================================================================
@@ -635,8 +639,19 @@ async def check_hard_requirements(
         requirements_missing: List[str] = []
 
         # -- Phase 1: Experience range (Python, deterministic) ----------
-        # Parse from raw_prompt if present; otherwise use JD analysis data.
-        exp_range = _parse_experience_range(raw_prompt) if raw_prompt else None
+        exp_struct = structured.get('experience') or {}
+        
+        min_exp = exp_struct.get('min')
+        max_exp = exp_struct.get('max')
+        
+        if min_exp is not None or max_exp is not None:
+            exp_range = {
+                'min_months': int(min_exp) if min_exp is not None else 0,
+                'max_months': int(max_exp) if max_exp is not None else None,
+                'exp_type': 'total'
+            }
+        else:
+            exp_range = None
 
         # Automatic JD Experience Safeguard: If HR prompt has no experience range,
         # automatically pull from JD experience_requirements
@@ -690,11 +705,9 @@ async def check_hard_requirements(
             )
 
         # -- Phase 2: Skill keywords (LLM, label + synonym + compound) --
-        # Only runs when the user explicitly defined skill requirements in raw_prompt.
-        if raw_prompt:
-            skill_keywords = _extract_skill_keywords(raw_prompt)
+        skill_keywords = structured.get('skills') or []
 
-            if skill_keywords:
+        if skill_keywords:
                 skill_result = await _check_skills_llm(resume, skill_keywords)
                 skills_check: List[Dict] = skill_result.get('skills_check') or []
 

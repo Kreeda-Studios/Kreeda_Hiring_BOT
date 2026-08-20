@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -49,8 +50,18 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
 
   const [jd_pdf_filename, setJdPdfFilename] = useState(job.jd_pdf_filename || "");
   const [jdText, setJdText] = useState(job.jd_text || "");
-  const [mandatoryCompliances, setMandatoryCompliances] = useState(
-    job.filter_requirements?.mandatory_compliances?.raw_prompt || ""
+  const [minExperience, setMinExperience] = useState<string>(
+    job.filter_requirements?.mandatory_compliances?.structured?.experience?.min !== undefined 
+      ? String((job.filter_requirements.mandatory_compliances.structured.experience.min / 12).toFixed(1)).replace(/\.0$/, '')
+      : ""
+  );
+  const [maxExperience, setMaxExperience] = useState<string>(
+    job.filter_requirements?.mandatory_compliances?.structured?.experience?.max !== undefined 
+      ? String((job.filter_requirements.mandatory_compliances.structured.experience.max / 12).toFixed(1)).replace(/\.0$/, '')
+      : ""
+  );
+  const [mandatorySkills, setMandatorySkills] = useState<string>(
+    job.filter_requirements?.mandatory_compliances?.structured?.skills?.join(', ') || ""
   );
   const [softCompliances, setSoftCompliances] = useState(
     job.filter_requirements?.soft_compliances?.raw_prompt || ""
@@ -221,7 +232,9 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
       const updateResponse = await jobsAPI.update(jobId, {
         jd_pdf_filename,
         jd_text: jdText,
-        mandatory_compliances: mandatoryCompliances,
+        minExperience: minExperience ? Number(minExperience) * 12 : undefined,
+        maxExperience: maxExperience ? Number(maxExperience) * 12 : undefined,
+        mandatorySkills: mandatorySkills,
         soft_compliances: softCompliances
       });
       if (!updateResponse.success) {
@@ -430,19 +443,47 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row gap-6">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="mandatory-compliance">
+            <div className="flex-1 space-y-4">
+              <Label>
                 Mandatory Compliance Requirements
               </Label>
-              <Textarea
-                id="mandatory-compliance"
-                placeholder="e.g., Must have Python, Machine Learning, minimum 3 years experience..."
-                value={mandatoryCompliances}
-                onChange={e => !isLocked && setMandatoryCompliances(e.target.value)}
-                rows={4}
-                className="resize-none"
-                disabled={isLocked}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="min-experience" className="text-xs text-muted-foreground">Min Experience (Years)</Label>
+                  <Input
+                    id="min-experience"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder="e.g., 2.5"
+                    value={minExperience}
+                    onChange={e => !isLocked && setMinExperience(e.target.value)}
+                    disabled={isLocked}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="max-experience" className="text-xs text-muted-foreground">Max Experience (Years)</Label>
+                  <Input
+                    id="max-experience"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={maxExperience}
+                    onChange={e => !isLocked && setMaxExperience(e.target.value)}
+                    disabled={isLocked}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mandatory-skills" className="text-xs text-muted-foreground">Mandatory Skills (Comma Separated)</Label>
+                <Input
+                  id="mandatory-skills"
+                  placeholder="e.g., Python, React, Machine Learning"
+                  value={mandatorySkills}
+                  onChange={e => !isLocked && setMandatorySkills(e.target.value)}
+                  disabled={isLocked}
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
                 Candidates must meet ALL mandatory requirements to pass initial screening.
               </p>
