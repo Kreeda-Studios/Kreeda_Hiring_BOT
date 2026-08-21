@@ -379,11 +379,13 @@ async def _check_skills_llm(
     provided: List[str] = skills_data.get('provided') or []
     inferred: List[str] = skills_data.get('inferred') or []
 
-    project_titles = [
+    project_mentions: List[str] = [
         p.get('title', '')
         for p in (resume.get('projects') or [])
         if p.get('title')
     ]
+
+    certifications: List[str] = resume.get('certifications') or []
 
     impact_bullets: List[str] = []
     for entry in (resume.get('experience') or {}).get('details') or []:
@@ -440,7 +442,8 @@ async def _check_skills_llm(
         f"REQUIRED SKILLS:\n{json.dumps(required_skills)}\n\n"
         f"RESUME PROVIDED SKILLS:\n{json.dumps(provided)}\n\n"
         f"RESUME INFERRED SKILLS:\n{json.dumps(inferred)}\n\n"
-        f"PROJECT TITLES:\n{json.dumps(project_titles)}\n\n"
+        f"PROJECT MENTIONS (titles):\n{json.dumps(project_mentions)}\n\n"
+        f"CERTIFICATIONS:\n{json.dumps(certifications)}\n\n"
         f"EXPERIENCE IMPACT BULLETS (top 15):\n{json.dumps(impact_bullets)}\n\n"
         f"For each required skill: apply Rule 1 first, then Rule 2. Return the JSON."
     )

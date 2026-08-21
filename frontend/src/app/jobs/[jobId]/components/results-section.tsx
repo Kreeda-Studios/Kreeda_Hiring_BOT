@@ -113,6 +113,9 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
   const [filterCompliant, setFilterCompliant] = useState<"all" | "compliant" | "non-compliant">("all");
   const [showOverqualified, setShowOverqualified] = useState(true);
   const [expandedFiltered, setExpandedFiltered] = useState<Set<string>>(new Set());
+  const [selectedPerfect, setSelectedPerfect] = useState<Set<string>>(new Set());
+  const [selectedOQ, setSelectedOQ] = useState<Set<string>>(new Set());
+  const [selectedFiltered, setSelectedFiltered] = useState<Set<string>>(new Set());
 
   // Convert scores to rankings for display
   const convertScoresToRankings = (scoreData: ScoreData[]): RankedCandidate[] => {
@@ -293,12 +296,56 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleBulkDownload = async (resumeIds: string[]) => {
+    if (resumeIds.length === 0) return;
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/resumes/bulk-download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumeIds }),
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `resumes-${new Date().toISOString().split('T')[0]}.zip`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Bulk download error:', error);
+    }
+  };
+
   const renderRankedTable = (
     title: string,
     candidates: RankedCandidate[],
     icon: React.ReactNode,
-    titleColorClass: string = ""
+    titleColorClass: string = "",
+    selected: Set<string>,
+    setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
   ) => {
+    const allIds = candidates.map(c => c.resume_id);
+    const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id));
+    const someSelected = allIds.some(id => selected.has(id)) && !allSelected;
+
+    const toggleAll = () => {
+      if (allSelected) {
+        setSelected(prev => { const next = new Set(prev); allIds.forEach(id => next.delete(id)); return next; });
+      } else {
+        setSelected(prev => new Set([...prev, ...allIds]));
+      }
+    };
+
+    const toggleOne = (id: string) => {
+      setSelected(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
+    };
+
+    const selectedInSection = allIds.filter(id => selected.has(id));
     return (
       <div className="space-y-4">
         {candidates.length === 0 ? (
@@ -308,10 +355,41 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
             description={`None of the candidates fell into the ${title} category based on your filters.`}
           />
         ) : (
+          <div className="space-y-3">
+            {/* Download toolbar */}
+            <div className="flex items-center gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                disabled={selectedInSection.length === 0}
+                onClick={() => handleBulkDownload(selectedInSection)}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download Selected ({selectedInSection.length})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                onClick={() => handleBulkDownload(allIds)}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download All ({allIds.length})
+              </Button>
+            </div>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    data-state={someSelected ? 'indeterminate' : undefined}
+                    onCheckedChange={toggleAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead className="w-16">Rank</TableHead>
                 <TableHead>Candidate</TableHead>
                 <TableHead>Email</TableHead>
@@ -325,6 +403,13 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
             <TableBody>
               {candidates.map((candidate) => (
                 <TableRow key={candidate.resume_id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(candidate.resume_id)}
+                      onCheckedChange={() => toggleOne(candidate.resume_id)}
+                      aria-label={`Select ${candidate.candidate_name}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {candidate.rank <= 3 && (
@@ -490,12 +575,38 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
             </TableBody>
           </Table>
         </div>
+        </div>
         )}
       </div>
     );
   };
 
-  const renderFilteredTable = (candidates: RankedCandidate[]) => {
+  const renderFilteredTable = (
+    candidates: RankedCandidate[],
+    selected: Set<string>,
+    setSelected: React.Dispatch<React.SetStateAction<Set<string>>>
+  ) => {
+    const allIds = candidates.map(c => c.resume_id);
+    const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id));
+    const someSelected = allIds.some(id => selected.has(id)) && !allSelected;
+
+    const toggleAll = () => {
+      if (allSelected) {
+        setSelected(prev => { const next = new Set(prev); allIds.forEach(id => next.delete(id)); return next; });
+      } else {
+        setSelected(prev => new Set([...prev, ...allIds]));
+      }
+    };
+
+    const toggleOne = (id: string) => {
+      setSelected(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
+    };
+
+    const selectedInSection = allIds.filter(id => selected.has(id));
     return (
       <div className="space-y-4 mt-6">
         {candidates.length === 0 ? (
@@ -505,10 +616,41 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
             description="All candidates met the mandatory requirements."
           />
         ) : (
+          <div className="space-y-3">
+            {/* Download toolbar */}
+            <div className="flex items-center gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                disabled={selectedInSection.length === 0}
+                onClick={() => handleBulkDownload(selectedInSection)}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download Selected ({selectedInSection.length})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                onClick={() => handleBulkDownload(allIds)}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download All ({allIds.length})
+              </Button>
+            </div>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    data-state={someSelected ? 'indeterminate' : undefined}
+                    onCheckedChange={toggleAll}
+                    aria-label="Select all filtered"
+                  />
+                </TableHead>
                 <TableHead>Candidate</TableHead>
                 <TableHead>Reason</TableHead>
               </TableRow>
@@ -516,6 +658,13 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
             <TableBody>
               {candidates.map((candidate) => (
                 <TableRow key={candidate.resume_id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(candidate.resume_id)}
+                      onCheckedChange={() => toggleOne(candidate.resume_id)}
+                      aria-label={`Select ${candidate.candidate_name}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
@@ -540,6 +689,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
         )}
       </div>
@@ -629,7 +779,7 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
               </TabsList>
               
               <TabsContent value="perfect-match">
-                {renderRankedTable("Perfect Match", perfectMatchRankings, <Trophy className="h-5 w-5 text-yellow-500" />)}
+                {renderRankedTable("Perfect Match", perfectMatchRankings, <Trophy className="h-5 w-5 text-yellow-500" />, "", selectedPerfect, setSelectedPerfect)}
               </TabsContent>
               
               <TabsContent value="filtered-out">
@@ -656,13 +806,13 @@ export function ResultsSection({ jobId }: ResultsSectionProps) {
                     
                     {showOverqualified && (
                       <div className="mt-4">
-                        {renderRankedTable("Overqualified", overqualifiedRankings, <Star className="h-5 w-5 text-purple-500" />, "text-purple-700")}
+                        {renderRankedTable("Overqualified", overqualifiedRankings, <Star className="h-5 w-5 text-purple-500" />, "text-purple-700", selectedOQ, setSelectedOQ)}
                       </div>
                     )}
                   </div>
                 )}
 
-                {renderFilteredTable(filteredOutCandidates)}
+                {renderFilteredTable(filteredOutCandidates, selectedFiltered, setSelectedFiltered)}
               </TabsContent>
             </Tabs>
           )}

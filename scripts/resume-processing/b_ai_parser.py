@@ -151,18 +151,83 @@ You MUST follow these rules:
 
 . Skills Rules
   - provided: Extract ONLY EXPLICIT HARD/TECHNICAL SKILLS from the resume. Do NOT include soft skills here.
-  - inferred: Infer explicit HARD/TECHNICAL SKILLS from Experience, Projects, Certifications, Education sections, STRICTLY No explanation of the skill, and the skill should be in the resume.
+  - inferred: Extract every named tool, software, platform, framework, or technology that is explicitly
+    mentioned ANYWHERE in the resume — in Experience bullets, Project descriptions, Certifications,
+    Education, or any other section — even if it is not listed under a dedicated Skills section.
+    Rules:
+      * Include it if the tool/technology name appears verbatim or as a clear abbreviation in any
+        sentence anywhere in the resume. Example: "Used Figma to design wireframes" → infer "Figma".
+      * Do NOT invent tools not mentioned. The name must appear explicitly in the resume text.
+      * No explanations — only the tool/skill name.
+      * Do not duplicate skills already in `provided`.
+      * This list is a complete safety net — be thorough, not conservative.
   - soft_skills: Extract any soft skills (e.g. "Analytical thinking", "Team collaboration", "Problem solving") here.
   - Do not invent technologies not mentioned anywhere in the resume.
 
 . Projects Rules
-  For each project extract: Title, Demo link (if explicitly present), Code Link (if explicitly present).
-  You must generate "metric_ai" with:
-  - impact (0.0 to 1.0)
-  - difficulty (1–10)
-  - complexity (1–10)
-  - domain_relevance (1–10)
-  Metrics must reflect technical depth, architecture sophistication, and alignment with chosen Domain. Do not inflate scores.
+
+  STEP 1 — RECOGNITION: What qualifies as a project?
+  Before extracting fields, first identify what counts as a project entry.
+
+  A. Named individual project: A specifically titled deliverable (e.g. "E-Commerce App", "Figma Redesign for XYZ")
+     → Extract as one project entry per named item.
+
+  B. Generic/collective project section: A section heading that signals project work (contains words like
+     "Projects", "Portfolio", "Case Studies", "Work Samples", "Designs", "Builds", "Side Projects",
+     "Personal Projects", "Academic Projects", "Contributions", "Open Source", "Freelance Work")
+     BUT lists bullet points describing collective/general work with no individually named sub-projects.
+     → Treat the ENTIRE section as ONE project entry:
+         * title       → the section heading exactly as written
+         * demo_link   → null (unless explicitly present)
+         * code_link   → null (unless explicitly present)
+         * metric_ai   → score based on the described work in the bullets
+
+  C. Projects embedded in Education: If an Education entry mentions a "Final Year Project", "Capstone",
+     "Thesis", "Academic Project", "Major Project", or similar academic deliverable with a description
+     → Extract it as a separate Project entry (do NOT leave it only in Education).
+
+  D. Projects mentioned in Certifications: If a certification entry describes case studies, capstone
+     projects, or portfolio work (e.g. "Google UX Design Certificate – 3 case studies")
+     → Extract the described work as a Project entry.
+
+  E. Projects mentioned in Summary/About Me: If the summary describes a specific built thing
+     (uses words like "built", "developed", "designed", "created", "launched") with enough detail
+     → Extract it as a Project entry.
+
+  STEP 2 — BOUNDARY: Project vs Experience (do NOT mix these)
+
+  An entry belongs in EXPERIENCE (not Projects) if it satisfies ALL THREE:
+    1. A named external organization/company acts as the EMPLOYER (not merely a client mention)
+    2. A job title / role name is present
+    3. A time period (start + end dates) is explicitly stated
+
+  An entry belongs in PROJECTS if ANY of the following are true:
+    - No employer at all (personal, academic, or self-directed work)
+    - "Self-employed", "Freelance", "Independent" is listed as the organization but there is NO job title
+    - It appears under a Projects/Portfolio/Case Studies heading regardless of format
+    - The word "project", "case study", "capstone", "thesis", "hackathon", or "competition" is used
+    - It describes something *built*, *designed*, *created*, or *developed* with no employer-employee structure
+
+  GRAY AREA RULE: "Freelance Designer, Self-employed" WITH a role title AND dates → Experience.
+                  "Designed logo for XYZ Corp" under a Projects section → Project.
+
+  STEP 3 — EXTRACTION: For every identified project entry, extract:
+  - title: the project name or section heading
+  - demo_link: only if an explicit URL is present; otherwise null
+  - code_link: only if an explicit URL is present; otherwise null
+  - metric_ai: generate scores reflecting:
+      * impact (0.0 to 1.0): real-world usefulness or user reach of the work
+      * difficulty (1–10): technical difficulty of implementation
+      * complexity (1–10): architectural or design complexity
+      * domain_relevance (1–10): alignment with the candidate's identified domain
+    Metrics must reflect actual described work. Do not inflate scores.
+
+  GRACEFUL DEGRADATION RULE:
+  When uncertain whether something is a project, EXTRACT IT as a project rather than skipping.
+  Reason: a borderline extraction will score low via metric_ai (recoverable).
+  A missed section results in a permanent 0% project score (not recoverable).
+  The cost of over-extracting is always lower than the cost of under-extracting.
+
 
 . Hyperlink Rules
   - The resume may contain embedded hyperlinks. These will be provided separately.
