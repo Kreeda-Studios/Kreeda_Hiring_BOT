@@ -320,15 +320,23 @@ def check_experience_gate(
         .get('raw_prompt', '') or ''
     ).strip()
 
-    # Try to find an experience clause (e.g. "2 to 5 years", "3+ years")
+    # Try to find an experience range (e.g. "2 to 5 years", "3+ years")
     exp_range = _parse_experience_range(raw_prompt)
     allow_overqualified = True
-
+ 
     if exp_range is None:
         # No experience clause found in the HR filter text.
         # Gate is not applicable -- caller should skip this gate entirely.
         return {'gate_applicable': False}
 
+    # If the database filter specifies include_intern, apply it to the pre-filter gate too
+    filter_reqs = jd_data.get('filter_requirements') or {}
+    mandatory_block = filter_reqs.get('mandatory_compliances') or {}
+    structured = mandatory_block.get('structured') or {}
+    exp_struct = structured.get('experience') or {}
+    if bool(exp_struct.get('include_intern', False)):
+        exp_range['exp_type'] = 'total'
+ 
     # An experience clause was found. Run the pure-Python arithmetic check.
     exp_check = _check_experience_python(resume, exp_range, allow_overqualified=allow_overqualified)
 
@@ -646,12 +654,13 @@ async def check_hard_requirements(
         
         min_exp = exp_struct.get('min')
         max_exp = exp_struct.get('max')
+        include_intern = bool(exp_struct.get('include_intern', False))
         
         if min_exp is not None or max_exp is not None:
             exp_range = {
                 'min_months': int(min_exp) if min_exp is not None else 0,
                 'max_months': int(max_exp) if max_exp is not None else None,
-                'exp_type': 'full_time'
+                'exp_type': 'total' if include_intern else 'full_time'
             }
         else:
             exp_range = None
@@ -666,7 +675,7 @@ async def check_hard_requirements(
                 exp_range = {
                     'min_months': int(min_m or 0),
                     'max_months': int(max_m) if max_m is not None else None,
-                    'exp_type': 'full_time'
+                    'exp_type': 'total' if include_intern else 'full_time'
                 }
                 print(f"📊 [COMPLIANCE] Using automatic JD experience safeguard: [{exp_range['min_months']} - {exp_range['max_months']} months]")
 

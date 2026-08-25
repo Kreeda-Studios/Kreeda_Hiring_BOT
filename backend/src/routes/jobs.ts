@@ -168,6 +168,7 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
       jd_text = '',
       minExperience,
       maxExperience,
+      include_intern,
       mandatorySkills,
       soft_compliances = ''
     } = req.body;
@@ -179,7 +180,8 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
         structured: {
           experience: {
             min: minExperience !== undefined ? Number(minExperience) : undefined,
-            max: maxExperience !== undefined ? Number(maxExperience) : undefined
+            max: maxExperience !== undefined ? Number(maxExperience) : undefined,
+            include_intern: include_intern === true || include_intern === 'true'
           },
           skills: Array.isArray(mandatorySkills) ? mandatorySkills : (mandatorySkills ? mandatorySkills.split(',').map((s: string) => s.trim()).filter(Boolean) : [])
         }

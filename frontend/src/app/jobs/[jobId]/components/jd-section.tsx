@@ -63,6 +63,9 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
   const [mandatorySkills, setMandatorySkills] = useState<string>(
     job.filter_requirements?.mandatory_compliances?.structured?.skills?.join(', ') || ""
   );
+  const [includeIntern, setIncludeIntern] = useState<boolean>(
+    job.filter_requirements?.mandatory_compliances?.structured?.experience?.include_intern || false
+  );
   const [softCompliances, setSoftCompliances] = useState(
     job.filter_requirements?.soft_compliances?.raw_prompt || ""
   );
@@ -234,6 +237,7 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
         jd_text: jdText,
         minExperience: minExperience ? Number(minExperience) * 12 : undefined,
         maxExperience: maxExperience ? Number(maxExperience) * 12 : undefined,
+        include_intern: includeIntern,
         mandatorySkills: mandatorySkills,
         soft_compliances: softCompliances
       });
@@ -472,6 +476,19 @@ export function JDSection({ job, jobId, onJobUpdate, onRefreshStatus }: JDSectio
                     onChange={e => !isLocked && setMaxExperience(e.target.value)}
                     disabled={isLocked}
                   />
+                </div>
+                <div className="flex items-center space-x-2 pt-1 col-span-2">
+                  <input
+                    type="checkbox"
+                    id="include-intern"
+                    checked={includeIntern}
+                    onChange={e => !isLocked && setIncludeIntern(e.target.checked)}
+                    disabled={isLocked}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <Label htmlFor="include-intern" className="text-xs text-muted-foreground cursor-pointer select-none font-normal">
+                    Include Internship experience in total experience calculation
+                  </Label>
                 </div>
               </div>
               <div className="space-y-2">

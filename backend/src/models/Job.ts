@@ -144,6 +144,7 @@ interface IFilterRequirements {
       experience?: {
         min?: number;
         max?: number;
+        include_intern?: boolean;
       };
       skills?: string[];
     };
@@ -230,7 +231,8 @@ const complianceFilterRequirementsSchema = new Schema({
     structured: {
       experience: {
         min: { type: Number },
-        max: { type: Number }
+        max: { type: Number },
+        include_intern: { type: Boolean, default: false }
       },
       skills: { type: [String], default: [] }
     }
@@ -248,6 +250,7 @@ const jdAnalysisFilterRequirementsSchema = new Schema({
     experience: {
       min: Number,
       max: Number,
+      include_intern: { type: Boolean, default: false },
       field: String,
       specified: Boolean
     },
